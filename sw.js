@@ -1,5 +1,5 @@
 /* Belegbuch – Offline-Speicher für die App-Dateien */
-var VERSION = 'belegbuch-v43';
+var VERSION = 'belegbuch-v44';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 var EXTRA = ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 self.addEventListener('install', function (e) {

@@ -310,6 +310,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <h2 class="section-h" id="backupH">Sicherung</h2>
       <div class="syncbox">
         <p class="hint" id="backupInfo" style="margin:0"></p>
+        <div class="field" style="margin:0"><label for="pwNew">Passwort für Sicherungen und Abgleich-Datei (mindestens 8 Zeichen)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" data-act="pw-set">Passwort setzen</button><button type="button" class="btn small danger" id="pwClear" data-act="pw-clear" hidden>Passwort entfernen</button></div>
+        <p class="hint" id="pwInfo" style="margin:0"></p>
+        <p class="hint" id="autoInfo" style="margin:0"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="dirPick" data-act="dir-pick" hidden>Sicherungsordner wählen</button><button type="button" class="btn small" id="dirAllow" data-act="dir-allow" hidden>Zugriff auf den Sicherungsordner erlauben</button></div>
+        <div class="field" id="snapWrap" style="margin:0" hidden><label for="snapSel">Automatisch gesicherte Stände auf diesem Gerät</label><select id="snapSel"></select><button type="button" class="btn small" data-act="snap-restore" style="margin-top:8px">Diesen Stand wiederherstellen</button></div>
         <button type="button" class="btn" data-act="backup-save">Sicherung jetzt speichern</button>
         <div class="field" style="margin:0"><label for="backupFile">Sicherung wiederherstellen (ersetzt alle Daten in der App)</label><input type="file" id="backupFile"></div>
         <div id="restoreAsk" hidden>
@@ -377,6 +383,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 </div>
 
 <div class="overlay" id="sheet" hidden><div class="sheet" id="sheetBody" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+<div class="overlay" id="pwDlg" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pwDlgT">
+  <h2 id="pwDlgT" style="margin:0 0 8px;font-size:18px">Passwort der Sicherung</h2>
+  <p class="hint" id="pwDlgMsg" style="margin:0 0 10px"></p>
+  <div class="field"><label for="pwDlgIn">Passwort</label><input type="password" id="pwDlgIn" autocomplete="current-password"></div>
+  <div class="actions"><button type="button" class="btn" data-act="pw-cancel">Abbrechen</button><button type="button" class="btn cta" data-act="pw-ok">Öffnen</button></div>
+</div></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -568,6 +580,146 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var au = $('#syncAuto'); if (au) au.hidden = !window.showOpenFilePicker;
     renderBackup();
   }
+  /* ---------- Verschlüsselung der Sicherungs- und Abgleich-Dateien ----------
+   * AES-GCM (256 Bit); der Schlüssel wird mit PBKDF2-SHA256 aus dem Passwort abgeleitet.
+   * Das Passwort selbst wird nie gespeichert. Auf dem Gerät liegt nur der abgeleitete,
+   * nicht auslesbare Schlüssel (CryptoKey in IndexedDB), damit die automatische Sicherung
+   * ohne Nachfrage verschlüsseln kann. Die Daten IN der App bleiben unverschlüsselt. */
+  var KDF_ITER = 250000, CRYPT = null; // CRYPT = {key: CryptoKey, salt: base64, iter: number}
+  function b64(buf) { var u = new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+  function unb64(str) { var s = atob(str), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  function canCrypt() { return !!(window.crypto && window.crypto.subtle); }
+  async function deriveKey(pw, salt, iter) {
+    var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  /** Inhalt für Sicherungs- und Abgleich-Datei: verschlüsselt, wenn ein Passwort gesetzt ist. */
+  async function packText() {
+    var plain = syncText(); if (!CRYPT) return plain;
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, CRYPT.key, new TextEncoder().encode(plain));
+    return JSON.stringify({ app: 'belegbuch', v: 2, enc: 'AES-GCM', kdf: 'PBKDF2-SHA256', iter: CRYPT.iter, salt: CRYPT.salt, iv: b64(iv), exported: new Date().toISOString(), data: b64(ct) });
+  }
+  /** Liest eine Sicherungs- oder Abgleich-Datei. Verschlüsselte Dateien werden mit dem gemerkten
+   * Schlüssel geöffnet; passt er nicht, wird bis zu dreimal nach dem Passwort gefragt.
+   * @returns {Promise<Object>} Klartext-Datei {app, v, exported, data}
+   * @throws {{code:'bad'|'cancel'|'nocrypt'|'wrongpw'}} */
+  async function unpack(text) {
+    var f; try { f = JSON.parse(text); } catch (e) { throw { code: 'bad' }; }
+    if (!f || f.app !== 'belegbuch' || !f.data) throw { code: 'bad' };
+    if (!f.enc) { if (typeof f.data !== 'object') throw { code: 'bad' }; return f; }
+    if (!canCrypt()) throw { code: 'nocrypt' };
+    async function open(key) {
+      var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(f.iv) }, key, unb64(f.data));
+      var o = JSON.parse(new TextDecoder().decode(pt)); if (!o || !o.data) throw { code: 'bad' }; return o;
+    }
+    if (CRYPT && CRYPT.salt === f.salt) { try { return await open(CRYPT.key); } catch (e) { } }
+    var note = 'Diese Datei ist mit einem Passwort geschützt.';
+    for (var i = 0; i < 3; i++) {
+      var pw = await askPassword(note); if (pw == null) throw { code: 'cancel' };
+      try { return await open(await deriveKey(pw, unb64(f.salt), Number(f.iter) || KDF_ITER)); } catch (e) { note = 'Das Passwort passt nicht. Versuch es noch einmal.'; }
+    }
+    throw { code: 'wrongpw' };
+  }
+  function unpackErr(e) {
+    var c = e && e.code;
+    return c === 'bad' ? 'Das ist keine Datei vom Belegbuch.' : c === 'cancel' ? 'Abgebrochen.' : c === 'wrongpw' ? 'Das Passwort war dreimal falsch.' : c === 'nocrypt' ? 'Dieser Browser kann hier nicht entschlüsseln.' : 'Die Datei ließ sich nicht lesen.';
+  }
+  var pwResolve = null;
+  /** Fragt in einem Dialog nach einem Passwort. @returns {Promise<?string>} null bei Abbruch */
+  function askPassword(msg) {
+    return new Promise(function (res) {
+      pwResolve = res; $('#pwDlgMsg').textContent = msg; $('#pwDlgIn').value = ''; $('#pwDlg').hidden = false;
+      try { $('#pwDlgIn').focus(); } catch (e) { }
+    });
+  }
+  function pwDone(ok) { var r = pwResolve, v = $('#pwDlgIn').value; pwResolve = null; $('#pwDlg').hidden = true; $('#pwDlgIn').value = ''; if (r) r(ok ? v : null); }
+  async function pwSet() {
+    var el = $('#pwNew'), pw = String(el.value), info = $('#backupMsg');
+    if (!canCrypt()) { info.textContent = 'Dieser Browser kann hier nicht verschlüsseln.'; return; }
+    if (pw.length < 8) { info.textContent = 'Das Passwort braucht mindestens 8 Zeichen.'; return; }
+    try {
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      var c = { key: await deriveKey(pw, salt, KDF_ITER), salt: b64(salt), iter: KDF_ITER };
+      await idbPut('kv', c, 'key'); CRYPT = c; el.value = '';
+      info.textContent = 'Passwort gesetzt. Neue Sicherungen und die Abgleich-Datei sind ab jetzt verschlüsselt. Merk dir das Passwort gut: ohne es lassen sich diese Dateien nicht mehr öffnen, auch nicht von mir.';
+      await autoBackup(true);
+    } catch (e) { info.textContent = 'Das Passwort ließ sich nicht setzen.'; }
+    renderBackup();
+  }
+  async function pwClear() {
+    try { await idbDel('kv', 'key'); } catch (e) { }
+    CRYPT = null; $('#backupMsg').textContent = 'Passwort entfernt. Neue Sicherungen sind unverschlüsselt; ältere Dateien brauchen weiter das alte Passwort.'; renderBackup();
+  }
+
+  /* ---------- Gerätespeicher für Schlüssel, Sicherungsordner und automatische Stände (IndexedDB) ---------- */
+  var idbP = null;
+  function idb() {
+    if (!idbP) idbP = new Promise(function (res, rej) {
+      var r = indexedDB.open('belegbuch-sicherung', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('snap', { keyPath: 't' }); r.result.createObjectStore('kv'); };
+      r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+    });
+    return idbP;
+  }
+  function idbReq(store, rw, fn) { return idb().then(function (d) { return new Promise(function (res, rej) { var q = fn(d.transaction(store, rw ? 'readwrite' : 'readonly').objectStore(store)); q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); }; }); }); }
+  function idbGet(store, key) { return idbReq(store, false, function (o) { return o.get(key); }); }
+  function idbPut(store, val, key) { return idbReq(store, true, function (o) { return key === undefined ? o.put(val) : o.put(val, key); }); }
+  function idbDel(store, key) { return idbReq(store, true, function (o) { return o.delete(key); }); }
+  function idbKeys(store) { return idbReq(store, false, function (o) { return o.getAllKeys(); }); }
+
+  /* ---------- Automatische Sicherung: alle 30 Minuten, solange die App geöffnet ist ---------- */
+  var AUTO_MS = 30 * 60000, AUTO_KEEP = 48, AUTO_FILE = 'belegbuch-sicherung-auto.json';
+  var SNAPS = [], dirHandle = null, dirOk = false, autoBusy = false;
+  /** Legt einen Stand im Gerätespeicher ab und schreibt ihn, falls gewählt, in den Sicherungsordner.
+   * Läuft nur, wenn seit der letzten automatischen Sicherung 30 Minuten vergangen sind UND sich
+   * etwas geändert hat (force = true übergeht beides). */
+  async function autoBackup(force) {
+    if (autoBusy || (mode !== 'local' && mode !== 'db') || !allLoaded() || !hasData()) return;
+    var last = Number(lsGet('belegbuch:lastauto')) || 0, now = Date.now();
+    if (!force && (now - last < AUTO_MS || (last && lastChange() <= last))) return;
+    autoBusy = true;
+    try {
+      var text = await packText();
+      await idbPut('snap', { t: now, enc: !!CRYPT, text: text });
+      var keys = await idbKeys('snap');
+      for (var i = 0; i < keys.length - AUTO_KEEP; i++) await idbDel('snap', keys[i]);
+      lsSet('belegbuch:lastauto', String(now));
+      if (dirHandle && dirOk) {
+        try { await dirWrite(AUTO_FILE, text); await dirWrite('belegbuch-sicherung-' + today() + '.json', text); lsSet('belegbuch:lastdir', String(now)); lsSet('belegbuch:lastbackup', String(now)); }
+        catch (e) { dirOk = false; }
+      }
+    } catch (e) { /* ohne Gerätespeicher gibt es keine automatische Sicherung */ }
+    autoBusy = false;
+    await loadSnaps(); renderOverview(); renderBackup();
+  }
+  async function dirWrite(name, text) { var fh = await dirHandle.getFileHandle(name, { create: true }), w = await fh.createWritable(); await w.write(text); await w.close(); }
+  async function loadSnaps() { try { SNAPS = (await idbKeys('snap')).sort(function (a, b) { return b - a; }); } catch (e) { SNAPS = []; } }
+  async function dirPick() {
+    try { dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' }); dirOk = true; try { await idbPut('kv', dirHandle, 'dir'); } catch (e) { } $('#backupMsg').textContent = 'Sicherungsordner gewählt. Die App schreibt dort alle 30 Minuten eine Sicherung hinein.'; await autoBackup(true); }
+    catch (e) { if (!e || e.name !== 'AbortError') $('#backupMsg').textContent = 'Der Ordner ließ sich nicht wählen.'; }
+    renderBackup();
+  }
+  async function dirAllow() {
+    try { dirOk = (await dirHandle.requestPermission({ mode: 'readwrite' })) === 'granted'; if (dirOk) await autoBackup(true); } catch (e) { dirOk = false; }
+    renderBackup();
+  }
+  async function snapRestore() {
+    var t = Number($('#snapSel').value); if (!t) return;
+    try { var row = await idbGet('snap', t); pendingRestore = await unpack(row.text); restoreAskText(pendingRestore); $('#backupMsg').textContent = ''; }
+    catch (e) { pendingRestore = null; $('#backupMsg').textContent = unpackErr(e); }
+    renderBackup();
+  }
+  /** Lädt Schlüssel, Ordner und Liste der Stände und startet den 30-Minuten-Takt. */
+  async function initBackup() {
+    try { CRYPT = (await idbGet('kv', 'key')) || null; } catch (e) { CRYPT = null; }
+    try { dirHandle = (await idbGet('kv', 'dir')) || null; if (dirHandle && dirHandle.queryPermission) dirOk = (await dirHandle.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { dirHandle = null; }
+    await loadSnaps(); renderBackup();
+    setInterval(function () { autoBackup(false); }, 60000);
+    document.addEventListener('visibilitychange', function () { autoBackup(false); });
+    autoBackup(false);
+  }
+
   /* ---------- Sicherung: vollständige Kopie als Datei, Wiederherstellen ersetzt alles ---------- */
   var BACKUP_DAYS = 3, pendingRestore = null;
   function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
@@ -593,18 +745,31 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     el.textContent = 'Eine Sicherung ist eine Datei mit allen Daten der App. Bewahre sie außerhalb dieses Geräts auf. Letzte Sicherung hier: ' + (lb ? fstamp(lb) + (lastChange() > lb ? ' (seitdem geändert)' : ' (aktuell)') : 'noch nie') + '.';
     $('#restoreUndo').hidden = !lsGet('belegbuch:vorher');
     $('#restoreAsk').hidden = !pendingRestore;
+    $('#pwInfo').textContent = CRYPT ? 'Passwort ist gesetzt: Sicherungen und Abgleich-Datei werden verschlüsselt.' : 'Kein Passwort gesetzt: Sicherungen und Abgleich-Datei sind unverschlüsselt.';
+    $('#pwClear').hidden = !CRYPT;
+    var la = Number(lsGet('belegbuch:lastauto')) || 0, ld = Number(lsGet('belegbuch:lastdir')) || 0;
+    $('#autoInfo').textContent = 'Automatische Sicherung: alle 30 Minuten, solange die App geöffnet ist und sich etwas geändert hat. Letzte: ' + (la ? fstamp(la) : 'noch keine') + '. ' + SNAPS.length + (SNAPS.length === 1 ? ' Stand' : ' Stände') + ' auf diesem Gerät' +
+      (dirHandle ? (dirOk ? ', zusätzlich im Sicherungsordner „' + dirHandle.name + '“' + (ld ? ' (zuletzt ' + fstamp(ld) + ')' : '') : ', der Sicherungsordner braucht erst wieder deine Erlaubnis') : (window.showDirectoryPicker ? '' : '. Diese Stände liegen nur im Browser dieses Geräts und ersetzen keine Sicherungsdatei')) + '.';
+    $('#dirPick').hidden = !window.showDirectoryPicker; $('#dirPick').textContent = dirHandle ? 'Anderen Sicherungsordner wählen' : 'Sicherungsordner wählen';
+    $('#dirAllow').hidden = !(dirHandle && !dirOk);
+    var sel = $('#snapSel'), cur = sel.value;
+    $('#snapWrap').hidden = !SNAPS.length;
+    sel.innerHTML = SNAPS.map(function (t) { return '<option value="' + t + '">' + fstamp(t) + '</option>'; }).join('');
+    if (cur && SNAPS.indexOf(Number(cur)) >= 0) sel.value = cur;
+  }
+  function restoreAskText(file) {
+    var d = file.data, n = function (c) { return Array.isArray(d[c]) ? d[c].length : 0; };
+    $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
   }
   async function backupSave() {
-    try { await saveFile('belegbuch-sicherung-' + today() + '.json', syncText(), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
+    try { await saveFile('belegbuch-sicherung-' + today() + '.json', await packText(), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function restorePick(f) {
     if (!f) return;
-    var file = null; try { file = JSON.parse(await f.text()); } catch (e) { }
-    if (!file || file.app !== 'belegbuch' || !file.data) { pendingRestore = null; $('#backupMsg').textContent = 'Das ist keine Sicherung vom Belegbuch.'; renderBackup(); return; }
-    pendingRestore = file;
-    var d = file.data, n = function (c) { return Array.isArray(d[c]) ? d[c].length : 0; };
-    $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
+    var file = null;
+    try { file = await unpack(await f.text()); } catch (e) { pendingRestore = null; $('#backupMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Sicherung vom Belegbuch.' : unpackErr(e); renderBackup(); return; }
+    pendingRestore = file; restoreAskText(file);
     $('#backupMsg').textContent = ''; renderBackup();
   }
   /** Ersetzt den gesamten Datenbestand durch `file.data`. Alle Dokumente erhalten den Zeitstempel
@@ -645,12 +810,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Führt eine Abgleich-Datei mit dem lokalen Stand zusammen.
    * Regel je Dokument: der neuere Zeitstempel `_t` gewinnt; eine Löschmarke, die mindestens so
    * neu ist wie das Dokument, entfernt es. Löschmarken beider Seiten werden vereinigt.
-   * @param {string} text Inhalt der Datei (JSON aus syncText())
+   * @param {string} text Inhalt der Datei (aus packText(), also Klartext oder verschlüsselt)
    * @returns {Promise<{add:number, upd:number, del:number}>}
    * @throws {{code:'bad'}} wenn die Datei keine Belegbuch-Datei ist */
   async function syncMerge(text) {
-    var file; try { file = JSON.parse(text); } catch (e) { throw { code: 'bad' }; }
-    if (!file || file.app !== 'belegbuch' || !file.data) throw { code: 'bad' };
+    var file = await unpack(text);
     var inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
     var it = ((inc.settings || []).find(function (x) { return x.id === 'geloescht'; }) || {}).map || {};
     Object.keys(it).forEach(function (k) { if (!(tomb[k] >= it[k])) tomb[k] = it[k]; });
@@ -688,23 +852,24 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
   async function syncSave() {
-    try { await saveFile(SYNC_NAME, syncText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); markBackup(); toast('Abgleich-Datei gespeichert'); }
+    try { await saveFile(SYNC_NAME, await packText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); markBackup(); toast('Abgleich-Datei gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function syncLoad(f) {
     if (!f) return;
     try { var n = await syncMerge(await f.text()); syncNote(stamp() + ' (Datei geladen)'); $('#syncMsg').textContent = syncMsg(n) + ' Speichere jetzt die Abgleich-Datei, damit das andere Gerät deinen Stand bekommt.'; toast('Abgleich-Datei geladen'); }
-    catch (e) { $('#syncMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Die Datei ließ sich nicht lesen.'; }
+    catch (e) { $('#syncMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : unpackErr(e); }
   }
   async function syncAuto() {
     var msg = $('#syncMsg');
     try {
       if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'Belegbuch Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
       var n = await syncMerge(await (await syncHandle.getFile()).text());
-      var w = await syncHandle.createWritable(); await w.write(syncText()); await w.close();
+      var w = await syncHandle.createWritable(); await w.write(await packText()); await w.close();
       syncNote(stamp() + ' (automatisch)'); markBackup(); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
     } catch (e) {
       if (e && e.name === 'AbortError') return;
+      if (e && (e.code === 'cancel' || e.code === 'wrongpw')) { msg.textContent = unpackErr(e); return; }
       syncHandle = null; msg.textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Der automatische Abgleich ging nicht. Nimm „Datei laden“ und danach „Datei speichern“.';
     }
   }
@@ -2175,6 +2340,13 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'site-calc') siteCalc();
       else if (act === 'sync-save') syncSave();
       else if (act === 'backup-save') backupSave();
+      else if (act === 'pw-set') pwSet();
+      else if (act === 'pw-clear') pwClear();
+      else if (act === 'pw-ok') pwDone(true);
+      else if (act === 'pw-cancel') pwDone(false);
+      else if (act === 'dir-pick') dirPick();
+      else if (act === 'dir-allow') dirAllow();
+      else if (act === 'snap-restore') snapRestore();
       else if (act === 'restore-yes') restoreYes();
       else if (act === 'restore-no') { pendingRestore = null; renderBackup(); }
       else if (act === 'restore-undo') restoreUndo();
@@ -2250,6 +2422,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
   });
   document.addEventListener('submit', function (e) { e.preventDefault(); save(); });
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('#pwDlg').hidden) { pwDone(false); return; }
     if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(true); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.row')) {
       e.preventDefault();
@@ -2263,6 +2436,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
   });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pwDlgIn') { e.preventDefault(); pwDone(true); } });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'backupFile') { var bf = e.target.files && e.target.files[0]; restorePick(bf).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'syncFile') { var f = e.target.files && e.target.files[0]; syncLoad(f).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', async function (e) {
@@ -2339,6 +2513,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       mode = 'local'; loadLocal();
     }
     render();
+    initBackup();
   }
   init();
 })();

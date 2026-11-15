@@ -37,6 +37,13 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Wiederherstellen ersetzt den ganzen Bestand (`restoreApply()`), der Stand davor bleibt einmal
   rückholbar. In „Zu erledigen“ erscheint ein Hinweis, wenn die Sicherung fehlt oder älter als
   drei Tage ist und es seitdem Änderungen gab.
+- **Automatische Sicherung:** alle 30 Minuten, solange die App geöffnet ist und sich etwas geändert
+  hat (`autoBackup()`): bis zu 48 Stände in IndexedDB, zusätzlich als Datei in einem gewählten
+  Ordner, wenn der Browser die File System Access API anbietet.
+- **Verschlüsselung:** Mit gesetztem Passwort werden Sicherungen und Abgleich-Datei mit AES-GCM
+  verschlüsselt, Schlüssel per PBKDF2-SHA256 (250 000 Runden). Gespeichert wird nur der abgeleitete,
+  nicht auslesbare Schlüssel (`packText()`, `unpack()`). Die Daten in der App selbst
+  (`localStorage`) bleiben unverschlüsselt.
 - **Offline:** `sw.js` hält die App-Dateien und die PDF-Bibliothek (jsPDF von cdnjs) im Cache.
   Eigene Dateien werden zuerst aus dem Netz geladen, damit Updates ankommen.
 
@@ -48,7 +55,7 @@ sh tests/run.sh          # braucht Node.js und Playwright (Chromium)
 ```
 
 Die Tests sind Rauchtests: Sie spielen typische Abläufe im Browser durch (Rechnung stellen und
-stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Sicherung und Wiederherstellung, Abgleich zwischen zwei
+stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Sicherung und Wiederherstellung, automatische Sicherung mit Passwort, Abgleich zwischen zwei
 Geräten, Neuladen ohne Netz) und schlagen bei Abstürzen und Seitenfehlern fehl. Sie prüfen keine
 einzelnen Rechenergebnisse; PDF-Inhalte sind nicht automatisch geprüft.
 

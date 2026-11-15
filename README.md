@@ -33,6 +33,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Jedes Dokument trägt einen Zeitstempel `_t`; beim Zusammenführen gewinnt je Dokument die
   neuere Fassung, Löschungen werden über Löschmarken (`settings/geloescht`) weitergegeben
   (`syncMerge()`).
+- **Sicherung:** dieselbe Datei als datierte Kopie (`belegbuch-sicherung-JJJJ-MM-TT.json`).
+  Wiederherstellen ersetzt den ganzen Bestand (`restoreApply()`), der Stand davor bleibt einmal
+  rückholbar. In „Zu erledigen“ erscheint ein Hinweis, wenn die Sicherung fehlt oder älter als
+  drei Tage ist und es seitdem Änderungen gab.
 - **Offline:** `sw.js` hält die App-Dateien und die PDF-Bibliothek (jsPDF von cdnjs) im Cache.
   Eigene Dateien werden zuerst aus dem Netz geladen, damit Updates ankommen.
 
@@ -44,7 +48,7 @@ sh tests/run.sh          # braucht Node.js und Playwright (Chromium)
 ```
 
 Die Tests sind Rauchtests: Sie spielen typische Abläufe im Browser durch (Rechnung stellen und
-stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Abgleich zwischen zwei
+stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Sicherung und Wiederherstellung, Abgleich zwischen zwei
 Geräten, Neuladen ohne Netz) und schlagen bei Abstürzen und Seitenfehlern fehl. Sie prüfen keine
 einzelnen Rechenergebnisse; PDF-Inhalte sind nicht automatisch geprüft.
 

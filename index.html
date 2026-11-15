@@ -199,6 +199,7 @@ input[type="text"], input[type="date"], select {
 .row .amt { text-align: right; flex: none; }
 .row .amt .sub { font-size: 12px; color: var(--muted); }
 .thumb { width: 48px; height: 48px; flex: none; border-radius: 6px; object-fit: cover; border: 1px solid var(--line); background: var(--surface-2); }
+#backupH { scroll-margin-top: 150px; }
 .syncbox { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .syncbox input[type=file] { width: 100%; min-height: 44px; }
 .docname { font-weight: 600; min-height: 40px; }
@@ -306,6 +307,18 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <div class="tiles" id="tiles" style="margin-top:20px"></div>
       <h2 class="section-h" id="catsTitle">Ausgaben nach Kategorie</h2>
       <div class="bars" id="cats"></div>
+      <h2 class="section-h" id="backupH">Sicherung</h2>
+      <div class="syncbox">
+        <p class="hint" id="backupInfo" style="margin:0"></p>
+        <button type="button" class="btn" data-act="backup-save">Sicherung jetzt speichern</button>
+        <div class="field" style="margin:0"><label for="backupFile">Sicherung wiederherstellen (ersetzt alle Daten in der App)</label><input type="file" id="backupFile"></div>
+        <div id="restoreAsk" hidden>
+          <p class="hint" id="restoreText" style="margin:0 0 8px"></p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn danger armed" data-act="restore-yes">Ja, alles ersetzen</button><button type="button" class="btn" data-act="restore-no">Abbrechen</button></div>
+        </div>
+        <button type="button" class="btn small" id="restoreUndo" data-act="restore-undo" hidden>Wiederherstellung rückgängig machen</button>
+        <p class="hint" id="backupMsg" style="margin:0"></p>
+      </div>
       <h2 class="section-h">Abgleich zwischen Geräten</h2>
       <div class="syncbox">
         <p class="hint" id="syncInfo" style="margin:0"></p>
@@ -553,7 +566,82 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var last = ''; try { last = localStorage.getItem('belegbuch:lastsync') || ''; } catch (e) { }
     el.textContent = (mode === 'db' ? 'Diese Ansicht speichert in deinem Claude-Konto.' : 'Diese Ansicht speichert nur auf diesem Gerät.') + ' Letzter Abgleich hier: ' + (last || 'noch nie') + '.';
     var au = $('#syncAuto'); if (au) au.hidden = !window.showOpenFilePicker;
+    renderBackup();
   }
+  /* ---------- Sicherung: vollständige Kopie als Datei, Wiederherstellen ersetzt alles ---------- */
+  var BACKUP_DAYS = 3, pendingRestore = null;
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function lastBackup() { return Number(lsGet('belegbuch:lastbackup')) || 0; }
+  function markBackup() { lsSet('belegbuch:lastbackup', String(Date.now())); renderOverview(); renderSync(); }
+  /** Zeitpunkt der jüngsten Änderung an irgendeinem Dokument (ms), 0 wenn unbekannt. */
+  function lastChange() { var m = 0; COLS.forEach(function (c) { state.data[c].forEach(function (d) { if (Number(d._t) > m) m = Number(d._t); }); }); return m; }
+  function hasData() { return ['belege', 'auftraege', 'angebote', 'rechnungen', 'dokumente'].some(function (c) { return state.data[c].length > 0; }); }
+  /** Text für die Aufgabenliste, wenn eine Sicherung fällig ist; sonst ''. Nur in der Betriebsart 'local'. */
+  function backupDue() {
+    if (mode !== 'local' || !hasData()) return '';
+    var lb = lastBackup();
+    if (!lb) return 'Es gibt noch keine Sicherung deiner Daten';
+    var days = Math.floor((Date.now() - lb) / 86400000);
+    if (days >= BACKUP_DAYS && lastChange() > lb) return 'Letzte Sicherung vor ' + days + ' Tagen, seitdem gab es Änderungen';
+    return '';
+  }
+  function fstamp(ms) { var d = new Date(ms); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+  function renderBackup() {
+    var el = $('#backupInfo'); if (!el) return;
+    var lb = lastBackup();
+    el.textContent = 'Eine Sicherung ist eine Datei mit allen Daten der App. Bewahre sie außerhalb dieses Geräts auf. Letzte Sicherung hier: ' + (lb ? fstamp(lb) + (lastChange() > lb ? ' (seitdem geändert)' : ' (aktuell)') : 'noch nie') + '.';
+    $('#restoreUndo').hidden = !lsGet('belegbuch:vorher');
+    $('#restoreAsk').hidden = !pendingRestore;
+  }
+  async function backupSave() {
+    try { await saveFile('belegbuch-sicherung-' + today() + '.json', syncText(), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
+  }
+  async function restorePick(f) {
+    if (!f) return;
+    var file = null; try { file = JSON.parse(await f.text()); } catch (e) { }
+    if (!file || file.app !== 'belegbuch' || !file.data) { pendingRestore = null; $('#backupMsg').textContent = 'Das ist keine Sicherung vom Belegbuch.'; renderBackup(); return; }
+    pendingRestore = file;
+    var d = file.data, n = function (c) { return Array.isArray(d[c]) ? d[c].length : 0; };
+    $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
+    $('#backupMsg').textContent = ''; renderBackup();
+  }
+  /** Ersetzt den gesamten Datenbestand durch `file.data`. Alle Dokumente erhalten den Zeitstempel
+   * „jetzt“ und entfernte Dokumente eine Löschmarke, damit sich der wiederhergestellte Stand
+   * beim nächsten Abgleich auch auf den anderen Geräten durchsetzt.
+   * @param {Object} file Sicherung im Format von syncText()
+   * @param {boolean} keep true = vorher den aktuellen Stand für „Rückgängig“ merken */
+  async function restoreApply(file, keep) {
+    if (keep) lsSet('belegbuch:vorher', syncText());
+    var now = Date.now(), inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
+    for (var ci = 0; ci < COLS.length; ci++) {
+      var c = COLS[ci], rows = (Array.isArray(inc[c]) ? inc[c] : []).filter(function (d) { return d && d.id && !(c === 'settings' && d.id === 'geloescht'); });
+      var ids = {}; rows.forEach(function (d) { ids[d.id] = true; });
+      var mine = state.data[c].slice();
+      for (var j = 0; j < mine.length; j++) {
+        if (c === 'settings' && mine[j].id === 'geloescht') continue;
+        if (!ids[mine[j].id]) { await rawDel(c, mine[j].id); tomb[c + '/' + mine[j].id] = now; }
+      }
+      for (var i = 0; i < rows.length; i++) { await rawSet(c, rows[i].id, Object.assign({}, rows[i], { _t: now })); delete tomb[c + '/' + rows[i].id]; }
+    }
+    await rawSet('settings', 'geloescht', { map: tomb, _t: now });
+    if (!DB) { saveLocal(); render(); }
+  }
+  async function restoreYes() {
+    var file = pendingRestore; pendingRestore = null; if (!file) return;
+    try { await restoreApply(file, true); $('#backupMsg').textContent = 'Wiederhergestellt. Der Stand davor ist auf diesem Gerät gemerkt und lässt sich einmal zurückholen.'; toast('Sicherung wiederhergestellt'); }
+    catch (e) { $('#backupMsg').textContent = 'Die Wiederherstellung ist nicht vollständig durchgelaufen. Lade die Sicherung noch einmal.'; }
+    renderBackup();
+  }
+  async function restoreUndo() {
+    var prev = null; try { prev = JSON.parse(lsGet('belegbuch:vorher')); } catch (e) { }
+    if (!prev || !prev.data) { lsSet('belegbuch:vorher', null); renderBackup(); return; }
+    try { await restoreApply(prev, false); lsSet('belegbuch:vorher', null); $('#backupMsg').textContent = 'Der Stand vor der Wiederherstellung ist zurück.'; toast('Rückgängig gemacht'); }
+    catch (e) { $('#backupMsg').textContent = 'Rückgängig ging nicht.'; }
+    renderBackup();
+  }
+
   /** Führt eine Abgleich-Datei mit dem lokalen Stand zusammen.
    * Regel je Dokument: der neuere Zeitstempel `_t` gewinnt; eine Löschmarke, die mindestens so
    * neu ist wie das Dokument, entfernt es. Löschmarken beider Seiten werden vereinigt.
@@ -600,7 +688,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
   async function syncSave() {
-    try { await saveFile(SYNC_NAME, syncText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); toast('Abgleich-Datei gespeichert'); }
+    try { await saveFile(SYNC_NAME, syncText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); markBackup(); toast('Abgleich-Datei gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function syncLoad(f) {
@@ -614,7 +702,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'Belegbuch Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
       var n = await syncMerge(await (await syncHandle.getFile()).text());
       var w = await syncHandle.createWritable(); await w.write(syncText()); await w.close();
-      syncNote(stamp() + ' (automatisch)'); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
+      syncNote(stamp() + ' (automatisch)'); markBackup(); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
     } catch (e) {
       if (e && e.name === 'AbortError') return;
       syncHandle = null; msg.textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Der automatische Abgleich ging nicht. Nimm „Datei laden“ und danach „Datei speichern“.';
@@ -679,7 +767,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', plural(year.filter(function (b) { return Number(b.km) > 0; }).length, 'Fahrt', 'Fahrten') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
       tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', plural(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length, 'Baustelle', 'Baustellen') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
 
-    var todo = '';
+    var todo = '', bd = backupDue();
+    if (bd) todo += '<button type="button" data-act="goto-backup"><span>' + esc(bd) + '</span><span class="badge warn">Sichern</span></button>';
     if (late.length) todo += '<button type="button" data-act="goto-late"><span>' + late.length + (late.length === 1 ? ' Auftrag ist überfällig' : ' Aufträge sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
     var toBill = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Abgenommen'; });
     if (toBill.length) todo += '<button type="button" data-act="goto-kunden"><span>' + toBill.length + (toBill.length === 1 ? ' Baustelle ist abgenommen, die Rechnung fehlt noch' : ' Baustellen sind abgenommen, die Rechnungen fehlen noch') + '</span><span class="badge warn">Ansehen</span></button>';
@@ -2085,6 +2174,11 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'trip-calc') fillTrip(false);
       else if (act === 'site-calc') siteCalc();
       else if (act === 'sync-save') syncSave();
+      else if (act === 'backup-save') backupSave();
+      else if (act === 'restore-yes') restoreYes();
+      else if (act === 'restore-no') { pendingRestore = null; renderBackup(); }
+      else if (act === 'restore-undo') restoreUndo();
+      else if (act === 'goto-backup') { var bh = $('#backupH'); if (bh && bh.scrollIntoView) bh.scrollIntoView({ block: 'start' }); }
       else if (act === 'sync-auto') syncAuto();
       else if (act === 'doc-del') {
         var did = a.dataset.id;
@@ -2169,6 +2263,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
   });
+  document.addEventListener('change', function (e) { if (e.target && e.target.id === 'backupFile') { var bf = e.target.files && e.target.files[0]; restorePick(bf).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'syncFile') { var f = e.target.files && e.target.files[0]; syncLoad(f).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', async function (e) {
     var t = e.target;

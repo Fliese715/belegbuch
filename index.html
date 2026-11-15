@@ -96,7 +96,6 @@ button, input, select { font: inherit; color: inherit; }
 .trip .field { margin-bottom: 0; }
 .photofirst { padding: 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); }
 .photofirst .btn.primary { min-height: 52px; font-size: 16px; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Kopf */
 .top {
@@ -246,9 +245,7 @@ input[type="text"], input[type="date"], select {
 textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; resize: vertical; line-height: 1.45; font: inherit; color: inherit; }
 .pos { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--surface-2); }
 .pos .field { margin-bottom: 8px; }
-.pos .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .pos input, .pos select { background: var(--surface); }
-.posfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .res { min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .sumtable { width: 100%; max-width: 420px; margin-left: auto; border-collapse: collapse; margin-top: 12px; }
 .sumtable td { padding: 4px 0; }
@@ -374,6 +371,50 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 (function () {
   'use strict';
 
+  /* ======================================================================
+   * BELEGBUCH – Büro-App für einen Handwerksbetrieb (eine Datei, kein Build-Framework)
+   *
+   * AUFBAU DIESER DATEI
+   *   <style>   Design-Tokens (hell/dunkel) und Komponenten
+   *   <div>     statisches Grundgerüst: Kopf, Reiter, je Reiter eine <section>, Formular-Sheet
+   *   <script>  diese IIFE; Abschnitte in dieser Reihenfolge:
+   *     1  Konstanten, Zustand, Hilfsfunktionen
+   *     2  Speicher (Datenbank oder localStorage)        persist / patch / removeDoc
+   *     3  Abgleich zwischen Geräten                     syncMerge / syncSave / syncLoad
+   *     4  Darstellung der Reiter                        render*()
+   *     5  Formulare (Sheet)                             openBeleg / openAuftrag / closeSheet
+   *     6  Fahrstrecken                                  estimateTrip (Näherung) / mapRoute (Mapbox)
+   *     7  Export, Preisliste, Einstellungen
+   *     8  Aufmaß, Angebot, PDF, Rechnung
+   *     9  Ereignisse (eine delegierte Klick-Behandlung über data-act)
+   *    10  Start (init)
+   *
+   * ZWEI BETRIEBSARTEN (Variable `mode`)
+   *   'db'     Seite läuft als Claude-Artifact: window.claude.use() liefert Datenbank (DB),
+   *            Datei-Ablage (ASSETS), Speichern-Dialog (DL) und Mapbox (MAP).
+   *            Daten kommen über onSnapshot herein; Schreiben löst kein eigenes render() aus.
+   *   'local'  Seite läuft als normale Web-App/PWA oder Datei: alles liegt in localStorage
+   *            unter 'belegbuch:<sammlung>'; nach jedem Schreiben folgt saveLocal() + render().
+   *   Alle Funktionen müssen mit DB/ASSETS/DL/MAP === null zurechtkommen.
+   *
+   * DATENMODELL (Sammlungen in COLS; jedes Dokument hat `id` und den Zeitstempel `_t` in ms)
+   *   belege      date, vendor, gross, vat, cat, pay, orderId, note,
+   *               photoId/photoKind ('img'|'pdf'), place, vaddr, km (gesamt), back
+   *   auftraege   kind ('kunde'|'lieferant'), title, party, site, amount, status, date, due,
+   *               terms, aufmass{rows,waste}, siteKm (einfach), visits
+   *   angebote    Kopf + positions[] (text, qty, unit, price, art) – siehe calcAng()
+   *   rechnungen  wie angebote, dazu nr (erst bei „Rechnung stellen“), status, amSnap
+   *   dokumente   name, date, note, fileId (PDF-Ordner)
+   *   settings    Einzeldokumente: firma, preise, richtwerte, strecken, erinnerung, ordner,
+   *               geloescht {map: {'<sammlung>/<id>': zeit}} = Löschmarken für den Abgleich
+   *
+   * DARSTELLUNG
+   *   Kein Framework: render() baut alle Reiter aus `state` neu (innerHTML). Das ist bei den
+   *   Datenmengen eines Einzelbetriebs schnell genug und hält den Zustand an einer Stelle.
+   *   Nutzereingaben werden immer durch esc() geschickt, bevor sie ins HTML gelangen.
+   * ====================================================================== */
+
+  /* ---------- 1 Konstanten ---------- */
   var CATS = ['Material', 'Werkzeug & Maschinen', 'Fahrzeug & Kraftstoff', 'Arbeitskleidung & Schutz', 'Subunternehmer', 'Entsorgung & Container', 'Versicherung & Beiträge', 'Telefon & Internet', 'Büro & Software', 'Sonstiges'];
   var KM_RATE = 0.3;
   var PAYS = ['Karte', 'Bar', 'Überweisung', 'Lastschrift', 'PayPal', 'Privat ausgelegt'];
@@ -382,6 +423,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   var KIND = { kunde: 'Baustelle', lieferant: 'Materialbestellung' };
   var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
+  /* ---------- Zustand (einzige Quelle für alle render-Funktionen) ---------- */
+  /** Reiter in Anzeige-Reihenfolge; Schlüssel = id der <section> ohne 'v-' = URL-Hash. */
+  var TABS = ['uebersicht', 'belege', 'auftraege', 'rechnungen', 'ordner', 'angebote'];
   var state = {
     tab: 'uebersicht',
     data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [] },
@@ -390,10 +434,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     fa: { kind: 'kunde', open: true },
     slow: false, err: false
   };
+  /** Laufzeit-Dienste der Claude-Umgebung; außerhalb davon null (siehe Kopfkommentar). */
   var DB = null, ASSETS = null, DL = null, mode = 'lade';
+  /** draft = das Dokument, das gerade im Formular-Sheet bearbeitet wird (oder null). */
   var draft = null, lastFocus = null, toastTimer = null;
 
+  /* ---------- Hilfsfunktionen: DOM, Zahlen, Datum ---------- */
+
   function $(s) { return document.querySelector(s); }
+  /** Maskiert Text für die Ausgabe in HTML. Pflicht für alle Nutzereingaben. */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -406,12 +455,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function fdate(iso) { if (!iso) return '–'; var p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
   function monthName(ym) { var p = ym.split('-'); return MONTHS[Number(p[1]) - 1] + ' ' + p[0]; }
+  /** Liest deutsche Zahleneingaben ('1.234,50', '12,5 €'); NaN bei leerer Eingabe. */
   function parseNum(s) {
     s = String(s || '').trim().replace(/\s|€/g, '');
     if (!s) return NaN;
     if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
     return Number(s);
   }
+  /** Im Bruttobetrag enthaltene Umsatzsteuer. */
   function vatPart(gross, rate) { return gross - gross / (1 + (rate || 0) / 100); }
   function addDays(iso, n) {
     if (!iso) return '';
@@ -421,7 +472,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function withCur(list, cur) { return cur && list.indexOf(cur) < 0 ? list.concat([cur]) : list; }
   function termLabel(t) { return t === 'custom' ? 'Eigenes Datum' : (Number(t) === 0 ? 'Sofort' : t + ' Tage'); }
   function sum(arr, f) { return arr.reduce(function (a, x) { return a + (f(x) || 0); }, 0); }
-  function allLoaded() { return state.loaded.belege && state.loaded.auftraege && state.loaded.angebote && state.loaded.rechnungen && state.loaded.settings; }
+  function allLoaded() { return COLS.every(function (c) { return state.loaded[c]; }); }
+  /** Zahl mit passendem Hauptwort: plural(1, 'Fahrt', 'Fahrten') -> '1 Fahrt'. */
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
   function orderMap() { var m = {}; state.data.auftraege.forEach(function (a) { m[a.id] = a; }); return m; }
   function isOverdue(a) { return !!a.due && a.due < today() && a.status !== 'Bezahlt'; }
 
@@ -432,8 +485,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
   }
 
-  /* ---------- Speicher: Konto-Datenbank, sonst nur dieser Browser ---------- */
+  /* ---------- 2 Speicher: Konto-Datenbank, sonst nur dieser Browser ---------- */
   var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente'];
+  /** Schreibt alle Sammlungen in localStorage (nur Betriebsart 'local'). */
   function saveLocal() {
     try { COLS.forEach(function (c) { localStorage.setItem('belegbuch:' + c, JSON.stringify(state.data[c])); }); } catch (e) { /* ohne Speicher gehen Daten beim Schließen verloren */ }
   }
@@ -443,6 +497,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       state.loaded[c] = true;
     });
   }
+  /** Legt ein Dokument an oder ersetzt es vollständig. Setzt den Zeitstempel `_t`.
+   * @param {string} c Sammlung  @param {?string} id null = neu  @param {Object} obj Felder ohne id
+   * @returns {Promise<string>} id des Dokuments */
   async function persist(c, id, obj) {
     obj = Object.assign({}, obj, { _t: Date.now() });
     if (DB) {
@@ -458,6 +515,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     saveLocal(); render();
     return id;
   }
+  /** Ändert einzelne Felder eines Dokuments und setzt `_t`. */
   async function patch(c, id, fields) {
     fields = Object.assign({}, fields, { _t: Date.now() });
     if (DB) { await DB.collection(c).doc(id).update(fields); return; }
@@ -465,6 +523,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (r) Object.assign(r, fields);
     saveLocal(); render();
   }
+  /** Löscht ein Dokument und merkt eine Löschmarke vor, damit der Abgleich
+   * das Dokument auf anderen Geräten ebenfalls entfernt statt es zurückzubringen. */
   async function removeDoc(c, id) {
     var tm = Object.assign({}, setting('geloescht').map || {}); tm[c + '/' + id] = Date.now();
     if (DB) { await DB.collection(c).doc(id).delete(); try { await rawSet('settings', 'geloescht', { map: tm, _t: Date.now() }); } catch (e) { } return; }
@@ -484,7 +544,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     state.data[c] = state.data[c].filter(function (x) { return x.id !== id; });
   }
 
-  /* ---------- Abgleich zwischen Geräten über eine Abgleich-Datei ---------- */
+  /* ---------- 3 Abgleich zwischen Geräten über eine Abgleich-Datei ---------- */
   var SYNC_NAME = 'belegbuch-abgleich.json', syncHandle = null;
   function syncText() { return JSON.stringify({ app: 'belegbuch', v: 1, exported: new Date().toISOString(), data: state.data }); }
   function syncNote(t) { try { localStorage.setItem('belegbuch:lastsync', t); } catch (e) { } renderSync(); }
@@ -494,6 +554,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     el.textContent = (mode === 'db' ? 'Diese Ansicht speichert in deinem Claude-Konto.' : 'Diese Ansicht speichert nur auf diesem Gerät.') + ' Letzter Abgleich hier: ' + (last || 'noch nie') + '.';
     var au = $('#syncAuto'); if (au) au.hidden = !window.showOpenFilePicker;
   }
+  /** Führt eine Abgleich-Datei mit dem lokalen Stand zusammen.
+   * Regel je Dokument: der neuere Zeitstempel `_t` gewinnt; eine Löschmarke, die mindestens so
+   * neu ist wie das Dokument, entfernt es. Löschmarken beider Seiten werden vereinigt.
+   * @param {string} text Inhalt der Datei (JSON aus syncText())
+   * @returns {Promise<{add:number, upd:number, del:number}>}
+   * @throws {{code:'bad'}} wenn die Datei keine Belegbuch-Datei ist */
   async function syncMerge(text) {
     var file; try { file = JSON.parse(text); } catch (e) { throw { code: 'bad' }; }
     if (!file || file.app !== 'belegbuch' || !file.data) throw { code: 'bad' };
@@ -524,6 +590,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt.'; }
   function stamp() { var d = new Date(); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+  /** Übergibt eine Datei an den Nutzer: in Claude über den Speichern-Dialog,
+   * sonst als normaler Browser-Download. */
   async function saveFile(name, data, mime) {
     if (DL) { await DL.save({ filename: name, data: data }); return; }
     var blob = data instanceof Blob ? data : new Blob([data], { type: mime || 'text/plain' });
@@ -557,7 +625,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try { await ASSETS.delete(id); } catch (e) { /* verwaiste Datei ist harmlos */ }
   }
 
-  /* ---------- Darstellung ---------- */
+  /* ---------- 4 Darstellung ---------- */
   function renderMode() {
     var el = $('#mode'), t;
     if (mode === 'local') t = 'Nur auf diesem Gerät gespeichert · Abgleich per Datei (Übersicht, unten)';
@@ -571,7 +639,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     document.querySelectorAll('.tabs button').forEach(function (b) {
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    ['uebersicht', 'belege', 'auftraege', 'angebote', 'rechnungen', 'ordner'].forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
+    TABS.forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
     $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : '+ Beleg';
     $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : 'beleg';
     $('#fab').hidden = state.tab === 'angebote' || state.tab === 'rechnungen' || state.tab === 'ordner';
@@ -586,6 +654,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return null;
   }
 
+  /** Reiter Übersicht: Erinnerung, Aufgabenliste, Kennzahl-Kacheln, Ausgaben je Kategorie. */
   function renderOverview() {
     var ym = today().slice(0, 7), y = today().slice(0, 4);
     var B = state.data.belege, A = state.data.auftraege;
@@ -607,8 +676,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       tile('Vorsteuer ' + y, money(sum(year, function (b) { return vatPart(b.gross, b.vat); })), 'aus ' + year.length + ' Belegen', 'year') +
       tile('Laufende Baustellen', String(running.length), offers.length + (offers.length === 1 ? ' Angebot offen' : ' Angebote offen'), 'run') +
       tile('Offene Rechnungen', money(sum(openInv, function (x) { return calcAng(x).gross; })), openInv.length + ' offen' + (lateInv.length ? ', ' + lateInv.length + ' überfällig' : ''), 'inv') +
-      tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', (function (n) { return n + (n === 1 ? ' Fahrt' : ' Fahrten'); })(year.filter(function (b) { return Number(b.km) > 0; }).length) + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
-      tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', (function (n) { return n + (n === 1 ? ' Baustelle' : ' Baustellen'); })(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length) + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
+      tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', plural(year.filter(function (b) { return Number(b.km) > 0; }).length, 'Fahrt', 'Fahrten') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
+      tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', plural(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length, 'Baustelle', 'Baustellen') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
 
     var todo = '';
     if (late.length) todo += '<button type="button" data-act="goto-late"><span>' + late.length + (late.length === 1 ? ' Auftrag ist überfällig' : ' Aufträge sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
@@ -772,12 +841,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }).join('');
   }
 
+  /** Baut die gesamte Oberfläche aus `state` neu auf. Wird nach jeder Datenänderung gerufen. */
   function render() {
     renderMode(); renderBanner(); renderTabs();
     renderOverview(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderOrdner(); renderSync();
   }
 
-  /* ---------- Formulare ---------- */
+  /* ---------- 5 Formulare ---------- */
   function options(list, cur, fmt) {
     return list.map(function (v) { return '<option value="' + esc(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + esc(fmt ? fmt(v) : v) + '</option>'; }).join('');
   }
@@ -789,13 +859,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var first = $('#sheetBody input, #sheetBody select');
     if (first && !wide) first.focus();
   }
+  /** Schließt das Formular-Sheet; verwirft dabei nicht gespeicherte Datei-Uploads. */
   async function closeSheet(cancel) {
     if (cancel && draft && draft.uploaded) { for (var i = 0; i < draft.uploaded.length; i++) await dropAsset(draft.uploaded[i]); }
     $('#sheet').hidden = true; draft = null;
     if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) { } }
   }
 
-  /* ---------- Einkaufsweg ermitteln ---------- */
+  /* ---------- 6 Fahrstrecken: Näherung ohne Internet ---------- */
   var TOWNS = {
     'zarrendorf': [54.233, 13.083], 'stralsund': [54.309, 13.082], 'altefähr': [54.3, 13.117], 'greifswald': [54.087, 13.392], 'rostock': [54.092, 12.099],
     'bergen': [54.417, 13.433], 'bergen auf rügen': [54.417, 13.433], 'sassnitz': [54.514, 13.643], 'putbus': [54.352, 13.477], 'binz': [54.4, 13.617], 'sellin': [54.383, 13.683],
@@ -854,6 +925,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var t = findTown(vendor);
     return t ? { place: TOWN_LBL[t], km: 0, how: 'Ort aus dem Namen des Lieferanten' } : null;
   }
+  /** Schätzt die Fahrstrecke ohne Internet. Reihenfolge der Quellen:
+   * frühere Belege desselben Lieferanten und Orts > „Meine Strecken“ > frühere Belege desselben Orts
+   * > Luftlinie × 1,3 aus der Ortstabelle TOWNS.
+   * @returns {{km:number, how:string}|{err:string}} km einfach */
   function estimateTrip(place, skipId, vendor, vaddr) {
     var pn = normPlace(place), t = findTown(place) || findTown(vaddr), home = homeTown(), vn = normPlace(vendor);
     if (!pn && !t) return { err: 'Bitte zuerst Lieferant, Adresse oder Einkaufsort eintragen.' };
@@ -915,7 +990,17 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var sig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? { signal: AbortSignal.timeout(25000) } : undefined;
     return MAP.callTool('Mapbox', tool, input, sig);
   }
-  async function mapRoute(dest, hint) {
+  /** Fehler aus mapRoute() als Satz für den Nutzer. */
+  function mapErrText(e) {
+    var c = e && e.code;
+    return c === 'no_home' ? 'Deine Adresse unter „Firma“ fehlt oder wurde nicht gefunden.' : c === 'no_dest' ? 'Mapbox hat die Adresse nicht gefunden.' : c === 'not_granted' || c === 'cancelled' ? 'Mapbox wurde nicht freigegeben.' : 'Mapbox hat gerade nicht geantwortet.';
+  }
+  /** Kürzeste Straßenverbindung Firmenadresse -> Ziel über den Mapbox-Connector.
+   * Fragt Alternativrouten ab und nimmt die kürzeste (nicht die schnellste).
+   * @param {string} dest Adresse oder „Lieferant, Ort“
+   * @returns {Promise<{oneKm:number, routes:number, destLabel:string, homeLabel:string}>}
+   * @throws {{code:'no_home'|'no_dest'|'no_route'}} oder Fehler des Connectors */
+  async function mapRoute(dest) {
     var f = setting('firma') || {}, homeQ = [f.street, f.city].filter(Boolean).join(', ');
     if (!homeQ) throw { code: 'no_home' };
     if (!HOMEC || HOMEC.q !== homeQ) {
@@ -948,7 +1033,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       return;
     } catch (e) {
       var c = e && e.code;
-      pre = c === 'no_home' ? 'Deine Adresse unter „Firma“ fehlt oder wurde nicht gefunden.' : c === 'no_dest' ? 'Mapbox hat die Adresse nicht gefunden.' : c === 'not_granted' || c === 'cancelled' ? 'Mapbox wurde nicht freigegeben.' : 'Mapbox hat gerade nicht geantwortet.';
+      pre = mapErrText(e);
       pre += ' Näherung statt echter Strecke:';
     }
     fillTripEst(auto, pre);
@@ -977,8 +1062,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         msg.textContent = 'Mapbox: kürzeste Straßenverbindung ' + skm.value + ' km einfach (' + src + ': ' + dest + '). Ziel gefunden: ' + (r.destLabel || dest) + '. Bitte prüfen.';
         return;
       } catch (e) {
-        var c = e && e.code;
-        pre = c === 'no_home' ? 'Deine Adresse unter „Firma“ fehlt oder wurde nicht gefunden. ' : c === 'no_dest' ? 'Mapbox hat die Adresse nicht gefunden. ' : c === 'not_granted' || c === 'cancelled' ? 'Mapbox wurde nicht freigegeben. ' : 'Mapbox hat gerade nicht geantwortet. ';
+        pre = mapErrText(e) + ' ';
       }
     } else pre = 'Mapbox gibt es nur, wenn du die App in Claude mit deinem Konto öffnest. ';
     var t = findTown(dest);
@@ -989,6 +1073,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else msg.textContent = pre + 'Trage die Kilometer einfach selbst ein.';
   }
 
+  /** Öffnet das Beleg-Formular (id = null: neuer Beleg). */
   function openBeleg(id) {
     var b = id ? state.data.belege.find(function (x) { return x.id === id; }) : null;
     draft = { coll: 'belege', id: id || null, photoId: b && b.photoId || null, photoData: b && b.photoData || null, photoKind: b && b.photoKind || null, orig: b && b.photoId || null, uploaded: [], confirm: false };
@@ -1032,6 +1117,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
     box.innerHTML = html;
   }
+  /** Öffnet das Formular für Baustelle bzw. Materialbestellung. */
   function openAuftrag(id) {
     var a = id ? state.data.auftraege.find(function (x) { return x.id === id; }) : null;
     draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [] };
@@ -1137,7 +1223,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } catch (e) { toast('Löschen hat nicht geklappt'); }
   }
 
-  /* ---------- Export ---------- */
+  /* ---------- 7 Export ---------- */
   function csvCell(v) { var s = String(v == null ? '' : v); return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   async function exportCsv(name, rows) {
     var text = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');
@@ -1328,7 +1414,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } catch (e) { formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
   }
 
-  /* ---------- Aufmaß ---------- */
+  /* ---------- 8 Aufmaß ---------- */
   function parseAbzug(t) {
     var tot = 0;
     String(t || '').split(';').forEach(function (tok) {
@@ -1418,6 +1504,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     state.data.angebote.forEach(function (x) { var m = /^A-(\d{4})-(\d+)$/.exec(x.nr || ''); if (m && m[1] === y) max = Math.max(max, Number(m[2])); });
     return 'A-' + y + '-' + String(max + 1).padStart(3, '0');
   }
+  /** Summen eines Angebots/einer Rechnung: netto, Rabatt, Umsatzsteuer, brutto;
+   * zusätzlich der Lohnanteil (für den Hinweis nach § 35a EStG). Der Steuersatz kommt aus A.vat. */
   function calcAng(A) {
     var net = 0, lohn = 0, dp = Number(A.discount) || 0, vr = Number(A.vat) || 0;
     (A.positions || []).forEach(function (p) {
@@ -1604,6 +1692,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       d.text('Seite ' + i + ' von ' + n, 190, 291, { align: 'right' });
     }
   }
+  /** Zeichnet eine Tabellenzeile (Rahmen + senkrechte Linien) ins PDF. */
   function pdfGrid(d, xs, top, h, fill) {
     var x0 = xs[0], x1 = xs[xs.length - 1], i;
     if (fill) { d.setFillColor(236, 239, 241); d.rect(x0, top, x1 - x0, h, 'F'); }
@@ -1619,6 +1708,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var sl = [f.name, f.street, f.city].filter(Boolean).join(' · ');
     d.setFontSize(7); if (sl) d.text(sl, 20, 50);
   }
+  /** Erzeugt das PDF für Angebot (inv falsy) oder Rechnung (inv true) als Blob.
+   * Gibt null zurück, wenn die PDF-Bibliothek nicht geladen ist (offline ohne Zwischenspeicher). */
   function pdfAng(A, f, inv, annex) {
     var d = newPdf(); if (!d) return null;
     var c = calcAng(A), y;
@@ -1771,6 +1862,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     return state.data.rechnungen.filter(function (x) { return x.auftragId === aid && x.status !== 'Storniert'; })
       .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
   }
+  /** Nächste Rechnungsnummer R-JJJJ-NNN (höchste Nummer des Jahres + 1). Wird erst bei
+   * „Rechnung stellen“ vergeben, damit Entwürfe keine Nummern verbrauchen. */
   function nextReNr() {
     var y = today().slice(0, 4), max = 0;
     state.data.rechnungen.forEach(function (x) { var m = /^R-(\d{4})-(\d+)$/.exec(x.nr || ''); if (m && m[1] === y) max = Math.max(max, Number(m[2])); });
@@ -1972,7 +2065,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     }).join('');
   }
 
-  /* ---------- Ereignisse ---------- */
+  /* ---------- 9 Ereignisse ---------- */
+  /** Wechselt den Reiter und schreibt ihn in den URL-Hash. */
   function setTab(t) {
     state.tab = t;
     try { if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t); } catch (e) { }
@@ -2121,10 +2215,11 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     }
   });
 
-  /* ---------- Start ---------- */
-  function readHash() { var h = (location.hash || '').replace('#', ''); if (['uebersicht', 'belege', 'auftraege', 'angebote', 'rechnungen', 'ordner'].indexOf(h) >= 0) state.tab = h; }
+  /* ---------- 10 Start ---------- */
+  function readHash() { var h = (location.hash || '').replace('#', ''); if (TABS.indexOf(h) >= 0) state.tab = h; }
   window.addEventListener('hashchange', function () { readHash(); render(); });
 
+  /** Start: Dienste der Claude-Umgebung anfragen; wenn keine Datenbank da ist, lokal arbeiten. */
   async function init() {
     readHash();
     $('#fb-cat').innerHTML = '<option value="all">Alle Kategorien</option>' + options(CATS, '');

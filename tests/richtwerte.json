@@ -1,0 +1,165 @@
+{
+ "regions": [
+  {
+   "id": "stralsund-ruegen",
+   "name": "Stralsund / Rügen",
+   "stand": "2026-11-13",
+   "basis": "Schätzung: Bundeswert minus 12 % (Ost-Abschlag laut Ratgebern 10 bis 15 %), Stundensatz nach Spanne für neue Bundesländer. Keine Ortsdaten.",
+   "keys": [
+    "stralsund",
+    "rügen",
+    "ruegen",
+    "sassnitz",
+    "binz",
+    "putbus",
+    "sellin",
+    "garz",
+    "altefähr",
+    "altefaehr",
+    "barth",
+    "grimmen",
+    "bergen auf"
+   ],
+   "items": {
+    "verl-std": [
+     35.0,
+     61.5
+    ],
+    "verl-gross": [
+     53.0,
+     88.0
+    ],
+    "verl-mosaik": [
+     53.0,
+     97.0
+    ],
+    "verl-stein": [
+     48.5,
+     97.0
+    ],
+    "zu-diagonal": [
+     9.0,
+     17.5
+    ],
+    "zu-fischgraet": [
+     13.0,
+     26.5
+    ],
+    "zu-fbh": [
+     4.5,
+     9.0
+    ],
+    "abdichtung": [
+     13.0,
+     35.0
+    ],
+    "untergrund": [
+     4.5,
+     17.5
+    ],
+    "ausgleich": [
+     7.0,
+     13.0
+    ],
+    "abbruch": [
+     13.0,
+     26.5
+    ],
+    "sockel": [
+     4.5,
+     13.0
+    ],
+    "silikon": [
+     2.5,
+     9.0
+    ],
+    "stunde": [
+     38,
+     60
+    ],
+    "anfahrt": [
+     26.5,
+     44.0
+    ]
+   }
+  },
+  {
+   "id": "rostock",
+   "name": "Rostock",
+   "stand": "2026-11-13",
+   "basis": "Schätzung: Bundeswert minus 12 % (Ost-Abschlag laut Ratgebern 10 bis 15 %), Stundensatz nach Spanne für neue Bundesländer. Keine Ortsdaten.",
+   "keys": [
+    "rostock",
+    "warnemünde",
+    "warnemuende",
+    "bad doberan",
+    "kühlungsborn",
+    "kuehlungsborn",
+    "graal-müritz",
+    "graal-mueritz"
+   ],
+   "items": {
+    "verl-std": [
+     35.0,
+     61.5
+    ],
+    "verl-gross": [
+     53.0,
+     88.0
+    ],
+    "verl-mosaik": [
+     53.0,
+     97.0
+    ],
+    "verl-stein": [
+     48.5,
+     97.0
+    ],
+    "zu-diagonal": [
+     9.0,
+     17.5
+    ],
+    "zu-fischgraet": [
+     13.0,
+     26.5
+    ],
+    "zu-fbh": [
+     4.5,
+     9.0
+    ],
+    "abdichtung": [
+     13.0,
+     35.0
+    ],
+    "untergrund": [
+     4.5,
+     17.5
+    ],
+    "ausgleich": [
+     7.0,
+     13.0
+    ],
+    "abbruch": [
+     13.0,
+     26.5
+    ],
+    "sockel": [
+     4.5,
+     13.0
+    ],
+    "silikon": [
+     2.5,
+     9.0
+    ],
+    "stunde": [
+     38,
+     60
+    ],
+    "anfahrt": [
+     26.5,
+     44.0
+    ]
+   }
+  }
+ ]
+}

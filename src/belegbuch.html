@@ -1,0 +1,2250 @@
+<title>Belegbuch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: einspaltig, Kopf mit drei Reitern (Übersicht, Belege, Aufträge), Formular als Blatt über der Liste, ab 640px zentriert */
+:root {
+  --bg: #eef1f2;
+  --surface: #ffffff;
+  --surface-2: #f5f7f8;
+  --ink: #17222b;
+  --muted: #566570;
+  --line: #d3dade;
+  --accent: #0f6b63;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefec;
+  --fab: #1747a6;
+  --fab-ink: #ffffff;
+  --good: #25703a;
+  --good-soft: #dcefe1;
+  --warn: #8a5207;
+  --warn-soft: #f8ebd3;
+  --bad: #b3372d;
+  --bad-soft: #f7dedb;
+  --scrim: rgba(12, 20, 26, 0.5);
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171c;
+    --surface: #1a232a;
+    --surface-2: #212d35;
+    --ink: #e6ecef;
+    --muted: #93a2ad;
+    --line: #2d3b44;
+    --accent: #43b8aa;
+    --accent-ink: #06201d;
+    --accent-soft: #1b3a38;
+    --fab: #7aa8ff;
+    --fab-ink: #0a1b3d;
+    --good: #6cc785;
+    --good-soft: #1d3626;
+    --warn: #e0a850;
+    --warn-soft: #3b2f17;
+    --bad: #f08a80;
+    --bad-soft: #432522;
+    --scrim: rgba(0, 0, 0, 0.62);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171c;
+  --surface: #1a232a;
+  --surface-2: #212d35;
+  --ink: #e6ecef;
+  --muted: #93a2ad;
+  --line: #2d3b44;
+  --accent: #43b8aa;
+  --accent-ink: #06201d;
+  --accent-soft: #1b3a38;
+  --fab: #7aa8ff;
+  --fab-ink: #0a1b3d;
+  --good: #6cc785;
+  --good-soft: #1d3626;
+  --warn: #e0a850;
+  --warn-soft: #3b2f17;
+  --bad: #f08a80;
+  --bad-soft: #432522;
+  --scrim: rgba(0, 0, 0, 0.62);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 112px;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+  z-index: 10;
+}
+.wrap { max-width: 860px; margin: 0 auto; }
+h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+.trip { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.trip .field { margin-bottom: 0; }
+.photofirst { padding: 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.photofirst .btn.primary { min-height: 52px; font-size: 16px; }
+
+/* Kopf */
+.top {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 5;
+  background: var(--bg);
+  padding-block: 14px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.brand h1 { font-size: 22px; letter-spacing: -0.01em; }
+.mode { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.tabs { display: flex; overflow-x: auto; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.tabs button { flex: 1 0 auto; padding: 0 12px; font-size: 14px; min-height: 40px; border: 0; background: transparent; border-radius: 7px; font-weight: 500; color: var(--muted); cursor: pointer; }
+.tabs button[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Bausteine */
+.btn { min-height: 44px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--bad); }
+.btn.stornobtn { flex: 1 1 100%; min-height: 48px; font-weight: 600; border: 2px solid var(--bad); }
+.btn.cta { flex: 1 1 100%; min-height: 56px; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; box-shadow: 0 2px 0 rgba(0,0,0,0.18), 0 6px 14px rgba(15,107,99,0.28); }
+.btn.cta:active { transform: translateY(1px); box-shadow: none; }
+.btn.cta.armed { background: var(--warn); border-color: var(--warn); color: var(--surface); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.badge.good { background: var(--good-soft); color: var(--good); border-color: transparent; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.badge.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
+.banner .btn { background: transparent; border-color: currentColor; color: inherit; }
+
+/* Übersicht */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+@media (min-width: 720px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.tile.go { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; position: relative; }
+.tile.go:hover { border-color: var(--accent); }
+.tile.go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile.go::after { content: '›'; position: absolute; right: 12px; top: 10px; font-size: 20px; color: var(--accent); line-height: 1; }
+.bar-row.go { width: 100%; background: none; border: 0; padding: 4px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 6px; }
+.bar-row.go:hover { background: var(--surface-2); }
+.bar-row.go:focus-visible { outline: 2px solid var(--accent); }
+.tile.wide { grid-column: 1 / -1; }
+.tile.remind { padding: 8px 34px 8px 12px; border-color: var(--bad); background: var(--bad-soft); }
+.tile.remind .t1 { font-size: 14px; font-weight: 600; color: var(--bad); line-height: 1.3; }
+.tile.remind .t2 { font-size: 12px; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+.tile.remind::after { top: 50%; margin-top: -11px; color: var(--bad); }
+.tile.remind.done { border-color: var(--good); background: var(--good-soft); }
+.tile.remind.done .t1, .tile.remind.done::after { color: var(--good); }
+.tile .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tile .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 500; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.tile .sub { font-size: 13px; color: var(--muted); }
+.section-h { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin: 22px 0 10px; }
+.todo { display: flex; flex-direction: column; gap: 8px; }
+.todo button { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; min-height: 48px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.todo .ok { padding: 12px 14px; background: var(--good-soft); color: var(--good); border-radius: 10px; }
+.bars { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 9.5em) 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
+.bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 10px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 5px; }
+
+/* Listen */
+.controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.controls .wide { grid-column: 1 / -1; }
+@media (min-width: 720px) { .controls { grid-template-columns: 1.4fr 1fr 1fr; } .controls .wide { grid-column: auto; } }
+input[type="text"], input[type="date"], select {
+  width: 100%; min-height: 44px; padding: 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+}
+.check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.listbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
+.listbar .sum { font-size: 14px; color: var(--muted); }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer; }
+.row:hover { border-color: var(--accent); }
+.seg { display: flex; gap: 0; width: 100%; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg button { flex: 1 1 0; min-width: 0; min-height: 46px; padding: 4px 6px; border: 0; border-right: 1px solid var(--line); background: transparent; font: inherit; color: var(--muted); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+.seg button:last-child { border-right: 0; }
+.seg button b { font-weight: 600; font-size: 14px; }
+.seg button span { font-size: 12px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grp-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 14px 0 2px; padding-bottom: 4px; border-bottom: 2px solid var(--line); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.grp-h:first-child { margin-top: 0; }
+.row.k-kunde { border-left: 5px solid var(--accent); }
+.row.k-lieferant { border-left: 5px solid var(--warn); }
+.kindtag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.k-lieferant .kindtag { color: var(--warn); }
+.row .main { flex: 1; min-width: 0; }
+.row .vendor { font-weight: 600; overflow-wrap: anywhere; }
+.row .meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.row .amt { text-align: right; flex: none; }
+.row .amt .sub { font-size: 12px; color: var(--muted); }
+.thumb { width: 48px; height: 48px; flex: none; border-radius: 6px; object-fit: cover; border: 1px solid var(--line); background: var(--surface-2); }
+.syncbox { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.syncbox input[type=file] { width: 100%; min-height: 44px; }
+.docname { font-weight: 600; min-height: 40px; }
+.thumb.pdf { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.order { display: block; }
+.order .top1 { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.order .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.order select { width: auto; min-height: 36px; padding: 0 8px; font-size: 14px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; }
+
+.fab {
+  display: block; width: 100%; max-width: 360px; margin: 12px auto 12px;
+  min-height: 54px; padding: 0 20px; border-radius: 12px; border: 0;
+  background: var(--fab); color: var(--fab-ink); font-weight: 700; font-size: 17px; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+.fab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+/* Blatt */
+.overlay {
+  position: fixed; inset: 0; z-index: 20; background: var(--scrim);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+@media (min-width: 640px) { .overlay { align-items: center; padding: 24px; } }
+.sheet { width: 100%; max-width: 560px; max-height: 94%; overflow-y: auto; background: var(--surface); border-radius: 16px 16px 0 0; padding: 18px 16px; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 640px) { .sheet { border-radius: 16px; } }
+.sheet h2 { font-size: 19px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; min-width: 0; }
+.field label, .field .lbl { font-size: 13px; font-weight: 500; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 420px) { .grid2.stack { grid-template-columns: 1fr; } }
+.err { color: var(--bad); min-height: 1.2em; margin: 0 0 8px; font-size: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.actions .left { margin-right: auto; }
+.photo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.photo .thumb { width: 64px; height: 64px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) { .row, .btn { transition: border-color 0.15s, background-color 0.15s; } }
+.sheet.wide { max-width: 760px; }
+.top .mode { margin-top: 8px; }
+textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; resize: vertical; line-height: 1.45; font: inherit; color: inherit; }
+.pos { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--surface-2); }
+.pos .field { margin-bottom: 8px; }
+.pos input, .pos select { background: var(--surface); }
+.res { min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
+.sumtable { width: 100%; max-width: 420px; margin-left: auto; border-collapse: collapse; margin-top: 12px; }
+.sumtable td { padding: 4px 0; }
+.sumtable td:last-child { text-align: right; }
+.addbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.addbar select { flex: 1 1 220px; width: auto; }
+.prow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.prow .ptext { grid-column: 1 / -1; }
+.prow .field { margin-bottom: 0; }
+.sheet a { color: var(--accent); }
+.sheet a.btn { color: var(--ink); text-decoration: none; }
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-bottom: 10px; }
+.gt { border-collapse: collapse; width: 100%; font-size: 13px; }
+.gt th { padding: 7px 6px; }
+.gt .cell { padding: 0 6px; font-size: 12.5px; }
+.gt th, .gt td { border: 1px solid var(--line); padding: 0; vertical-align: middle; }
+.gt th { background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; padding: 7px 6px; white-space: nowrap; }
+.gt th.r, .gt td.r { text-align: right; }
+.gt .pos { border: 0; border-radius: 0; padding: 0; margin: 0; background: none; }
+.gt input, .gt select { border: 0; border-radius: 0; background: transparent; min-height: 40px; height: 40px; width: 100%; padding: 0 6px; font-size: 13px; box-shadow: none; }
+.gt input:focus, .gt select:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+.gt td.r input { text-align: right; font-family: var(--font-mono); }
+.gt td.c { padding: 0 8px; }
+.gt .cell { padding: 0 8px; min-height: 40px; display: flex; align-items: center; justify-content: flex-end; font-family: var(--font-mono); white-space: nowrap; }
+.gt td.sub { padding: 4px 8px; background: var(--surface-2); }
+.gt .nr { text-align: center; color: var(--muted); width: 34px; }
+.gt .xb { width: 40px; text-align: center; }
+.gt .xb button { border: 0; background: transparent; color: var(--bad); font-size: 18px; min-height: 40px; width: 40px; cursor: pointer; }
+.locked .gt .xb, .locked .gt th.xb { display: none; }
+.locked .addbar,  .locked [data-act="ang-del-pos"], .locked [data-act="re-fromam"] { display: none; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Belegbuch</h1><button type="button" class="btn small" data-act="settings">Firma und Preise</button></div>
+    <nav class="tabs" aria-label="Bereiche">
+      <button type="button" data-act="tab" data-tab="uebersicht">Übersicht</button>
+      <button type="button" data-act="tab" data-tab="belege">Kosten &amp; Fahrten</button>
+      <button type="button" data-act="tab" data-tab="auftraege">Baustellen &amp; Materialeinkauf</button>
+      <button type="button" data-act="tab" data-tab="rechnungen">Rechnungen</button>
+      <button type="button" data-act="tab" data-tab="ordner" id="tab-ordner">Ordner (vorläufig)</button>
+      <button type="button" data-act="tab" data-tab="angebote">Angebote</button>
+    </nav>
+    <div class="mode" id="mode">Lädt …</div>
+  </header>
+  <button type="button" class="fab" id="fab" data-act="new">+ Beleg</button>
+
+  <main>
+    <div class="banner" id="banner" hidden>
+      <span>Du siehst Beispieldaten. Lösche sie, bevor du deine eigenen Belege einträgst.</span>
+      <button type="button" class="btn small" data-act="clear-examples">Beispiele löschen</button>
+    </div>
+
+    <section id="v-uebersicht">
+      <div class="tiles" id="remindBox" style="margin-bottom:12px"></div>
+      <h2 class="section-h" style="margin-top:0">Zu erledigen</h2>
+      <div class="todo" id="todo"></div>
+      <div class="tiles" id="tiles" style="margin-top:20px"></div>
+      <h2 class="section-h" id="catsTitle">Ausgaben nach Kategorie</h2>
+      <div class="bars" id="cats"></div>
+      <h2 class="section-h">Abgleich zwischen Geräten</h2>
+      <div class="syncbox">
+        <p class="hint" id="syncInfo" style="margin:0"></p>
+        <button type="button" class="btn" data-act="sync-auto" id="syncAuto" hidden>Abgleichen (Datei einmal wählen, dann automatisch)</button>
+        <div class="field" style="margin:0"><label for="syncFile">1. Abgleich-Datei laden</label><input type="file" id="syncFile"></div>
+        <button type="button" class="btn" data-act="sync-save">2. Abgleich-Datei speichern</button>
+        <p class="hint" id="syncMsg" style="margin:0"></p>
+      </div>
+    </section>
+
+    <section id="v-belege" hidden>
+      <div class="controls">
+        <input class="wide" id="fb-q" type="text" placeholder="Suche nach Lieferant oder Notiz" aria-label="Belege durchsuchen" autocomplete="off">
+        <select id="fb-month" aria-label="Monat"></select>
+        <select id="fb-cat" aria-label="Kategorie"></select>
+        <p class="hint wide" id="fb-note" hidden></p>
+        <label class="check wide" id="fb-nophoto-wrap" hidden><input type="checkbox" id="fb-nophoto"> Nur Belege ohne Foto</label>
+      </div>
+      <div class="listbar">
+        <span class="sum" id="belegeSum"></span>
+        <button type="button" class="btn small" data-act="export-belege">CSV für den Steuerberater</button>
+      </div>
+      <div class="list" id="belegeList"></div>
+    </section>
+
+    <section id="v-auftraege" hidden>
+      <div class="controls">
+        <div class="seg wide" id="fa-seg" role="group" aria-label="Aufträge ansehen"></div>
+        <label class="check"><input type="checkbox" id="fa-open" checked> Nur offene</label>
+        <p class="hint wide" id="fa-note" hidden></p>
+      </div>
+      <div class="listbar">
+        <span class="sum" id="auftraegeSum"></span>
+        <button type="button" class="btn small" data-act="export-auftraege">CSV exportieren</button>
+      </div>
+      <div class="list" id="auftraegeList"></div>
+    </section>
+    <section id="v-angebote" hidden>
+      <div class="listbar">
+        <span class="sum" id="angeboteSum"></span>
+      </div>
+      <div class="list" id="angeboteList"></div>
+    </section>
+    <section id="v-ordner" hidden>
+      <div class="field"><label for="ordnerName">Name des Ordners (vorläufig, du kannst ihn jederzeit ändern)</label><input id="ordnerName" type="text" autocomplete="off" placeholder="Ordner (vorläufig)"></div>
+      <div class="listbar"><span class="sum" id="ordnerSum"></span></div>
+      <div class="list" id="ordnerList"></div>
+    </section>
+    <section id="v-rechnungen" hidden>
+      <div class="listbar">
+        <span class="sum" id="rechnungenSum"></span>
+      </div>
+      <div class="list" id="rechnungenList"></div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="sheet" hidden><div class="sheet" id="sheetBody" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ======================================================================
+   * BELEGBUCH – Büro-App für einen Handwerksbetrieb (eine Datei, kein Build-Framework)
+   *
+   * AUFBAU DIESER DATEI
+   *   <style>   Design-Tokens (hell/dunkel) und Komponenten
+   *   <div>     statisches Grundgerüst: Kopf, Reiter, je Reiter eine <section>, Formular-Sheet
+   *   <script>  diese IIFE; Abschnitte in dieser Reihenfolge:
+   *     1  Konstanten, Zustand, Hilfsfunktionen
+   *     2  Speicher (Datenbank oder localStorage)        persist / patch / removeDoc
+   *     3  Abgleich zwischen Geräten                     syncMerge / syncSave / syncLoad
+   *     4  Darstellung der Reiter                        render*()
+   *     5  Formulare (Sheet)                             openBeleg / openAuftrag / closeSheet
+   *     6  Fahrstrecken                                  estimateTrip (Näherung) / mapRoute (Mapbox)
+   *     7  Export, Preisliste, Einstellungen
+   *     8  Aufmaß, Angebot, PDF, Rechnung
+   *     9  Ereignisse (eine delegierte Klick-Behandlung über data-act)
+   *    10  Start (init)
+   *
+   * ZWEI BETRIEBSARTEN (Variable `mode`)
+   *   'db'     Seite läuft als Claude-Artifact: window.claude.use() liefert Datenbank (DB),
+   *            Datei-Ablage (ASSETS), Speichern-Dialog (DL) und Mapbox (MAP).
+   *            Daten kommen über onSnapshot herein; Schreiben löst kein eigenes render() aus.
+   *   'local'  Seite läuft als normale Web-App/PWA oder Datei: alles liegt in localStorage
+   *            unter 'belegbuch:<sammlung>'; nach jedem Schreiben folgt saveLocal() + render().
+   *   Alle Funktionen müssen mit DB/ASSETS/DL/MAP === null zurechtkommen.
+   *
+   * DATENMODELL (Sammlungen in COLS; jedes Dokument hat `id` und den Zeitstempel `_t` in ms)
+   *   belege      date, vendor, gross, vat, cat, pay, orderId, note,
+   *               photoId/photoKind ('img'|'pdf'), place, vaddr, km (gesamt), back
+   *   auftraege   kind ('kunde'|'lieferant'), title, party, site, amount, status, date, due,
+   *               terms, aufmass{rows,waste}, siteKm (einfach), visits
+   *   angebote    Kopf + positions[] (text, qty, unit, price, art) – siehe calcAng()
+   *   rechnungen  wie angebote, dazu nr (erst bei „Rechnung stellen“), status, amSnap
+   *   dokumente   name, date, note, fileId (PDF-Ordner)
+   *   settings    Einzeldokumente: firma, preise, richtwerte, strecken, erinnerung, ordner,
+   *               geloescht {map: {'<sammlung>/<id>': zeit}} = Löschmarken für den Abgleich
+   *
+   * DARSTELLUNG
+   *   Kein Framework: render() baut alle Reiter aus `state` neu (innerHTML). Das ist bei den
+   *   Datenmengen eines Einzelbetriebs schnell genug und hält den Zustand an einer Stelle.
+   *   Nutzereingaben werden immer durch esc() geschickt, bevor sie ins HTML gelangen.
+   * ====================================================================== */
+
+  /* ---------- 1 Konstanten ---------- */
+  var CATS = ['Material', 'Werkzeug & Maschinen', 'Fahrzeug & Kraftstoff', 'Arbeitskleidung & Schutz', 'Subunternehmer', 'Entsorgung & Container', 'Versicherung & Beiträge', 'Telefon & Internet', 'Büro & Software', 'Sonstiges'];
+  var KM_RATE = 0.3;
+  var PAYS = ['Karte', 'Bar', 'Überweisung', 'Lastschrift', 'PayPal', 'Privat ausgelegt'];
+  var VATS = [19, 7, 0];
+  var STAT = { kunde: ['Anfrage', 'Angebot', 'Beauftragt', 'In Arbeit', 'Abgenommen', 'Berechnet', 'Bezahlt'], lieferant: ['Bestellt', 'Geliefert', 'Bezahlt'] };
+  var KIND = { kunde: 'Baustelle', lieferant: 'Materialbestellung' };
+  var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+  /* ---------- Zustand (einzige Quelle für alle render-Funktionen) ---------- */
+  /** Reiter in Anzeige-Reihenfolge; Schlüssel = id der <section> ohne 'v-' = URL-Hash. */
+  var TABS = ['uebersicht', 'belege', 'auftraege', 'rechnungen', 'ordner', 'angebote'];
+  var state = {
+    tab: 'uebersicht',
+    data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [] },
+    loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false },
+    fb: { month: 'all', cat: 'all', q: '', nophoto: false },
+    fa: { kind: 'kunde', open: true },
+    slow: false, err: false
+  };
+  /** Laufzeit-Dienste der Claude-Umgebung; außerhalb davon null (siehe Kopfkommentar). */
+  var DB = null, ASSETS = null, DL = null, mode = 'lade';
+  /** draft = das Dokument, das gerade im Formular-Sheet bearbeitet wird (oder null). */
+  var draft = null, lastFocus = null, toastTimer = null;
+
+  /* ---------- Hilfsfunktionen: DOM, Zahlen, Datum ---------- */
+
+  function $(s) { return document.querySelector(s); }
+  /** Maskiert Text für die Ausgabe in HTML. Pflicht für alle Nutzereingaben. */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  var eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+  function money(n) { return eur.format(n || 0); }
+  function de(n) { return (Math.round((n || 0) * 100) / 100).toFixed(2).replace('.', ','); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fdate(iso) { if (!iso) return '–'; var p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+  function monthName(ym) { var p = ym.split('-'); return MONTHS[Number(p[1]) - 1] + ' ' + p[0]; }
+  /** Liest deutsche Zahleneingaben ('1.234,50', '12,5 €'); NaN bei leerer Eingabe. */
+  function parseNum(s) {
+    s = String(s || '').trim().replace(/\s|€/g, '');
+    if (!s) return NaN;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    return Number(s);
+  }
+  /** Im Bruttobetrag enthaltene Umsatzsteuer. */
+  function vatPart(gross, rate) { return gross - gross / (1 + (rate || 0) / 100); }
+  function addDays(iso, n) {
+    if (!iso) return '';
+    var p = iso.split('-'), d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n));
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+  }
+  function withCur(list, cur) { return cur && list.indexOf(cur) < 0 ? list.concat([cur]) : list; }
+  function termLabel(t) { return t === 'custom' ? 'Eigenes Datum' : (Number(t) === 0 ? 'Sofort' : t + ' Tage'); }
+  function sum(arr, f) { return arr.reduce(function (a, x) { return a + (f(x) || 0); }, 0); }
+  function allLoaded() { return COLS.every(function (c) { return state.loaded[c]; }); }
+  /** Zahl mit passendem Hauptwort: plural(1, 'Fahrt', 'Fahrten') -> '1 Fahrt'. */
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function orderMap() { var m = {}; state.data.auftraege.forEach(function (a) { m[a.id] = a; }); return m; }
+  function isOverdue(a) { return !!a.due && a.due < today() && a.status !== 'Bezahlt'; }
+
+  function toast(msg) {
+    var t = $('#toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
+  }
+
+  /* ---------- 2 Speicher: Konto-Datenbank, sonst nur dieser Browser ---------- */
+  var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente'];
+  /** Schreibt alle Sammlungen in localStorage (nur Betriebsart 'local'). */
+  function saveLocal() {
+    try { COLS.forEach(function (c) { localStorage.setItem('belegbuch:' + c, JSON.stringify(state.data[c])); }); } catch (e) { /* ohne Speicher gehen Daten beim Schließen verloren */ }
+  }
+  function loadLocal() {
+    COLS.forEach(function (c) {
+      try { state.data[c] = JSON.parse(localStorage.getItem('belegbuch:' + c) || '[]'); } catch (e) { state.data[c] = []; }
+      state.loaded[c] = true;
+    });
+  }
+  /** Legt ein Dokument an oder ersetzt es vollständig. Setzt den Zeitstempel `_t`.
+   * @param {string} c Sammlung  @param {?string} id null = neu  @param {Object} obj Felder ohne id
+   * @returns {Promise<string>} id des Dokuments */
+  async function persist(c, id, obj) {
+    obj = Object.assign({}, obj, { _t: Date.now() });
+    if (DB) {
+      var col = DB.collection(c);
+      var ref = id ? col.doc(id) : col.doc();
+      await ref.set(obj);
+      return ref.id;
+    }
+    if (!id) id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    var row = Object.assign({ id: id }, obj);
+    var i = state.data[c].findIndex(function (x) { return x.id === id; });
+    if (i >= 0) state.data[c][i] = row; else state.data[c].push(row);
+    saveLocal(); render();
+    return id;
+  }
+  /** Ändert einzelne Felder eines Dokuments und setzt `_t`. */
+  async function patch(c, id, fields) {
+    fields = Object.assign({}, fields, { _t: Date.now() });
+    if (DB) { await DB.collection(c).doc(id).update(fields); return; }
+    var r = state.data[c].find(function (x) { return x.id === id; });
+    if (r) Object.assign(r, fields);
+    saveLocal(); render();
+  }
+  /** Löscht ein Dokument und merkt eine Löschmarke vor, damit der Abgleich
+   * das Dokument auf anderen Geräten ebenfalls entfernt statt es zurückzubringen. */
+  async function removeDoc(c, id) {
+    var tm = Object.assign({}, setting('geloescht').map || {}); tm[c + '/' + id] = Date.now();
+    if (DB) { await DB.collection(c).doc(id).delete(); try { await rawSet('settings', 'geloescht', { map: tm, _t: Date.now() }); } catch (e) { } return; }
+    state.data[c] = state.data[c].filter(function (x) { return x.id !== id; });
+    await rawSet('settings', 'geloescht', { map: tm, _t: Date.now() });
+    saveLocal(); render();
+  }
+  /* Schreiben ohne neuen Zeitstempel (für den Abgleich) */
+  async function rawSet(c, id, obj) {
+    var o = Object.assign({}, obj); delete o.id;
+    if (DB) { await DB.collection(c).doc(id).set(o); return; }
+    var row = Object.assign({ id: id }, o), i = state.data[c].findIndex(function (x) { return x.id === id; });
+    if (i >= 0) state.data[c][i] = row; else state.data[c].push(row);
+  }
+  async function rawDel(c, id) {
+    if (DB) { await DB.collection(c).doc(id).delete(); return; }
+    state.data[c] = state.data[c].filter(function (x) { return x.id !== id; });
+  }
+
+  /* ---------- 3 Abgleich zwischen Geräten über eine Abgleich-Datei ---------- */
+  var SYNC_NAME = 'belegbuch-abgleich.json', syncHandle = null;
+  function syncText() { return JSON.stringify({ app: 'belegbuch', v: 1, exported: new Date().toISOString(), data: state.data }); }
+  function syncNote(t) { try { localStorage.setItem('belegbuch:lastsync', t); } catch (e) { } renderSync(); }
+  function renderSync() {
+    var el = $('#syncInfo'); if (!el) return;
+    var last = ''; try { last = localStorage.getItem('belegbuch:lastsync') || ''; } catch (e) { }
+    el.textContent = (mode === 'db' ? 'Diese Ansicht speichert in deinem Claude-Konto.' : 'Diese Ansicht speichert nur auf diesem Gerät.') + ' Letzter Abgleich hier: ' + (last || 'noch nie') + '.';
+    var au = $('#syncAuto'); if (au) au.hidden = !window.showOpenFilePicker;
+  }
+  /** Führt eine Abgleich-Datei mit dem lokalen Stand zusammen.
+   * Regel je Dokument: der neuere Zeitstempel `_t` gewinnt; eine Löschmarke, die mindestens so
+   * neu ist wie das Dokument, entfernt es. Löschmarken beider Seiten werden vereinigt.
+   * @param {string} text Inhalt der Datei (JSON aus syncText())
+   * @returns {Promise<{add:number, upd:number, del:number}>}
+   * @throws {{code:'bad'}} wenn die Datei keine Belegbuch-Datei ist */
+  async function syncMerge(text) {
+    var file; try { file = JSON.parse(text); } catch (e) { throw { code: 'bad' }; }
+    if (!file || file.app !== 'belegbuch' || !file.data) throw { code: 'bad' };
+    var inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
+    var it = ((inc.settings || []).find(function (x) { return x.id === 'geloescht'; }) || {}).map || {};
+    Object.keys(it).forEach(function (k) { if (!(tomb[k] >= it[k])) tomb[k] = it[k]; });
+    var n = { add: 0, upd: 0, del: 0 };
+    for (var ci = 0; ci < COLS.length; ci++) {
+      var c = COLS[ci], rows = Array.isArray(inc[c]) ? inc[c] : [];
+      for (var i = 0; i < rows.length; i++) {
+        var d = rows[i]; if (!d || !d.id || (c === 'settings' && d.id === 'geloescht')) continue;
+        var t = Number(d._t) || 0, k = c + '/' + d.id;
+        if (tomb[k] != null && tomb[k] >= t) continue;
+        var loc = state.data[c].find(function (x) { return x.id === d.id; });
+        if (!loc) { await rawSet(c, d.id, d); n.add++; }
+        else if (t > (Number(loc._t) || 0)) { await rawSet(c, d.id, d); n.upd++; }
+      }
+      var mine = state.data[c].slice();
+      for (var j = 0; j < mine.length; j++) {
+        var m = mine[j], km = c + '/' + m.id;
+        if (c === 'settings' && m.id === 'geloescht') continue;
+        if (tomb[km] != null && tomb[km] >= (Number(m._t) || 0)) { await rawDel(c, m.id); n.del++; }
+      }
+    }
+    if (Object.keys(tomb).length) await rawSet('settings', 'geloescht', { map: tomb, _t: Date.now() });
+    if (!DB) { saveLocal(); render(); }
+    return n;
+  }
+  function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt.'; }
+  function stamp() { var d = new Date(); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+  /** Übergibt eine Datei an den Nutzer: in Claude über den Speichern-Dialog,
+   * sonst als normaler Browser-Download. */
+  async function saveFile(name, data, mime) {
+    if (DL) { await DL.save({ filename: name, data: data }); return; }
+    var blob = data instanceof Blob ? data : new Blob([data], { type: mime || 'text/plain' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  async function syncSave() {
+    try { await saveFile(SYNC_NAME, syncText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); toast('Abgleich-Datei gespeichert'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
+  }
+  async function syncLoad(f) {
+    if (!f) return;
+    try { var n = await syncMerge(await f.text()); syncNote(stamp() + ' (Datei geladen)'); $('#syncMsg').textContent = syncMsg(n) + ' Speichere jetzt die Abgleich-Datei, damit das andere Gerät deinen Stand bekommt.'; toast('Abgleich-Datei geladen'); }
+    catch (e) { $('#syncMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Die Datei ließ sich nicht lesen.'; }
+  }
+  async function syncAuto() {
+    var msg = $('#syncMsg');
+    try {
+      if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'Belegbuch Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
+      var n = await syncMerge(await (await syncHandle.getFile()).text());
+      var w = await syncHandle.createWritable(); await w.write(syncText()); await w.close();
+      syncNote(stamp() + ' (automatisch)'); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      syncHandle = null; msg.textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Der automatische Abgleich ging nicht. Nimm „Datei laden“ und danach „Datei speichern“.';
+    }
+  }
+  async function dropAsset(id) {
+    if (!id || !ASSETS) return;
+    try { await ASSETS.delete(id); } catch (e) { /* verwaiste Datei ist harmlos */ }
+  }
+
+  /* ---------- 4 Darstellung ---------- */
+  function renderMode() {
+    var el = $('#mode'), t;
+    if (mode === 'local') t = 'Nur auf diesem Gerät gespeichert · Abgleich per Datei (Übersicht, unten)';
+    else if (state.err) t = 'Zugriff nicht möglich';
+    else if (mode === 'db' && allLoaded()) t = 'Synchron gespeichert';
+    else if (state.slow) t = 'Daten noch nicht erreichbar';
+    else t = 'Lädt …';
+    el.textContent = t;
+  }
+  function renderTabs() {
+    document.querySelectorAll('.tabs button').forEach(function (b) {
+      if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    TABS.forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
+    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : '+ Beleg';
+    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : 'beleg';
+    $('#fab').hidden = state.tab === 'angebote' || state.tab === 'rechnungen' || state.tab === 'ordner';
+  }
+  function renderBanner() {
+    var has = state.data.belege.some(function (x) { return x.example; }) || state.data.auftraege.some(function (x) { return x.example; });
+    $('#banner').hidden = !has;
+  }
+  function stateNote() {
+    if (state.err) return '<div class="empty">Die Daten lassen sich gerade nicht lesen. Lade die Seite neu oder prüfe, ob du angemeldet bist.</div>';
+    if (!allLoaded()) return '<div class="empty">Lädt …</div>';
+    return null;
+  }
+
+  /** Reiter Übersicht: Erinnerung, Aufgabenliste, Kennzahl-Kacheln, Ausgaben je Kategorie. */
+  function renderOverview() {
+    var ym = today().slice(0, 7), y = today().slice(0, 4);
+    var B = state.data.belege, A = state.data.auftraege;
+    var month = B.filter(function (b) { return (b.date || '').indexOf(ym) === 0; });
+    var year = B.filter(function (b) { return (b.date || '').indexOf(y) === 0; });
+    var open = A.filter(function (a) { return a.status !== 'Bezahlt'; });
+    var late = A.filter(isOverdue);
+    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt'; });
+    var lateInv = openInv.filter(function (x) { return x.due && x.due < today(); });
+    var billed = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Berechnet'; });
+    var running = A.filter(function (a) { return a.kind === 'kunde' && (a.status === 'Beauftragt' || a.status === 'In Arbeit'); });
+    var offers = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Angebot'; });
+    var sitesY = A.filter(function (a) { return a.kind === 'kunde' && (a.date || '').indexOf(y) === 0; });
+    var doneToday = setting('erinnerung').done === today(), nToday = B.filter(function (b) { return b.date === today(); }).length;
+    var remind = '<button type="button" class="tile go wide remind' + (doneToday ? ' done' : '') + '" data-act="ov" data-go="remind" aria-pressed="' + doneToday + '"><div class="t1">' + (doneToday ? '✓ Belege-Erinnerung erledigt' : 'Belege eingeben – noch offen') + '</div><div class="t2">' + (nToday ? nToday + (nToday === 1 ? ' Beleg' : ' Belege') + ' heute' : 'Noch kein Beleg heute') + ' · ' + (doneToday ? 'Tippen: zurücknehmen' : 'Tippen: abhaken') + '</div></button>';
+    $('#remindBox').innerHTML = remind;
+    $('#tiles').innerHTML =
+      tile('Ausgaben ' + monthName(ym), money(sum(month, function (b) { return b.gross; })), month.length + ' Belege', 'month') +
+      tile('Vorsteuer ' + y, money(sum(year, function (b) { return vatPart(b.gross, b.vat); })), 'aus ' + year.length + ' Belegen', 'year') +
+      tile('Laufende Baustellen', String(running.length), offers.length + (offers.length === 1 ? ' Angebot offen' : ' Angebote offen'), 'run') +
+      tile('Offene Rechnungen', money(sum(openInv, function (x) { return calcAng(x).gross; })), openInv.length + ' offen' + (lateInv.length ? ', ' + lateInv.length + ' überfällig' : ''), 'inv') +
+      tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', plural(year.filter(function (b) { return Number(b.km) > 0; }).length, 'Fahrt', 'Fahrten') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
+      tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', plural(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length, 'Baustelle', 'Baustellen') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
+
+    var todo = '';
+    if (late.length) todo += '<button type="button" data-act="goto-late"><span>' + late.length + (late.length === 1 ? ' Auftrag ist überfällig' : ' Aufträge sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
+    var toBill = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Abgenommen'; });
+    if (toBill.length) todo += '<button type="button" data-act="goto-kunden"><span>' + toBill.length + (toBill.length === 1 ? ' Baustelle ist abgenommen, die Rechnung fehlt noch' : ' Baustellen sind abgenommen, die Rechnungen fehlen noch') + '</span><span class="badge warn">Ansehen</span></button>';
+    var chase = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Angebot' && a.date && a.date <= addDays(today(), -14); });
+    if (chase.length) todo += '<button type="button" data-act="goto-kunden"><span>' + chase.length + (chase.length === 1 ? ' Angebot wartet seit über 14 Tagen auf Antwort' : ' Angebote warten seit über 14 Tagen auf Antwort') + '</span><span class="badge">Nachfassen</span></button>';
+    if (lateInv.length) todo += '<button type="button" data-act="goto-rechnungen"><span>' + lateInv.length + (lateInv.length === 1 ? ' Rechnung ist überfällig' : ' Rechnungen sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
+    var drafts = state.data.angebote.filter(function (x) { return x.status === 'Entwurf'; });
+    if (drafts.length) todo += '<button type="button" data-act="goto-angebote"><span>' + drafts.length + (drafts.length === 1 ? ' Angebot ist noch nicht versendet' : ' Angebote sind noch nicht versendet') + '</span><span class="badge warn">Ansehen</span></button>';
+    var nophoto = B.filter(function (b) { return !b.photoId && !b.photoData; });
+    if (ASSETS && nophoto.length) todo += '<button type="button" data-act="goto-nophoto"><span>' + nophoto.length + (nophoto.length === 1 ? ' Beleg hat kein Foto' : ' Belege haben kein Foto') + '</span><span class="badge warn">Ansehen</span></button>';
+    $('#todo').innerHTML = todo || '<div class="ok">Nichts offen. Alle Belege haben ein Foto, kein Auftrag ist überfällig.</div>';
+    if (!ASSETS && !todo) $('#todo').innerHTML = '<div class="ok">Nichts überfällig.</div>';
+
+    var by = {};
+    year.forEach(function (b) { by[b.cat || 'Sonstiges'] = (by[b.cat || 'Sonstiges'] || 0) + b.gross; });
+    var cats = Object.keys(by).map(function (k) { return [k, by[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    $('#catsTitle').textContent = 'Ausgaben ' + y + ' nach Kategorie';
+    var max = cats.length ? cats[0][1] : 1;
+    $('#cats').innerHTML = cats.length ? cats.map(function (c) {
+      return '<button type="button" class="bar-row go" data-act="ov" data-go="cat" data-cat="' + esc(c[0]) + '"><span class="name">' + esc(c[0]) + '</span><span class="bar-track"><span class="bar-fill" style="display:block;width:' + Math.max(2, Math.round(c[1] / max * 100)) + '%"></span></span><span class="num">' + money(c[1]) + '</span></button>';
+    }).join('') : '<span class="muted">Noch keine Ausgaben in diesem Jahr.</span>';
+  }
+  function tile(l, v, s, go) { return '<button type="button" class="tile go" data-act="ov" data-go="' + go + '"><div class="lbl">' + esc(l) + '</div><div class="val">' + esc(v) + '</div><div class="sub">' + esc(s) + '</div></button>'; }
+
+  function filteredBelege() {
+    var f = state.fb, q = f.q.toLowerCase();
+    return state.data.belege.filter(function (b) {
+      if (f.month !== 'all' && (b.date || '').slice(0, 7) !== f.month) return false;
+      if (f.cat !== 'all' && (b.cat || 'Sonstiges') !== f.cat) return false;
+      if (f.nophoto && (b.photoId || b.photoData)) return false;
+      if (f.year && (b.date || '').slice(0, 4) !== f.year) return false;
+      if (f.km && !(Number(b.km) > 0)) return false;
+      if (q && ((b.vendor || '') + ' ' + (b.note || '')).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+  }
+  function renderBelege() {
+    $('#fb-nophoto-wrap').hidden = !ASSETS;
+    var months = [], seen = {};
+    state.data.belege.forEach(function (b) { var m = (b.date || '').slice(0, 7); if (m && !seen[m]) { seen[m] = 1; months.push(m); } });
+    months.sort().reverse();
+    var sig = months.join(',');
+    var sel = $('#fb-month');
+    if (sel.dataset.sig !== sig) {
+      sel.innerHTML = '<option value="all">Alle Monate</option>' + months.map(function (m) { return '<option value="' + m + '">' + monthName(m) + '</option>'; }).join('');
+      sel.dataset.sig = sig;
+    }
+    if (state.fb.month !== 'all' && !seen[state.fb.month]) state.fb.month = 'all';
+    sel.value = state.fb.month;
+    $('#fb-cat').value = state.fb.cat;
+    $('#fb-nophoto').checked = state.fb.nophoto;
+    var fbOn = !!(state.fb.year || state.fb.km);
+    $('#fb-note').hidden = !fbOn; $('#fb-note').innerHTML = fbOn ? 'Nur Belege' + (state.fb.km ? ' mit Fahrt' : '') + (state.fb.year ? ' aus ' + esc(state.fb.year) : '') + ' <button type="button" class="btn small" data-act="fb-clear">Filter aufheben</button>' : '';
+
+    var note = stateNote();
+    if (note) { $('#belegeList').innerHTML = note; $('#belegeSum').textContent = ''; return; }
+    var rows = filteredBelege();
+    $('#belegeSum').innerHTML = rows.length + (rows.length === 1 ? ' Beleg' : ' Belege') + ' · brutto <span class="num">' + money(sum(rows, function (b) { return b.gross; })) + '</span> · Vorsteuer <span class="num">' + money(sum(rows, function (b) { return vatPart(b.gross, b.vat); })) + '</span>' + (function () { var km = sum(rows, function (b) { return Number(b.km) || 0; }); return km > 0 ? ' · Fahrten <span class="num">' + fmtQ(km) + ' km</span> (≈ ' + money(km * KM_RATE) + ' bei 0,30 €/km)' : ''; })();
+    if (!rows.length) {
+      $('#belegeList').innerHTML = '<div class="empty">' + (state.data.belege.length ? 'Kein Beleg passt zu diesem Filter.' : 'Noch keine Belege. Tippe auf „+ Beleg“, gib Betrag und Lieferant ein und hänge das Foto an.') + '</div>';
+      return;
+    }
+    var om = orderMap();
+    $('#belegeList').innerHTML = rows.map(function (b) {
+      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : '<img class="thumb" alt="" loading="lazy" src="/_blob/' + esc(b.photoId) + '">') : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
+      var ord = b.orderId && om[b.orderId];
+      return '<article class="row" tabindex="0" role="button" data-edit="belege:' + esc(b.id) + '">' + thumb +
+        '<div class="main"><div class="vendor">' + esc(b.vendor) + '</div>' +
+        '<div class="meta">' + fdate(b.date) + ' · ' + esc(b.cat) + ' · ' + esc(b.pay) + '</div>' +
+        (b.vaddr ? '<div class="meta">' + esc(b.vaddr) + '</div>' : '') +
+        (b.place || b.km ? '<div class="meta">' + (b.place ? esc(b.place) : '') + (b.place && b.km ? ' · ' : '') + (b.km ? fmtQ(b.km) + ' km gefahren' + (b.back === false ? ' (nur Hinfahrt)' : ' (inkl. Rückfahrt nach Hause)') : '') + '</div>' : '') +
+        (ord ? '<div class="meta">Baustelle: ' + esc(ord.title) + '</div>' : '') +
+        (!b.photoId && !b.photoData ? '<div class="meta"><span class="badge warn">Foto fehlt</span></div>' : '') +
+        '</div><div class="amt"><div class="num">' + money(b.gross) + '</div><div class="sub">' + (b.vat || 0) + ' % MwSt</div></div></article>';
+    }).join('');
+  }
+
+  function filteredAuftraege() {
+    var f = state.fa;
+    return state.data.auftraege.filter(function (a) {
+      if (f.kind !== 'all' && a.kind !== f.kind) return false;
+      if (f.run && !(a.kind === 'kunde' && (a.status === 'Beauftragt' || a.status === 'In Arbeit'))) return false;
+      if (f.open && a.status === 'Bezahlt') return false;
+      if (f.km && !(siteKmTotal(a) > 0)) return false;
+      if (f.year && (a.date || '').slice(0, 4) !== f.year) return false;
+      return true;
+    }).sort(function (a, b) {
+      var pa = a.status === 'Bezahlt' ? 1 : 0, pb = b.status === 'Bezahlt' ? 1 : 0;
+      if (pa !== pb) return pa - pb;
+      if (pa === 0) return (a.due || '9999').localeCompare(b.due || '9999');
+      return (b.date || '').localeCompare(a.date || '');
+    });
+  }
+  function renderAuftraege() {
+    $('#fa-open').checked = state.fa.open;
+    var faOn = !!(state.fa.run || state.fa.km);
+    $('#fa-note').hidden = !faOn; $('#fa-note').innerHTML = faOn ? (state.fa.km ? 'Nur Baustellen mit Fahrt' + (state.fa.year ? ' aus ' + esc(state.fa.year) : '') : 'Nur laufende Baustellen (beauftragt / in Arbeit)') + ' <button type="button" class="btn small" data-act="fa-clear">Filter aufheben</button>' : '';
+    var note = stateNote();
+    if (note) { $('#auftraegeList').innerHTML = note; $('#auftraegeSum').textContent = ''; return; }
+    var rows = filteredAuftraege();
+    var cntK = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && (!state.fa.open || a.status !== 'Bezahlt'); }).length;
+    var cntL = state.data.auftraege.filter(function (a) { return a.kind === 'lieferant' && (!state.fa.open || a.status !== 'Bezahlt'); }).length;
+    $('#fa-seg').innerHTML = [['kunde', 'Baustellen', 'für Kunden', cntK], ['lieferant', 'Bestellungen', 'bei Lieferanten', cntL], ['all', 'Alle', '', cntK + cntL]].map(function (k) {
+      return '<button type="button" data-act="fa-kind" data-kind="' + k[0] + '" aria-pressed="' + (state.fa.kind === k[0]) + '"><b>' + k[1] + ' · ' + k[3] + '</b>' + (k[2] ? '<span>' + k[2] + '</span>' : '') + '</button>';
+    }).join('');
+    var rk = rows.filter(function (a) { return a.kind === 'kunde'; }), rl = rows.filter(function (a) { return a.kind === 'lieferant'; });
+    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt' && rk.some(function (a) { return a.id === x.auftragId; }); });
+    var sumK = rk.length + (rk.length === 1 ? ' Baustelle' : ' Baustellen') + ' · Auftragswert <span class="num">' + money(sum(rk, function (a) { return a.amount; })) + '</span> netto' + (openInv.length ? ' · offene Rechnungen <span class="num">' + money(sum(openInv, function (x) { return calcAng(x).gross; })) + '</span>' : '');
+    var sumL = rl.length + (rl.length === 1 ? ' Bestellung' : ' Bestellungen') + ' · Summe <span class="num">' + money(sum(rl, function (a) { return a.amount; })) + '</span> netto' + (rl.some(function (a) { return a.status !== 'Bezahlt'; }) ? ' · noch zu zahlen <span class="num">' + money(sum(rl.filter(function (a) { return a.status !== 'Bezahlt'; }), function (a) { return a.amount; })) + '</span> netto' : '');
+    $('#auftraegeSum').innerHTML = state.fa.kind === 'kunde' ? sumK : state.fa.kind === 'lieferant' ? sumL : rows.length + ' Einträge';
+    if (!rows.length) {
+      $('#auftraegeList').innerHTML = '<div class="empty">' + (state.data.auftraege.length ? (state.fa.kind === 'lieferant' ? 'Keine Bestellungen in dieser Ansicht.' : state.fa.kind === 'kunde' ? 'Keine Baustellen in dieser Ansicht.' : 'Kein Auftrag passt zu diesem Filter.') : 'Noch keine Aufträge. Tippe auf „+ Auftrag“, um den ersten anzulegen.') + '</div>';
+      return;
+    }
+    var links = {};
+    state.data.belege.forEach(function (b) { if (b.orderId) { (links[b.orderId] = links[b.orderId] || []).push(b); } });
+    var card = function (a) {
+      var late = isOverdue(a);
+      var opts = withCur(STAT[a.kind] || STAT.kunde, a.status).map(function (s) { return '<option' + (s === a.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+      var lb = links[a.id] || [];
+      var cost = sum(lb, function (b) { return b.gross - vatPart(b.gross, b.vat); });
+      var area = Number(a.area) > 0 ? Number(a.area) : 0;
+      var inv = a.kind === 'kunde' ? latestRechnung(a.id) : null;
+      return '<article class="row order k-' + (a.kind === 'lieferant' ? 'lieferant' : 'kunde') + '" tabindex="0" role="button" data-edit="auftraege:' + esc(a.id) + '">' +
+        '<div class="kindtag">' + (a.kind === 'lieferant' ? 'Bestellung bei Lieferant' : 'Baustelle · Kunde') + '</div>' +
+        '<div class="top1"><span class="vendor">' + esc(a.title) + '</span><span><span class="num">' + money(a.amount) + '</span> <span class="muted" style="font-size:12px">netto</span></span></div>' +
+        '<div class="meta">' + esc(a.party) + (a.site ? ' · ' + esc(a.site) : '') + (a.kind === 'lieferant' ? ' · Materialbestellung' : '') + (area ? ' · ' + String(area).replace('.', ',') + ' m² · ' + money(a.amount / area) + '/m²' : '') + '</div>' +
+        (a.kind === 'kunde' && lb.length ? '<div class="meta">Kosten ' + money(cost) + ' netto · Rohertrag <span class="num">' + money(a.amount - cost) + '</span></div>' : '') +
+        '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : 'Rechnung') + '</button>' : '') +
+        (a.due ? '<span class="badge ' + (late ? 'bad' : '') + '">' + 'Fällig ' + fdate(a.due) + (late ? ' · überfällig' : '') + '</span>' : '') +
+        (a.status === 'Bezahlt' ? '<span class="badge good">bezahlt</span>' : '') + (siteKmTotal(a) > 0 ? '<span class="badge">Fahrten ' + fmtQ(siteKmTotal(a)) + ' km (' + Math.max(1, Math.round(Number(a.visits) || 1)) + '×)</span>' : '') +
+        (lb.length ? '<span class="badge">' + lb.length + (lb.length === 1 ? ' Beleg' : ' Belege') + '</span>' : '') +
+        (a.ckind === 'privat' ? '<span class="badge">Privatkunde</span>' : '') +
+        (inv ? '<span class="badge ' + (inv.status === 'Bezahlt' ? 'good' : inv.status === 'Gestellt' && inv.due && inv.due < today() ? 'bad' : '') + '">Rechnung ' + esc(inv.nr || 'Entwurf') + ' · ' + esc(inv.status) + '</span>' : (a.kind === 'kunde' && a.status === 'Abgenommen' ? '<span class="badge warn">Rechnung fehlt</span>' : '')) +
+        (a.aufmass && a.aufmass.rows && a.aufmass.rows.length ? '<span class="badge">Aufmaß ' + fmtQ(amTot(a.aufmass.rows).flaeche) + ' m²</span>' : '') +
+        '</div></article>';
+    };
+    if (state.fa.kind === 'all') {
+      $('#auftraegeList').innerHTML = (rk.length ? '<div class="grp-h"><span>Baustellen für Kunden</span><span>' + sumK.split(' · ')[0] + '</span></div>' + rk.map(card).join('') : '') +
+        (rl.length ? '<div class="grp-h"><span>Meine Bestellungen bei Lieferanten</span><span>' + sumL.split(' · ')[0] + '</span></div>' + rl.map(card).join('') : '');
+    } else $('#auftraegeList').innerHTML = rows.map(card).join('');
+  }
+
+  /* ---------- Ordner für PDF-Dateien ---------- */
+  function ordnerTitle() { return String(setting('ordner').name || '').trim() || 'Ordner (vorläufig)'; }
+  function renderOrdner() {
+    var tb = $('#tab-ordner'); if (tb) tb.textContent = ordnerTitle();
+    var inp = $('#ordnerName'); if (inp && document.activeElement !== inp) inp.value = String(setting('ordner').name || '');
+    var el = $('#ordnerList'); if (!el) return;
+    var docs = (state.data.dokumente || []).slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    $('#ordnerSum').textContent = docs.length + (docs.length === 1 ? ' Datei' : ' Dateien');
+    if (!docs.length) { el.innerHTML = '<div class="empty">Noch keine PDF-Dateien. Schick mir ein PDF im Chat und sag dazu „in den Ordner“, dann liegt es hier.</div>'; return; }
+    el.innerHTML = docs.map(function (d) {
+      var ask = state.docDel === d.id;
+      return '<article class="row"><span class="thumb pdf">PDF</span><div class="main"><input class="docname" type="text" autocomplete="off" aria-label="Dateiname" data-doc="' + esc(d.id) + '" value="' + esc(d.name || '') + '">' +
+        '<div class="meta">' + (d.date ? fdate(d.date) : '') + (d.note ? ' · ' + esc(d.note) : '') + '</div>' +
+        '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><a class="btn small" href="/_blob/' + esc(d.fileId) + '" target="_blank" rel="noopener">Öffnen</a>' +
+        '<button type="button" class="btn small' + (ask ? ' danger' : '') + '" data-act="doc-del" data-id="' + esc(d.id) + '">' + (ask ? 'Wirklich entfernen?' : 'Entfernen') + '</button></div></div></article>';
+    }).join('');
+  }
+
+  /** Baut die gesamte Oberfläche aus `state` neu auf. Wird nach jeder Datenänderung gerufen. */
+  function render() {
+    renderMode(); renderBanner(); renderTabs();
+    renderOverview(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderOrdner(); renderSync();
+  }
+
+  /* ---------- 5 Formulare ---------- */
+  function options(list, cur, fmt) {
+    return list.map(function (v) { return '<option value="' + esc(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + esc(fmt ? fmt(v) : v) + '</option>'; }).join('');
+  }
+  function showSheet(html, wide) {
+    lastFocus = document.activeElement;
+    $('#sheetBody').className = 'sheet' + (wide ? ' wide' : '');
+    $('#sheetBody').innerHTML = html;
+    $('#sheet').hidden = false;
+    var first = $('#sheetBody input, #sheetBody select');
+    if (first && !wide) first.focus();
+  }
+  /** Schließt das Formular-Sheet; verwirft dabei nicht gespeicherte Datei-Uploads. */
+  async function closeSheet(cancel) {
+    if (cancel && draft && draft.uploaded) { for (var i = 0; i < draft.uploaded.length; i++) await dropAsset(draft.uploaded[i]); }
+    $('#sheet').hidden = true; draft = null;
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) { } }
+  }
+
+  /* ---------- 6 Fahrstrecken: Näherung ohne Internet ---------- */
+  var TOWNS = {
+    'zarrendorf': [54.233, 13.083], 'stralsund': [54.309, 13.082], 'altefähr': [54.3, 13.117], 'greifswald': [54.087, 13.392], 'rostock': [54.092, 12.099],
+    'bergen': [54.417, 13.433], 'bergen auf rügen': [54.417, 13.433], 'sassnitz': [54.514, 13.643], 'putbus': [54.352, 13.477], 'binz': [54.4, 13.617], 'sellin': [54.383, 13.683],
+    'garz': [54.316, 13.333], 'samtens': [54.4, 13.267], 'gingst': [54.417, 13.033], 'trent': [54.433, 13.283], 'schaprode': [54.5, 13.1], 'altenkirchen': [54.633, 13.317],
+    'barth': [54.367, 12.717], 'zingst': [54.433, 12.683], 'prerow': [54.45, 12.583], 'ahrenshoop': [54.383, 12.417], 'ribnitz-damgarten': [54.243, 12.453], 'ribnitz': [54.243, 12.453], 'damgarten': [54.253, 12.43],
+    'grimmen': [54.11, 13.038], 'franzburg': [54.146, 12.863], 'marlow': [54.148, 12.567], 'tribsees': [54.083, 12.767], 'loitz': [53.967, 13.15], 'demmin': [53.903, 13.034],
+    'anklam': [53.856, 13.687], 'wolgast': [54.05, 13.767], 'usedom': [54.0, 14.0], 'neubrandenburg': [53.558, 13.261], 'güstrow': [53.794, 12.179], 'bad doberan': [54.104, 11.903],
+    'kühlungsborn': [54.15, 11.767], 'wismar': [53.891, 11.465], 'schwerin': [53.636, 11.401], 'lübeck': [53.866, 10.687], 'hamburg': [53.551, 9.994], 'berlin': [52.52, 13.405],
+    'tessin': [54.017, 12.467], 'prohn': [54.367, 13.017], 'klausdorf': [54.4, 13.017]
+  };
+  function normPlace(t) { return String(t || '').toLowerCase().replace(/ß/g, 'ss').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/[^a-z0-9\- ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  var TOWNS_N = {}, TOWN_LBL = {}; Object.keys(TOWNS).forEach(function (k) { TOWNS_N[normPlace(k)] = TOWNS[k]; TOWN_LBL[normPlace(k)] = k.replace(/(^|[ \-])([a-zäöü])/g, function (m, a, c) { return a + c.toUpperCase(); }); });
+  function findTown(text) {
+    var n = ' ' + normPlace(text) + ' ', best = null;
+    Object.keys(TOWNS_N).forEach(function (k) { if (n.indexOf(' ' + k + ' ') >= 0 && (!best || k.length > best.length)) best = k; });
+    return best;
+  }
+  function homeTown() {
+    var f = setting('firma') || {};
+    return findTown(f.home) || findTown(f.city) || 'zarrendorf';
+  }
+  function airKm(a, b) {
+    var R = 6371, rad = Math.PI / 180, dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function tripLabels() {
+    var f = setting('firma') || {}, h = String(f.home || '').trim() || (TOWN_LBL[homeTown()] || 'Zuhause');
+    var pl = $('#f-place'), p = pl ? String(pl.value).trim() : '';
+    return { home: h, place: p || 'Einkaufsort' };
+  }
+  function renderTrip() {
+    var box = $('#tripRows'); if (!box) return;
+    var kmEl = $('#f-km'), km = parseNum(kmEl ? kmEl.value : ''), back = $('#f-back') ? $('#f-back').checked : true;
+    if (!(km > 0)) { box.innerHTML = ''; return; }
+    var one = back ? km / 2 : km, L = tripLabels(), va = $('#f-vaddr') ? String($('#f-vaddr').value).trim() : '';
+    function row(a, b, strong) { return '<tr' + (strong ? ' style="font-weight:600"' : '') + '><td>' + a + '</td><td class="num" style="text-align:right;white-space:nowrap">' + b + '</td></tr>'; }
+    box.innerHTML = (va ? '<p class="hint" style="margin:8px 0 0">Berechnet bis zur Adresse laut Beleg: ' + esc(va) + '</p>' : '') + '<table class="sumtable" style="max-width:none;margin-top:8px">' +
+      row('Hinfahrt ' + esc(L.home) + ' → ' + esc(L.place), fmtQ(one) + ' km') +
+      (back ? row('Rückfahrt ' + esc(L.place) + ' → ' + esc(L.home) + ' (nach Hause)', fmtQ(one) + ' km') : row('<span class="muted">Rückfahrt nach Hause nicht eingerechnet</span>', '–')) +
+      row('Gesamt', fmtQ(km) + ' km', true) + '</table>';
+  }
+  function myRoutes() {
+    var m = {};
+    String(setting('strecken').text || '').split(/\n/).forEach(function (ln) {
+      var x = /^\s*(.+?)\s*[=:]\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:km)?\s*$/i.exec(ln); if (!x) return;
+      var km = parseNum(x[2]); if (km > 0) m[normPlace(x[1])] = km;
+    });
+    return m;
+  }
+  function vendorGuess(vendor, skipId) {
+    var vn = normPlace(vendor); if (!vn) return null;
+    var prev = state.data.belege.filter(function (b) { return b.id !== skipId && normPlace(b.vendor) === vn && (b.place || Number(b.km) > 0); })
+      .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
+    if (prev) return { place: prev.place || '', km: Number(prev.km) > 0 ? (function () { var bk = $('#f-back') ? $('#f-back').checked : true, o = prev.back === false ? Number(prev.km) : Number(prev.km) / 2; return bk ? o * 2 : o; })() : 0, how: 'wie bei deinem letzten Einkauf bei ' + vendor };
+    var t = findTown(vendor);
+    return t ? { place: TOWN_LBL[t], km: 0, how: 'Ort aus dem Namen des Lieferanten' } : null;
+  }
+  /** Schätzt die Fahrstrecke ohne Internet. Reihenfolge der Quellen:
+   * frühere Belege desselben Lieferanten und Orts > „Meine Strecken“ > frühere Belege desselben Orts
+   * > Luftlinie × 1,3 aus der Ortstabelle TOWNS.
+   * @returns {{km:number, how:string}|{err:string}} km einfach */
+  function estimateTrip(place, skipId, vendor, vaddr) {
+    var pn = normPlace(place), t = findTown(place) || findTown(vaddr), home = homeTown(), vn = normPlace(vendor);
+    if (!pn && !t) return { err: 'Bitte zuerst Lieferant, Adresse oder Einkaufsort eintragen.' };
+    var same = state.data.belege.filter(function (b) { return b.id !== skipId && Number(b.km) > 0 && b.place && normPlace(b.place) === pn; });
+    var sv = vn ? same.filter(function (b) { return normPlace(b.vendor) === vn; }) : [];
+    var back = $('#f-back') ? $('#f-back').checked : true, mr = myRoutes(), mk = null;
+    Object.keys(mr).forEach(function (k) { if (!mk && ((' ' + pn + ' ').indexOf(' ' + k + ' ') >= 0 || (t && TOWN_LBL[t] && normPlace(TOWN_LBL[t]) === k))) mk = k; });
+    var known = (sv.length ? sv : same).map(function (b) { var o = b.back === false ? Number(b.km) : Number(b.km) / 2; return back ? o * 2 : o; }).sort(function (a, b) { return a - b; });
+    if (sv.length) { var s0 = sv.map(function (b) { var o = b.back === false ? Number(b.km) : Number(b.km) / 2; return back ? o * 2 : o; }).sort(function (a, b) { return a - b; }); return { km: s0[Math.floor(s0.length / 2)], how: 'wie bei deinem früheren Einkauf bei diesem Lieferanten' }; }
+    if (mk) return { km: mr[mk] * (back ? 2 : 1), how: 'deine Angabe „' + mk.replace(/^./, function (c) { return c.toUpperCase(); }) + ' = ' + String(mr[mk]).replace('.', ',') + ' km“ (einfache Fahrt)' + (back ? ' × 2' : '') };
+    if (known.length) return { km: known[Math.floor(known.length / 2)], how: 'wie bei ' + (known.length === 1 ? 'deinem früheren Einkauf' : 'deinen früheren Einkäufen') + (sv.length ? ' bei diesem Lieferanten' : ' an diesem Ort') };
+    if (!t) return { err: 'Diesen Ort kenne ich noch nicht. Trage die Kilometer einmal selbst ein, beim nächsten Mal merkt sich die App den Wert.' };
+    if (t === home) return { km: back ? 5 : 2.5, how: 'Einkauf am Wohnort, Näherung' };
+    var km = airKm(TOWNS_N[home], TOWNS_N[t]) * 1.3 * (back ? 2 : 1);
+    return { km: Math.max(1, Math.round(km * 2) / 2), how: 'grobe Näherung aus Luftlinie × 1,3 (Koordinaten aus Wikipedia bzw. OpenStreetMap) von ' + TOWN_LBL[home] + ' nach ' + TOWN_LBL[t] + (back ? ', hin und zurück nach Hause' : ', nur Hinfahrt') };
+  }
+  function fillTripEst(auto, pre) {
+    var pl = $('#f-place'), km = $('#f-km'), vd = $('#f-vendor'), msg = $('#tripMsg'); if (!pl || !km || !msg) return;
+    if (auto && String(km.value).trim()) { renderTrip(); return; }
+    var vendor = vd ? vd.value : '', how = '', va = $('#f-vaddr') ? String($('#f-vaddr').value).trim() : '';
+    if (!String(pl.value).trim() && va && findTown(va)) { pl.value = TOWN_LBL[findTown(va)]; how = 'Ort aus der Adresse auf dem Beleg'; }
+    if (!String(pl.value).trim()) {
+      var g = vendorGuess(vendor, draft && draft.id);
+      if (!g || !g.place) { if (auto) msg.textContent = ''; if (!auto) msg.textContent = 'Zu diesem Lieferanten kenne ich noch keinen Ort. Trage den Einkaufsort ein, z. B. „Stralsund“.'; return; }
+      pl.value = g.place;
+      if (g.km) { km.value = String(g.km).replace('.', ','); msg.textContent = 'Einkaufsort „' + g.place + '“ und ca. ' + String(g.km).replace('.', ',') + ' km (' + g.how + '). Bitte prüfen und bei Bedarf ändern.'; renderTrip(); return; }
+      how = g.how;
+    }
+    var r = estimateTrip(pl.value, draft && draft.id, vendor, $('#f-vaddr') ? $('#f-vaddr').value : '');
+    if (r.err) { if (!auto) msg.textContent = (pre ? pre + ' ' : '') + r.err; return; }
+    km.value = String(r.km).replace('.', ',');
+    renderTrip();
+    msg.textContent = (pre ? pre + ' ' : '') + (how ? 'Einkaufsort „' + pl.value + '“ (' + how + '). ' : '') + 'ca. ' + String(r.km).replace('.', ',') + ' km (' + r.how + '). Bitte prüfen und bei Bedarf ändern.' + (/^grobe/.test(r.how) ? ' Tipp: Echte Entfernungen trägst du unter „Firma und Preise“ bei „Meine Strecken“ ein.' : '');
+  }
+
+  /* ---------- Echte Fahrstrecke über Mapbox (nur wenn die App in Claude mit Konto geöffnet ist) ---------- */
+  var MAP = null, HOMEC = null;
+  function mapText(res) {
+    var t = '';
+    try { if (res && typeof res.payload === 'string') t = res.payload; else if (res) t = JSON.stringify(res.payload != null ? res.payload : res); } catch (e) { }
+    try { if (res && res.content) t += ' ' + res.content.map(function (c) { return c && c.text || ''; }).join(' '); } catch (e) { }
+    return t;
+  }
+  function mapCoord(res) {
+    var t = mapText(res), m = /Coordinates:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/.exec(t);
+    var name = /Address:\s*([^\n\\"]+)/.exec(t);
+    if (m) return { lat: +m[1], lon: +m[2], label: name ? name[1].trim() : '' };
+    var pl = res && res.payload, f = pl && pl.features && pl.features[0];
+    if (f && f.geometry && f.geometry.coordinates) return { lat: +f.geometry.coordinates[1], lon: +f.geometry.coordinates[0], label: (f.properties && (f.properties.full_address || f.properties.name)) || '' };
+    return null;
+  }
+  function mapShortest(res) {
+    var list = [], pl = res && res.payload;
+    if (pl && pl.routes) pl.routes.forEach(function (r) { if (r && r.distance > 0) list.push(r.distance); });
+    if (!list.length) { var re = /"distance"\s*:\s*([0-9]+(?:\.[0-9]+)?)/g, t = mapText(res), m; while ((m = re.exec(t))) list.push(+m[1]); }
+    return list.length ? { m: Math.min.apply(null, list), n: list.length } : null;
+  }
+  function mapCall(tool, input) {
+    var sig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? { signal: AbortSignal.timeout(25000) } : undefined;
+    return MAP.callTool('Mapbox', tool, input, sig);
+  }
+  /** Fehler aus mapRoute() als Satz für den Nutzer. */
+  function mapErrText(e) {
+    var c = e && e.code;
+    return c === 'no_home' ? 'Deine Adresse unter „Firma“ fehlt oder wurde nicht gefunden.' : c === 'no_dest' ? 'Mapbox hat die Adresse nicht gefunden.' : c === 'not_granted' || c === 'cancelled' ? 'Mapbox wurde nicht freigegeben.' : 'Mapbox hat gerade nicht geantwortet.';
+  }
+  /** Kürzeste Straßenverbindung Firmenadresse -> Ziel über den Mapbox-Connector.
+   * Fragt Alternativrouten ab und nimmt die kürzeste (nicht die schnellste).
+   * @param {string} dest Adresse oder „Lieferant, Ort“
+   * @returns {Promise<{oneKm:number, routes:number, destLabel:string, homeLabel:string}>}
+   * @throws {{code:'no_home'|'no_dest'|'no_route'}} oder Fehler des Connectors */
+  async function mapRoute(dest) {
+    var f = setting('firma') || {}, homeQ = [f.street, f.city].filter(Boolean).join(', ');
+    if (!homeQ) throw { code: 'no_home' };
+    if (!HOMEC || HOMEC.q !== homeQ) {
+      var h = mapCoord(await mapCall('search_and_geocode_tool', { q: homeQ, country: ['de'] }));
+      if (!h) throw { code: 'no_home' };
+      HOMEC = { q: homeQ, lat: h.lat, lon: h.lon, label: h.label };
+    }
+    var d = mapCoord(await mapCall('search_and_geocode_tool', { q: dest, country: ['de'], proximity: { longitude: HOMEC.lon, latitude: HOMEC.lat } }));
+    if (!d) throw { code: 'no_dest' };
+    var r = mapShortest(await mapCall('directions_tool', { coordinates: [{ longitude: HOMEC.lon, latitude: HOMEC.lat }, { longitude: d.lon, latitude: d.lat }], routing_profile: 'mapbox/driving', alternatives: true }));
+    if (!r) throw { code: 'no_route' };
+    return { oneKm: r.m / 1000, routes: r.n, destLabel: d.label, homeLabel: homeQ };
+  }
+  async function fillTrip(auto) {
+    var pl = $('#f-place'), km = $('#f-km'), vd = $('#f-vendor'), msg = $('#tripMsg'); if (!pl || !km || !msg) return;
+    if (auto && String(km.value).trim()) { renderTrip(); return; }
+    var va = $('#f-vaddr') ? String($('#f-vaddr').value).trim() : '', vendor = vd ? String(vd.value).trim() : '', place = String(pl.value).trim();
+    var dest = va || (vendor && place ? vendor + ', ' + place : '');
+    if (!MAP || !dest) { fillTripEst(auto); return; }
+    msg.textContent = 'Kürzeste Strecke wird mit Mapbox berechnet …';
+    var pre = '';
+    try {
+      var r = await mapRoute(dest);
+      if (!$('#f-km') || $('#f-km') !== km) return;
+      var back = $('#f-back') ? $('#f-back').checked : true, tot = Math.round(r.oneKm * (back ? 2 : 1) * 10) / 10;
+      if (!String(pl.value).trim()) { var tn = findTown(va); if (tn) pl.value = TOWN_LBL[tn]; }
+      km.value = String(tot).replace('.', ',');
+      renderTrip();
+      msg.textContent = 'Mapbox: kürzeste Straßenverbindung ' + String(Math.round(r.oneKm * 10) / 10).replace('.', ',') + ' km einfach' + (r.routes > 1 ? ' (von ' + r.routes + ' Routen)' : '') + (back ? ', × 2 = ' + String(tot).replace('.', ',') + ' km' : '') + '. Ziel gefunden: ' + (r.destLabel || dest) + (va ? '' : ' (Adresse geschätzt, bitte prüfen)') + '.';
+      return;
+    } catch (e) {
+      var c = e && e.code;
+      pre = mapErrText(e);
+      pre += ' Näherung statt echter Strecke:';
+    }
+    fillTripEst(auto, pre);
+  }
+
+  /* ---------- Fahrten zu Baustellen ---------- */
+  function siteKmTotal(a) { var o = Number(a && a.siteKm); return o > 0 ? Math.round(o * 2 * Math.max(1, Math.round(Number(a.visits) || 1)) * 10) / 10 : 0; }
+  function siteAddr(aid, fallback) { var r = aid ? latestRechnung(aid) : null; return String((r && r.site) || fallback || '').trim(); }
+  function renderSiteTotal() {
+    var el = $('#siteTotal'); if (!el) return;
+    var o = parseNum(val('f-skm')), n = Math.max(1, Math.round(parseNum(val('f-svis')) || 1));
+    el.textContent = o > 0 ? 'Gesamt: ' + fmtQ(Math.round(o * 2 * n * 10) / 10) + ' km (' + n + (n === 1 ? ' Fahrt' : ' Fahrten') + ' × hin und zurück ' + fmtQ(Math.round(o * 2 * 10) / 10) + ' km)' : '';
+  }
+  async function siteCalc() {
+    var msg = $('#siteMsg'), skm = $('#f-skm'); if (!msg || !skm) return;
+    var dest = siteAddr(draft && draft.id, val('f-site'));
+    if (!dest) { msg.textContent = 'Bitte zuerst die Baustellen-Adresse eintragen.'; return; }
+    var src = siteAddr(draft && draft.id, '') ? 'Adresse auf der Rechnung' : 'Adresse der Baustelle';
+    var pre = '';
+    if (MAP) {
+      msg.textContent = 'Kürzeste Strecke wird mit Mapbox berechnet …';
+      try {
+        var r = await mapRoute(dest);
+        if ($('#f-skm') !== skm) return;
+        skm.value = String(Math.round(r.oneKm * 10) / 10).replace('.', ','); renderSiteTotal();
+        msg.textContent = 'Mapbox: kürzeste Straßenverbindung ' + skm.value + ' km einfach (' + src + ': ' + dest + '). Ziel gefunden: ' + (r.destLabel || dest) + '. Bitte prüfen.';
+        return;
+      } catch (e) {
+        pre = mapErrText(e) + ' ';
+      }
+    } else pre = 'Mapbox gibt es nur, wenn du die App in Claude mit deinem Konto öffnest. ';
+    var t = findTown(dest);
+    if (t && TOWNS_N[homeTown()]) {
+      var o = Math.max(1, Math.round(airKm(TOWNS_N[homeTown()], TOWNS_N[t]) * 1.3 * 2) / 2);
+      skm.value = String(o).replace('.', ','); renderSiteTotal();
+      msg.textContent = pre + 'Näherung (Luftlinie × 1,3) nach ' + TOWN_LBL[t] + ': ' + skm.value + ' km einfach. Bitte prüfen oder die Kilometer selbst eintragen.';
+    } else msg.textContent = pre + 'Trage die Kilometer einfach selbst ein.';
+  }
+
+  /** Öffnet das Beleg-Formular (id = null: neuer Beleg). */
+  function openBeleg(id) {
+    var b = id ? state.data.belege.find(function (x) { return x.id === id; }) : null;
+    draft = { coll: 'belege', id: id || null, photoId: b && b.photoId || null, photoData: b && b.photoData || null, photoKind: b && b.photoKind || null, orig: b && b.photoId || null, uploaded: [], confirm: false };
+    var vendors = {};
+    state.data.belege.forEach(function (x) { if (x.vendor) vendors[x.vendor] = 1; });
+    var orders = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' || (b && a.id === b.orderId); }).sort(function (a, c) { return (c.date || '').localeCompare(a.date || ''); });
+    var v = b || { date: today(), vendor: '', gross: '', vat: 19, cat: CATS[0], pay: PAYS[0], orderId: '', note: '' };
+    showSheet(
+      '<h2 id="sheetTitle">' + (b ? 'Beleg bearbeiten' : 'Neuer Beleg') + '</h2>' +
+      '<form id="form" novalidate>' +
+      '<div class="field photofirst"><span class="lbl">Beleg-Foto</span><div id="photoBox"></div></div>' +
+      '<div class="grid2"><div class="field"><label for="f-date">Datum</label><input id="f-date" type="date" value="' + esc(v.date) + '"></div>' +
+      '<div class="field"><label for="f-gross">Betrag brutto (€)</label><input id="f-gross" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="' + (b ? de(v.gross) : '') + '"></div></div>' +
+      '<div class="field"><label for="f-vendor">Lieferant</label><input id="f-vendor" type="text" placeholder="z. B. Fliesengroßhandel" autocomplete="off" list="vendors" value="' + esc(v.vendor) + '"><datalist id="vendors">' + Object.keys(vendors).map(function (k) { return '<option value="' + esc(k) + '">'; }).join('') + '</datalist></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-vat">MwSt-Satz</label><select id="f-vat">' + options(VATS, v.vat, function (r) { return r + ' %'; }) + '</select></div>' +
+      '<div class="field"><label for="f-cat">Kategorie</label><select id="f-cat">' + options(withCur(CATS, v.cat), v.cat) + '</select></div></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-pay">Bezahlt mit</label><select id="f-pay">' + options(withCur(PAYS, v.pay), v.pay) + '</select></div>' +
+      '<div class="field"><label for="f-order">Baustelle</label><select id="f-order"><option value="">Keine (allgemeine Kosten)</option>' + orders.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === v.orderId ? ' selected' : '') + '>' + esc(a.title) + (a.party ? ' – ' + esc(a.party) : '') + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="field trip"><span class="lbl">Fahrt zum Einkauf (optional)</span><div class="field"><label for="f-vaddr">Adresse des Lieferanten (laut Beleg)</label><input id="f-vaddr" type="text" autocomplete="off" placeholder="z. B. Gruenhufer Bogen 13-17, 18437 Stralsund" value="' + esc(v.vaddr || '') + '"></div><div class="grid2 stack"><div class="field"><label for="f-place">Einkaufsort</label><input id="f-place" type="text" autocomplete="off" placeholder="leer lassen: wird aus dem Lieferanten abgeleitet" value="' + esc(v.place || '') + '"></div>' +
+      '<div class="field"><label for="f-km">Gefahrene km gesamt</label><input id="f-km" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 24" value="' + (v.km ? String(v.km).replace('.', ',') : '') + '"></div></div>' +
+      '<label class="check" style="margin-top:8px"><input type="checkbox" id="f-back"' + (v.back === false ? '' : ' checked') + '> Rückfahrt nach Hause einrechnen</label>' +
+      '<div id="tripRows"></div>' +
+      '<button type="button" class="btn small" data-act="trip-calc" style="margin-top:8px">Strecke automatisch ermitteln</button><p class="hint" id="tripMsg" style="margin-top:6px"></p></div>' +
+      '<div class="field"><label for="f-note">Notiz</label><input id="f-note" type="text" autocomplete="off" value="' + esc(v.note) + '"></div>' +
+      '<p class="err" id="formErr" role="alert"></p>' +
+      '<div class="actions">' + (b ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>'
+    );
+    renderPhotoBox(); renderTrip();
+    if (b && (b.place || b.vaddr) && !(Number(b.km) > 0)) { fillTrip(true); var tm = $('#tripMsg'); if (tm && tm.textContent) tm.textContent = 'Vorschlag, noch nicht gespeichert: ' + tm.textContent; }
+  }
+  function renderPhotoBox(msg) {
+    var box = $('#photoBox'); if (!box) return;
+    var html = '', has = draft.photoId || draft.photoData;
+    if (has) {
+      html += '<div class="photo">' + (draft.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : '<img class="thumb" alt="Beleg-Foto" src="' + (draft.photoId ? '/_blob/' + esc(draft.photoId) : esc(draft.photoData)) + '">') +
+        (draft.photoId ? '<a href="/_blob/' + esc(draft.photoId) + '" target="_blank" rel="noopener">Öffnen</a>' : '') +
+        '<button type="button" class="btn small" data-act="photo-remove">Foto entfernen</button></div>';
+    } else {
+      html += '<p class="hint" style="margin:0">Noch kein Foto. Schick den Beleg im Chat an Claude, dann wird er samt Foto angelegt.</p>';
+    }
+    box.innerHTML = html;
+  }
+  /** Öffnet das Formular für Baustelle bzw. Materialbestellung. */
+  function openAuftrag(id) {
+    var a = id ? state.data.auftraege.find(function (x) { return x.id === id; }) : null;
+    draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [] };
+    var v = a || { kind: state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde', party: '', title: '', site: '', area: '', amount: '', date: today(), due: addDays(today(), 14), terms: 14, status: STAT[state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde'][0], note: '' };
+    var k = v.kind === 'lieferant' ? 'lieferant' : 'kunde';
+    var terms = (v.terms !== undefined && v.terms !== null) ? v.terms : (v.due ? 'custom' : 14);
+    var parties = {};
+    state.data.auftraege.forEach(function (x) { if (x.party) parties[x.party] = 1; });
+    showSheet(
+      '<h2 id="sheetTitle">' + (a ? 'Auftrag bearbeiten' : 'Neuer Auftrag') + '</h2>' +
+      '<form id="form" novalidate>' +
+      '<div class="field"><label for="f-kind">Art</label><select id="f-kind"><option value="kunde"' + (k === 'kunde' ? ' selected' : '') + '>Baustelle / Kundenauftrag</option><option value="lieferant"' + (k === 'lieferant' ? ' selected' : '') + '>Materialbestellung beim Händler</option></select></div>' +
+      '<div class="field"><label for="f-title">Bezeichnung</label><input id="f-title" type="text" autocomplete="off" placeholder="z. B. Bad EG, Wand- und Bodenfliesen" value="' + esc(v.title) + '"></div>' +
+      '<div class="field"><label for="f-party" id="partyLbl">' + (k === 'kunde' ? 'Kunde' : 'Händler / Lieferant') + '</label><input id="f-party" type="text" autocomplete="off" list="parties" value="' + esc(v.party) + '"><datalist id="parties">' + Object.keys(parties).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist></div>' +
+      '<div class="field" id="siteWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-site">Baustelle / Adresse</label><input id="f-site" type="text" autocomplete="off" placeholder="z. B. Lindenweg 12, Bad EG" value="' + esc(v.site || '') + '"></div>' +
+      '<div class="field trip" id="siteTripWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Fahrten zur Baustelle (optional)</span><div class="grid2 stack"><div class="field"><label for="f-skm">Strecke einfach (km)</label><input id="f-skm" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 12,5" value="' + (Number(v.siteKm) > 0 ? String(v.siteKm).replace('.', ',') : '') + '"></div><div class="field"><label for="f-svis">Anzahl Fahrten (hin und zurück)</label><input id="f-svis" type="text" inputmode="numeric" autocomplete="off" value="' + (Number(v.visits) > 0 ? Number(v.visits) : 1) + '"></div></div><p class="hint" id="siteTotal" style="margin:6px 0 0"></p><button type="button" class="btn small" data-act="site-calc" style="margin-top:8px">Strecke zur Baustelle ermitteln</button><p class="hint" id="siteMsg" style="margin-top:6px"></p></div>' +
+      '<div id="kundeWrap"' + (k === 'kunde' ? '' : ' hidden') + '><div class="field"><label for="f-ckind">Kundenart</label><select id="f-ckind"><option value="firma"' + (v.ckind !== 'privat' ? ' selected' : '') + '>Firma</option><option value="privat"' + (v.ckind === 'privat' ? ' selected' : '') + '>Privatkunde</option></select></div><div class="field"><label for="f-email">E-Mail des Kunden</label><input id="f-email" type="text" inputmode="email" autocomplete="off" value="' + esc(v.email || '') + '"></div><div class="field"><label for="f-addr">Rechnungsadresse</label><input id="f-addr" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.address || '') + '"></div></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-amount" id="amountLbl">' + (k === 'kunde' ? 'Auftragswert netto (€)' : 'Betrag netto (€)') + '</label><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="' + (a ? de(v.amount) : '') + '"></div>' +
+      '<div class="field" id="areaWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-area">Fläche (m²)</label><input id="f-area" type="text" inputmode="decimal" placeholder="optional" autocomplete="off" value="' + (Number(v.area) > 0 ? String(v.area).replace('.', ',') : '') + '"></div></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-date">Datum</label><input id="f-date" type="date" value="' + esc(v.date) + '"></div>' +
+      '<div class="field"><label for="f-terms">Zahlungsziel</label><select id="f-terms">' + options([0, 7, 14, 30, 60, 'custom'], terms, termLabel) + '</select></div></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-status">Status</label><select id="f-status">' + options(withCur(STAT[k], v.status), v.status) + '</select></div>' +
+      '<div class="field"><label for="f-due">Fällig am</label><input id="f-due" type="date" value="' + esc(v.due) + '"></div></div>' +
+      '<div class="field"><label for="f-note">Notiz</label><input id="f-note" type="text" autocomplete="off" value="' + esc(v.note) + '"></div>' +
+      '<p class="err" id="formErr" role="alert"></p>' +
+      '<div class="actions">' + (a ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>'
+    );
+  }
+
+  function formErr(msg) { var e = $('#formErr'); if (e) e.textContent = msg; return false; }
+  function val(id) { var e = $('#' + id); return e ? e.value.trim() : ''; }
+
+  async function save() {
+    if (!draft) return;
+    var obj, i, ids = [];
+    if (draft.coll === 'belege') {
+      var gross = parseNum(val('f-gross'));
+      if (!val('f-date')) return formErr('Bitte ein Datum angeben.');
+      if (!val('f-vendor')) return formErr('Bitte den Lieferanten eintragen.');
+      if (!(gross > 0)) return formErr('Bitte einen Betrag über 0 eintragen, zum Beispiel 23,80.');
+      obj = { date: val('f-date'), vendor: val('f-vendor'), gross: Math.round(gross * 100) / 100, vat: Number(val('f-vat')), cat: val('f-cat'), pay: val('f-pay'), orderId: val('f-order'), note: val('f-note') };
+      if (val('f-place')) obj.place = val('f-place');
+      if (val('f-vaddr')) obj.vaddr = val('f-vaddr');
+      var kmv = parseNum(val('f-km')); if (kmv > 0) { obj.km = Math.round(kmv * 10) / 10; if (!$('#f-back').checked) obj.back = false; }
+      if (draft.photoId) { obj.photoId = draft.photoId; obj.photoKind = draft.photoKind || 'img'; }
+      else if (draft.photoData) { obj.photoData = draft.photoData; obj.photoKind = 'img'; }
+      ids = draft.uploaded.filter(function (x) { return x !== draft.photoId; });
+      if (draft.orig && draft.orig !== draft.photoId) ids.push(draft.orig);
+    } else {
+      var amount = parseNum(val('f-amount')); if (isNaN(amount) && !val('f-amount') && val('f-kind') === 'kunde') amount = 0;
+      if (!val('f-title')) return formErr('Bitte eine Bezeichnung eintragen.');
+      if (!val('f-party')) return formErr('Bitte ' + (val('f-kind') === 'kunde' ? 'den Kunden' : 'den Händler') + ' eintragen.');
+      if (isNaN(amount) || amount < 0) return formErr('Bitte einen Betrag eintragen, zum Beispiel 1.250,00.');
+      obj = { kind: val('f-kind'), title: val('f-title'), party: val('f-party'), amount: Math.round(amount * 100) / 100, status: val('f-status'), site: val('f-kind') === 'kunde' ? val('f-site') : '', email: val('f-kind') === 'kunde' ? val('f-email') : '', ckind: val('f-kind') === 'kunde' ? val('f-ckind') : '', address: val('f-kind') === 'kunde' ? val('f-addr') : '', area: val('f-kind') === 'kunde' && parseNum(val('f-area')) > 0 ? parseNum(val('f-area')) : '', date: val('f-date'), terms: val('f-terms') === 'custom' ? 'custom' : Number(val('f-terms')), due: val('f-due'), note: val('f-note') };
+      if (val('f-kind') === 'kunde' && parseNum(val('f-skm')) > 0) { obj.siteKm = Math.round(parseNum(val('f-skm')) * 10) / 10; obj.visits = Math.max(1, Math.round(parseNum(val('f-svis')) || 1)); }
+      var prevA = draft.id ? auftrag(draft.id) : null; if (prevA && prevA.aufmass) obj.aufmass = prevA.aufmass;
+    }
+    var btn = $('#form [data-act="save"]'); if (btn) btn.disabled = true;
+    try {
+      await persist(draft.coll, draft.id, obj);
+      for (i = 0; i < ids.length; i++) await dropAsset(ids[i]);
+      draft.uploaded = [];
+      await closeSheet(false);
+      toast('Gespeichert');
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      formErr(e && e.code === 'quota_exceeded' ? 'Der Speicher ist voll. Lösche alte Einträge.' : 'Speichern hat nicht geklappt. Versuche es noch einmal.');
+    }
+  }
+
+  async function del(btn) {
+    if (!draft || !draft.id) return;
+    if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich löschen?'; btn.classList.add('armed'); return; }
+    try {
+      var c = draft.coll, id = draft.id;
+      if (c === 'belege') {
+        var b = state.data.belege.find(function (x) { return x.id === id; });
+        await removeDoc(c, id);
+        if (b && b.photoId) await dropAsset(b.photoId);
+      } else {
+        var linked = state.data.belege.filter(function (x) { return x.orderId === id; });
+        for (var i = 0; i < linked.length; i++) await patch('belege', linked[i].id, { orderId: '' });
+        var offers = state.data.angebote.filter(function (x) { return x.auftragId === id; });
+        for (var q = 0; q < offers.length; q++) await removeDoc('angebote', offers[q].id);
+        var reDrafts = state.data.rechnungen.filter(function (x) { return x.auftragId === id && x.status === 'Entwurf'; });
+        for (var w = 0; w < reDrafts.length; w++) await removeDoc('rechnungen', reDrafts[w].id);
+        await removeDoc(c, id);
+      }
+      await closeSheet(true);
+      toast('Gelöscht');
+    } catch (e) { formErr('Löschen hat nicht geklappt.'); }
+  }
+
+  async function clearExamples() {
+    try {
+      var cs = ['belege', 'auftraege'];
+      for (var k = 0; k < cs.length; k++) {
+        var rows = state.data[cs[k]].filter(function (x) { return x.example; });
+        for (var i = 0; i < rows.length; i++) await removeDoc(cs[k], rows[i].id);
+      }
+      toast('Beispiele gelöscht');
+    } catch (e) { toast('Löschen hat nicht geklappt'); }
+  }
+
+  /* ---------- 7 Export ---------- */
+  function csvCell(v) { var s = String(v == null ? '' : v); return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  async function exportCsv(name, rows) {
+    var text = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');
+    try { await saveFile(name, text, 'text/csv'); toast('Export gespeichert'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('Export nicht möglich'); }
+  }
+  function exportBelege() {
+    var rows = filteredBelege().slice().reverse(), om = orderMap();
+    var head = ['Datum', 'Lieferant', 'Kategorie', 'Brutto', 'MwSt-Satz %', 'Netto', 'Vorsteuer', 'Bezahlt mit', 'Baustelle', 'Adresse Lieferant', 'Einkaufsort', 'Gefahrene km', 'Rückfahrt eingerechnet', 'Notiz', 'Foto vorhanden'];
+    var body = rows.map(function (b) {
+      var vat = vatPart(b.gross, b.vat);
+      return [fdate(b.date), b.vendor, b.cat, de(b.gross), b.vat, de(b.gross - vat), de(vat), b.pay, b.orderId && om[b.orderId] ? om[b.orderId].title : '', b.vaddr || '', b.place || '', b.km ? de(b.km) : '', b.km ? (b.back === false ? 'nein' : 'ja') : '', b.note, (b.photoId || b.photoData) ? 'ja' : 'nein'];
+    });
+    var tag = state.fb.month !== 'all' ? state.fb.month : today().slice(0, 4);
+    exportCsv('belege-' + tag + '.csv', [head].concat(body));
+  }
+  function exportAuftraege() {
+    var rows = filteredAuftraege();
+    var head = ['Art', 'Bezeichnung', 'Kunde/Lieferant', 'Baustelle', 'Fläche m²', 'Betrag netto', 'Datum', 'Zahlungsziel', 'Fällig am', 'Status', 'Notiz'];
+    exportCsv('auftraege-' + today() + '.csv', [head].concat(rows.map(function (a) {
+      return [KIND[a.kind], a.title, a.party, a.site || '', a.area ? String(a.area).replace('.', ',') : '', de(a.amount), fdate(a.date), a.terms !== undefined && a.terms !== null ? termLabel(a.terms) : '', a.due ? fdate(a.due) : '', a.status, a.note];
+    })));
+  }
+
+  /* ---------- Preisliste (Richtwerte), Firma ---------- */
+  // Richtwerte: bundesweite Netto-Durchschnittswerte aus Ratgeberseiten (aroundhome.de, meister-job.de, clean-invoice.com, Stand 2024 bis 2026).
+  // Sie sind keine Preise für einen bestimmten Ort. Regionalfaktor und eigene Preise gelten vor.
+  var CATALOG = [
+    { id: 'verl-std', text: 'Fliesen verlegen und verfugen (Standardformat bis ca. 60 x 60 cm)', unit: 'm²', basis: 'flaeche', min: 40, max: 70 },
+    { id: 'verl-gross', text: 'Großformatfliesen verlegen und verfugen (ab ca. 80 x 80 cm)', unit: 'm²', basis: 'flaeche', min: 60, max: 100 },
+    { id: 'verl-mosaik', text: 'Mosaik verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 60, max: 110 },
+    { id: 'verl-stein', text: 'Naturstein verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 55, max: 110 },
+    { id: 'zu-diagonal', text: 'Zuschlag Diagonalverlegung', unit: 'm²', basis: 'flaeche', min: 10, max: 20 },
+    { id: 'zu-fischgraet', text: 'Zuschlag Fischgrätverlegung', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
+    { id: 'zu-fbh', text: 'Zuschlag Fußbodenheizung', unit: 'm²', basis: 'boden', min: 5, max: 10 },
+    { id: 'abdichtung', text: 'Verbundabdichtung im Nassbereich', unit: 'm²', basis: '', min: 15, max: 40 },
+    { id: 'untergrund', text: 'Untergrund spachteln und grundieren', unit: 'm²', basis: 'boden', min: 5, max: 20 },
+    { id: 'ausgleich', text: 'Bodenausgleichsmasse einbringen', unit: 'm²', basis: 'boden', min: 8, max: 15 },
+    { id: 'abbruch', text: 'Alte Fliesen entfernen und entsorgen', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
+    { id: 'sockel', text: 'Fliesensockel anbringen', unit: 'lfm', basis: 'sockel', min: 5, max: 15 },
+    { id: 'silikon', text: 'Silikonfugen ziehen', unit: 'lfm', basis: 'silikon', min: 3, max: 10 },
+    { id: 'stunde', text: 'Stundenlohn Fliesenleger', unit: 'Std', basis: '', min: 45, max: 70 },
+    { id: 'anfahrt', text: 'Anfahrt (Pauschale)', unit: 'pausch.', basis: '', min: 30, max: 50 }
+  ];
+  var FIRMA_FIELDS = [['name', 'Firma / Name'], ['owner', 'Inhaber'], ['street', 'Straße und Nr.'], ['city', 'PLZ und Ort'], ['phone', 'Telefon'], ['email', 'E-Mail'], ['taxid', 'Steuernummer oder USt-IdNr.'], ['home', 'Ausgangsort für Fahrten (z. B. Zarrendorf)'], ['iban', 'IBAN'], ['bank', 'Bank']];
+  var ANG_STAT = ['Entwurf', 'Versendet', 'Angenommen', 'Abgelehnt'];
+  var DEF_INTRO = 'Guten Tag,\n\nvielen Dank für Ihre Anfrage. Gerne biete ich Ihnen die folgenden Leistungen an:';
+  var DEF_OUTRO = 'Zahlungsziel: 14 Tage netto ab Rechnungsdatum. Abgerechnet wird nach tatsächlichem Aufmaß. Fliesen und sonstiges Material sind nur enthalten, wenn sie oben aufgeführt sind.\n\nMit freundlichen Grüßen';
+  var AM = { boden: ['Boden', 'm²'], wand: ['Wand', 'm²'], sockel: ['Sockel', 'lfm'], silikon: ['Silikonfuge', 'lfm'] };
+
+  function setting(id) { return state.data.settings.find(function (x) { return x.id === id; }) || {}; }
+  function regionF() { return 1 + (Number(setting('preise').region) || 0) / 100; }
+  function catItem(id) { return CATALOG.find(function (c) { return c.id === id; }); }
+  function regionsList() { var r = setting('richtwerte').regions; return Array.isArray(r) ? r : []; }
+  function regionById(id) { return id ? regionsList().find(function (x) { return x.id === id; }) : null; }
+  function defaultRegion() { var l = regionsList(); return l.length ? l[0].id : ''; }
+  function detectRegion(a) {
+    var l = regionsList(); if (!a || !l.length) return defaultRegion();
+    function find(txt) {
+      txt = String(txt || '').toLowerCase();
+      return l.find(function (r) { return (r.keys || []).some(function (k) { return txt.indexOf(String(k).toLowerCase()) >= 0; }); });
+    }
+    var hit = find((a.site || '') + ' ' + (a.title || '')) || find(a.address);
+    return hit ? hit.id : defaultRegion();
+  }
+  function bounds(c, rid) {
+    var rg = regionById(rid), o = rg && rg.items ? rg.items[c.id] : null;
+    return o && o.length === 2 && o[0] > 0 && o[1] >= o[0] ? o : [c.min, c.max];
+  }
+  function standHtml(rid) {
+    var rg = regionById(rid), t;
+    if (!rg) t = 'Bundesweite Richtwerte (Stand 13.11.2026)' + (regionsList().length ? '. Wähle oben eine Preisregion.' : '. Regionale Werte sind noch nicht hinterlegt.');
+    else {
+      var old = Math.floor((new Date(today()) - new Date(rg.stand || '2000-01-01')) / 86400000) > 90;
+      t = 'Richtwerte für ' + esc(rg.name) + ', Stand ' + fdate(rg.stand) + (rg.basis ? '. ' + esc(rg.basis) : '') + (old ? ' <span class="badge warn">älter als 3 Monate</span>' : '');
+    }
+    return '<p class="hint" style="margin:6px 0 10px">' + t + '</p>';
+  }
+  function regionSelect(A) {
+    var l = regionsList(); if (!l.length) return '';
+    return '<div class="field"><label for="a-region">Preisregion</label><select id="a-region" data-h="region">' +
+      l.map(function (r) { return '<option value="' + esc(r.id) + '"' + (r.id === A.region ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') +
+      '<option value=""' + (!A.region ? ' selected' : '') + '>Bundesweit</option></select></div>';
+  }
+  function repriceRegion(A, nid) {
+    var old = A.region || '';
+    A.positions.forEach(function (p) {
+      var c = p.katId && catItem(p.katId);
+      if (c && Math.abs((Number(p.price) || 0) - priceFor(c, old, A.ckind)) < 0.01) p.price = priceFor(c, nid, A.ckind);
+    });
+    A.region = nid;
+  }
+  function repriceKind(A, nk) {
+    var ok = A.ckind || 'firma';
+    A.positions.forEach(function (p) {
+      var c = p.katId && catItem(p.katId);
+      if (c && Math.abs((Number(p.price) || 0) - priceFor(c, A.region, ok)) < 0.01) p.price = priceFor(c, A.region, nk);
+    });
+    A.ckind = nk;
+    if (nk === 'privat') A.rc = false;
+    A.vat = A.rc ? 0 : (setting('firma').kleinunt ? 0 : 19);
+  }
+  function kindSelect(A) {
+    var priv = A.ckind === 'privat';
+    return '<div class="grid2 stack"><div class="field"><label for="a-ckind">Kundenart</label><select id="a-ckind" data-h="ckind"><option value="firma"' + (!priv ? ' selected' : '') + '>Firma (netto)</option><option value="privat"' + (priv ? ' selected' : '') + '>Privatkunde (brutto)</option></select></div>' +
+      (priv ? '' : '<label class="check"><input type="checkbox" id="a-rc" data-h="rc"' + (A.rc ? ' checked' : '') + '> Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)</label>') + '</div>';
+  }
+  function cmpHtml(A) {
+    var you = 0, lo = 0, hi = 0, n = 0;
+    (A.positions || []).forEach(function (p) {
+      var c = p.katId && catItem(p.katId); if (!c) return;
+      var r = range(c, A.region), q = Number(p.qty) || 0;
+      you += q * (Number(p.price) || 0); lo += q * r[0]; hi += q * r[1]; n++;
+    });
+    if (!n) return '';
+    var under = you < lo - 0.5, over = you > hi + 0.5;
+    return '<p class="hint" style="margin-top:12px">Vergleich der Leistungen mit Richtwert: dein Angebot ' + money(r2(you)) + ' netto, Richtwert ' + money(r2(lo)) + ' bis ' + money(r2(hi)) +
+      ' <span class="badge ' + (under || over ? 'warn' : 'good') + '">' + (under ? 'unter dem Richtwert' : over ? 'über dem Richtwert' : 'im Richtwert') + '</span></p>';
+  }
+  function r2(n) { return Math.round((n || 0) * 100) / 100; }
+  function half(n) { return Math.round(n * 2) / 2; }
+  function priceFor(c, rid, ck) {
+    var pr = setting('preise'), own = Number((pr.own || {})[c.id]), priv = Number((pr.ownPrivat || {})[c.id]);
+    if (ck === 'privat' && priv > 0) return priv;
+    var b = bounds(c, rid); return own > 0 ? own : half((b[0] + b[1]) / 2 * regionF());
+  }
+  function range(c, rid) { var f = regionF(); var b = bounds(c, rid); return [half(b[0] * f), half(b[1] * f)]; }
+  function fmtQ(n) { return String(r2(n)).replace('.', ','); }
+  function auftrag(id) { return state.data.auftraege.find(function (x) { return x.id === id; }); }
+  function latestAngebot(aid) {
+    return state.data.angebote.filter(function (x) { return x.auftragId === aid; })
+      .sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); })[0];
+  }
+  function openEdit(kind, id) {
+    if (kind === 'belege') openBeleg(id); else if (kind === 'angebote') openAngebot(id); else if (kind === 'rechnungen') openRechnung(id); else openAuftrag(id);
+  }
+  function posBadge(p, rid) {
+    var c = p.katId && catItem(p.katId); if (!c) return '';
+    var r = range(c, rid), pr = Number(p.price) || 0, span = ' Richtwert ' + de(r[0]) + ' bis ' + de(r[1]) + ' €';
+    var nat = regionById(rid) ? ' <span class="hint">bundesweit ' + de(c.min) + ' bis ' + de(c.max) + ' €</span>' : '';
+    if (pr < r[0] - 0.001) return '<span class="badge warn">unter' + span + '</span>' + nat;
+    if (pr > r[1] + 0.001) return '<span class="badge warn">über' + span + '</span>' + nat;
+    return '<span class="badge good">im' + span + '</span>' + nat;
+  }
+
+  /* ---------- Einstellungen ---------- */
+  function openSettings() {
+    var f = setting('firma'), p = setting('preise'), own = p.own || {};
+    draft = { coll: 'settings', sticky: true };
+    var h = '<h2 id="sheetTitle">Firma und Preise</h2>' +
+      '<p class="hint" style="margin-bottom:12px">Diese Angaben erscheinen auf deinen Angeboten.</p><div class="grid2">';
+    FIRMA_FIELDS.forEach(function (x) {
+      h += '<div class="field"><label for="s-' + x[0] + '">' + x[1] + '</label><input id="s-' + x[0] + '" type="text" autocomplete="off" value="' + esc(f[x[0]] || '') + '"></div>';
+    });
+    h += '</div><label class="check"><input type="checkbox" id="s-klein"' + (f.kleinunt ? ' checked' : '') + '> Kleinunternehmer (§ 19 UStG, keine Umsatzsteuer)</label>' +
+      '<h3 class="section-h">Meine Strecken</h3>' +
+      '<p class="hint" style="margin-bottom:6px">Deine echten Entfernungen, einfache Fahrt ab Zuhause. Eine Zeile je Ort, zum Beispiel „Stralsund = 11“. Diese Werte gehen allen Schätzungen vor. Hin und zurück rechnet die App selbst.</p>' +
+      '<div class="field"><textarea id="s-strecken" rows="5" aria-label="Meine Strecken" placeholder="Stralsund = 11&#10;Prohn = 25">' + esc(setting('strecken').text || '') + '</textarea></div>' +
+      '<h3 class="section-h">Ortsübliche Preise</h3>' +
+      '<p class="hint">Die Richtwerte sind bundesweite Netto-Durchschnittswerte aus Ratgebern (Stand 2024 bis 2026), keine Preise für deinen Ort. Mit dem Regionalfaktor und eigenen Preisen passt du sie an. Dein eigener Preis hat immer Vorrang. Quellen: ' +
+      '<a href="https://www.aroundhome.de/fliesenlegen/preise-kosten" target="_blank" rel="noopener">aroundhome</a>, ' +
+      '<a href="https://meister-job.de/was-kosten-fliesen-verlegen/" target="_blank" rel="noopener">meister-job</a>, ' +
+      '<a href="https://www.clean-invoice.com/wissen/allgemein/fliesen-verlegen-kosten" target="_blank" rel="noopener">clean-invoice</a>.</p>' +
+      regionsList().map(function (r) { return standHtml(r.id); }).join('') + '<div class="field" style="margin-top:12px"><label for="s-region">Zusätzlicher Faktor in % auf alle Richtwerte (Standard 0)</label><input id="s-region" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(Number(p.region) || 0).replace('.', ',')) + '"></div>';
+    h += '<p class="hint" style="margin:10px 0 4px">Eigene Preise: „Firma“ gilt für alle Kunden, „Privatkunde“ nur für Privatkunden. Leer bedeutet: Richtwert der Region.</p>';
+    CATALOG.forEach(function (c) {
+      var bb = bounds(c), def = half((bb[0] + bb[1]) / 2), op = p.ownPrivat || {};
+      h += '<div class="prow"><div class="ptext"><div>' + esc(c.text) + '</div><div class="hint">bundesweit ' + bb[0] + ' bis ' + bb[1] + ' € je ' + esc(c.unit) + '</div></div>' +
+        '<div class="field"><span class="lbl">Firma</span><input id="p-' + c.id + '" type="text" inputmode="decimal" autocomplete="off" aria-label="Eigener Preis Firma ' + esc(c.text) + '" placeholder="' + de(def) + '" value="' + (own[c.id] > 0 ? de(own[c.id]) : '') + '"></div>' +
+        '<div class="field"><span class="lbl">Privatkunde</span><input id="pp-' + c.id + '" type="text" inputmode="decimal" autocomplete="off" aria-label="Eigener Preis Privatkunde ' + esc(c.text) + '" placeholder="wie Firma" value="' + (op[c.id] > 0 ? de(op[c.id]) : '') + '"></div></div>';
+    });
+    h += '<p class="err" id="formErr" role="alert"></p><div class="actions"><button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="button" class="btn primary" data-act="set-save">Speichern</button></div>';
+    showSheet(h, true);
+  }
+  async function saveSettings() {
+    var firma = {};
+    FIRMA_FIELDS.forEach(function (x) { firma[x[0]] = val('s-' + x[0]); });
+    firma.kleinunt = $('#s-klein').checked;
+    var region = parseNum(val('s-region')); if (isNaN(region)) region = 0;
+    var own = {}, ownP = {};
+    CATALOG.forEach(function (c) { var n = parseNum(val('p-' + c.id)), m = parseNum(val('pp-' + c.id)); if (n > 0) own[c.id] = r2(n); if (m > 0) ownP[c.id] = r2(m); });
+    try {
+      await persist('settings', 'firma', firma);
+      await persist('settings', 'strecken', { text: String($('#s-strecken').value || '') });
+      await persist('settings', 'preise', { region: region, own: own, ownPrivat: ownP });
+      await closeSheet(false);
+      toast('Gespeichert');
+    } catch (e) { formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
+  }
+
+  /* ---------- 8 Aufmaß ---------- */
+  function parseAbzug(t) {
+    var tot = 0;
+    String(t || '').split(';').forEach(function (tok) {
+      tok = tok.trim(); if (!tok) return;
+      var prod = 1, ok = true;
+      tok.split(/[x×*]/i).forEach(function (p) { var n = parseNum(p); if (isNaN(n)) ok = false; else prod *= n; });
+      if (ok) tot += prod;
+    });
+    return tot;
+  }
+  function amRes(r) {
+    var l = parseNum(r.l) || 0, b = parseNum(r.b) || 0, n = parseNum(r.n);
+    if (!(n > 0)) n = 1;
+    var lfm = r.type === 'sockel' || r.type === 'silikon';
+    return Math.max(0, (lfm ? l * n : l * b * n) - parseAbzug(r.abz));
+  }
+  function amTot(rows) {
+    var t = { boden: 0, wand: 0, sockel: 0, silikon: 0 };
+    (rows || []).forEach(function (r) { if (t[r.type] !== undefined) t[r.type] += amRes(r); });
+    t.flaeche = t.boden + t.wand;
+    return t;
+  }
+  function newAmRow() { return { room: '', type: 'boden', l: '', b: '', n: '1', abz: '' }; }
+  function openAufmass(id) {
+    var a = auftrag(id); if (!a) return;
+    var am = a.aufmass || {};
+    draft = { coll: 'aufmass', sticky: true, id: id, rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10 };
+    if (!draft.rows.length) draft.rows.push(newAmRow());
+    showSheet('<div id="amBody"></div>', true);
+    renderAm();
+  }
+  function amSumHtml() {
+    var t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
+    function row(l, v, strong) { return '<tr><td>' + l + '</td><td class="num"' + (strong ? ' style="font-weight:600"' : '') + '>' + v + '</td></tr>'; }
+    return '<table class="sumtable">' + row('Boden', fmtQ(t.boden) + ' m²') + row('Wand', fmtQ(t.wand) + ' m²') + row('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true) +
+      row('Sockel', fmtQ(t.sockel) + ' lfm') + row('Silikonfugen', fmtQ(t.silikon) + ' lfm') +
+      row('Fliesenbedarf inkl. ' + fmtQ(w) + ' % Verschnitt', fmtQ(t.flaeche * (1 + w / 100)) + ' m²', true) + '</table>';
+  }
+  function renderAm() {
+    var a = auftrag(draft.id);
+    var rows = draft.rows.map(function (r, i) {
+      var lfm = r.type === 'sockel' || r.type === 'silikon';
+      return '<tbody class="pos" data-i="' + i + '"><tr>' +
+        '<td style="min-width:84px"><input type="text" data-f="room" aria-label="Raum / Bauteil" autocomplete="off" placeholder="z. B. Bad" value="' + esc(r.room) + '"></td>' +
+        '<td style="min-width:84px"><select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + AM[k][0] + '</option>'; }).join('') + '</select></td>' +
+        '<td class="r" style="min-width:52px"><input type="text" inputmode="decimal" data-f="l" aria-label="Länge" autocomplete="off" value="' + esc(r.l) + '"></td>' +
+        (lfm ? '<td class="c r" style="color:var(--muted)">–</td>' : '<td class="r" style="min-width:52px"><input type="text" inputmode="decimal" data-f="b" aria-label="' + (r.type === 'wand' ? 'Höhe' : 'Breite') + '" autocomplete="off" value="' + esc(r.b) + '"></td>') +
+        '<td class="r" style="min-width:40px"><input type="text" inputmode="decimal" data-f="n" aria-label="Anzahl" autocomplete="off" value="' + esc(r.n) + '"></td>' +
+        '<td style="min-width:84px"><input type="text" data-f="abz" aria-label="Abzüge" autocomplete="off" placeholder="' + (lfm ? '1,01; 0,9' : '1,01x2,10') + '" value="' + esc(r.abz) + '"></td>' +
+        '<td><div class="cell" data-res>' + fmtQ(amRes(r)) + ' ' + AM[r.type][1] + '</div></td>' +
+        '<td class="xb"><button type="button" data-act="am-del" data-i="' + i + '" aria-label="Zeile entfernen">×</button></td></tr></tbody>';
+    }).join('');
+    $('#amBody').innerHTML = '<h2 id="sheetTitle">Aufmaß: ' + esc(a ? a.title : '') + '</h2>' +
+      '<p class="hint" style="margin-bottom:12px">' + esc(a ? a.party : '') + (a && a.site ? ' · ' + esc(a.site) : '') + '</p>' +
+      '<div class="tw"><table class="gt" style="min-width:540px"><thead><tr><th>Raum / Bauteil</th><th>Bereich</th><th class="r">Länge</th><th class="r">B / H</th><th class="r">Anz.</th><th>Abzüge</th><th class="r">Ergebnis</th><th class="xb"></th></tr></thead>' + rows + '</table></div>' +
+      '<p class="hint" style="margin-bottom:10px">Maße in m. Auf dem Handy die Tabelle seitlich wischen. Abzüge: bei Fläche „Breite x Höhe“, bei Sockel/Silikon die Türbreite in m, mehrere mit ; trennen.</p>' +
+      '<button type="button" class="btn small" data-act="am-add">+ Zeile</button>' +
+      '<div class="field" style="margin-top:14px;max-width:260px"><label for="am-waste">Verschnitt Fliesenmaterial (%)</label><input id="am-waste" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(draft.waste).replace('.', ',')) + '"></div>' +
+      '<div id="amSum">' + amSumHtml() + '</div>' +
+      '<div class="actions" style="margin-top:14px"><button type="button" class="btn small left" data-act="am-csv">CSV</button><button type="button" class="btn small" data-act="am-pdf">PDF</button>' +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="button" class="btn primary" data-act="am-save">Speichern</button></div>';
+  }
+  function updAm() {
+    document.querySelectorAll('#amBody .pos').forEach(function (el) {
+      var r = draft.rows[Number(el.dataset.i)]; if (!r) return;
+      el.querySelector('[data-res]').textContent = fmtQ(amRes(r)) + ' ' + AM[r.type][1];
+    });
+    $('#amSum').innerHTML = amSumHtml();
+  }
+  function amCleanRows() { return draft.rows.filter(function (r) { return amRes(r) > 0 || String(r.room || '').trim(); }); }
+  async function saveAm() {
+    var rows = amCleanRows(), t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
+    var fields = { aufmass: { rows: rows, waste: w, date: today() } };
+    if (t.flaeche > 0) fields.area = r2(t.flaeche);
+    try { await patch('auftraege', draft.id, fields); await closeSheet(false); toast('Aufmaß gespeichert'); }
+    catch (e) { toast('Speichern hat nicht geklappt'); }
+  }
+  function exportAm() {
+    var a = auftrag(draft.id), head = ['Raum', 'Bereich', 'Länge m', 'Breite/Höhe m', 'Anzahl', 'Abzüge', 'Ergebnis', 'Einheit'];
+    var body = amCleanRows().map(function (r) { return [r.room, AM[r.type][0], r.l, r.b, r.n, r.abz, de(amRes(r)), AM[r.type][1]]; });
+    exportCsv('aufmass-' + (a ? a.title.replace(/[^\wäöüÄÖÜß-]+/g, '-') : 'baustelle') + '.csv', [head].concat(body));
+  }
+
+  /* ---------- Angebot ---------- */
+  function nextNr() {
+    var y = today().slice(0, 4), max = 0;
+    state.data.angebote.forEach(function (x) { var m = /^A-(\d{4})-(\d+)$/.exec(x.nr || ''); if (m && m[1] === y) max = Math.max(max, Number(m[2])); });
+    return 'A-' + y + '-' + String(max + 1).padStart(3, '0');
+  }
+  /** Summen eines Angebots/einer Rechnung: netto, Rabatt, Umsatzsteuer, brutto;
+   * zusätzlich der Lohnanteil (für den Hinweis nach § 35a EStG). Der Steuersatz kommt aus A.vat. */
+  function calcAng(A) {
+    var net = 0, lohn = 0, dp = Number(A.discount) || 0, vr = Number(A.vat) || 0;
+    (A.positions || []).forEach(function (p) {
+      var line = r2((Number(p.qty) || 0) * (Number(p.price) || 0));
+      net += line; if (p.art !== 'material') lohn += line;
+    });
+    net = r2(net);
+    var disc = r2(net * dp / 100), n2 = r2(net - disc), vat = r2(n2 * vr / 100);
+    var lohnNet = r2(lohn * (1 - dp / 100));
+    return { net: net, disc: disc, net2: n2, vat: vat, gross: r2(n2 + vat), lohnNet: lohnNet, lohnBrutto: r2(lohnNet * (1 + vr / 100)) };
+  }
+  function basisQty(c, aid) {
+    var a = auftrag(aid), t = a && a.aufmass ? amTot(a.aufmass.rows) : null;
+    return t && c.basis && t[c.basis] > 0 ? r2(t[c.basis]) : 1;
+  }
+  function addPos(v) {
+    var A = draft.a;
+    if (v === '__free') A.positions.push({ katId: '', art: 'material', text: '', unit: 'Std', qty: 1, price: 0 });
+    else { var c = catItem(v); if (!c) return; A.positions.push({ katId: c.id, art: 'lohn', text: c.text, unit: c.unit, qty: basisQty(c, A.auftragId), price: priceFor(c, A.region, A.ckind) }); }
+    renderAng();
+  }
+  function suggest() {
+    var A = draft.a, a = auftrag(A.auftragId), t = a && a.aufmass ? amTot(a.aufmass.rows) : null, n = 0;
+    if (!t) return 0;
+    [['verl-std', t.flaeche], ['sockel', t.sockel], ['silikon', t.silikon]].forEach(function (x) {
+      if (x[1] > 0) { var c = catItem(x[0]); A.positions.push({ katId: c.id, art: 'lohn', text: c.text, unit: c.unit, qty: r2(x[1]), price: priceFor(c, A.region, A.ckind) }); n++; }
+    });
+    return n;
+  }
+  function openAngebot(id, aid) {
+    var ex = id ? state.data.angebote.find(function (x) { return x.id === id; }) : null;
+    if (!ex && !aid) return;
+    var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma');
+    var A = ex ? JSON.parse(JSON.stringify(ex)) : {
+      auftragId: aid, region: detectRegion(a), ckind: a && a.ckind === 'privat' ? 'privat' : 'firma', rc: false, nr: nextNr(), date: today(), valid: addDays(today(), 30),
+      name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || '' : '',
+      title: 'Fliesenarbeiten ' + (a ? a.title : ''), positions: [], discount: 0, vat: f.kleinunt ? 0 : 19,
+      intro: DEF_INTRO, outro: DEF_OUTRO, status: 'Entwurf'
+    };
+    if (!A.positions) A.positions = [];
+    draft = { coll: 'angebot', sticky: true, id: id || null, a: A, confirm: false, mailEdited: false };
+    if (!ex) suggest();
+    showSheet('<div id="angBody"></div>', true);
+    renderAng();
+  }
+  function totalsHtml(A, c) {
+    var priv = A.ckind === 'privat', v = Number(A.vat) > 0;
+    function row(l, val, strong) { return '<tr><td>' + l + '</td><td class="num"' + (strong ? ' style="font-weight:600"' : '') + '>' + val + '</td></tr>'; }
+    var h = cmpHtml(A) + '<table class="sumtable">';
+    if (c.disc) h += row('Summe Leistungen', money(c.net)) + row('Rabatt ' + fmtQ(A.discount) + ' %', '-' + money(c.disc));
+    if (priv) {
+      h += row('Netto', money(c.net2)) + (v ? row('Umsatzsteuer ' + A.vat + ' %', money(c.vat)) : '') + row(v ? 'Gesamt brutto' : 'Gesamt', money(c.gross), true);
+      if (v && c.lohnNet > 0) h += row('darin Arbeitskosten brutto', money(c.lohnBrutto));
+    } else {
+      h += row('Gesamt netto', money(c.net2), true) + (v ? row('Umsatzsteuer ' + A.vat + ' %', money(c.vat)) + row('Gesamt brutto', money(c.gross)) : '');
+    }
+    h += '</table>';
+    if (!priv && A.rc) h += '<p class="hint" style="text-align:right">Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)</p>';
+    return h;
+  }
+  function mailParts(A, c) {
+    if (draft && draft.coll === 'rechnung') return reMailParts(A, c);
+    var f = setting('firma');
+    return {
+      sub: 'Angebot ' + A.nr + (A.title ? ' – ' + A.title : ''),
+      body: 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\nvielen Dank für Ihre Anfrage. Im Anhang finden Sie mein Angebot ' + A.nr + (A.title ? ' für „' + A.title + '“' : '') + ' über ' + (A.ckind === 'privat' || !(Number(A.vat) > 0) ? money(c.gross) + (Number(A.vat) > 0 ? ' brutto' : '') : money(c.net2) + ' netto zzgl. Umsatzsteuer') + '.\n\nDas Angebot ist gültig bis ' + fdate(A.valid) + '. Bei Fragen oder für einen Besichtigungstermin rufen Sie mich gerne an.\n\nMit freundlichen Grüßen\n' + [f.owner || f.name, f.owner && f.name ? f.name : '', f.phone].filter(Boolean).join('\n')
+    };
+  }
+  function renderAng() { if (draft && draft.coll === 'rechnung') renderRe(); else renderAngForm(); }
+  function renderAngForm() {
+    var A = draft.a, c = calcAng(A), m = mailParts(A, c);
+    var rows = reRows(A);
+    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + '</option>'; }).join('') + '<option value="__free">Freie Position</option>';
+    function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
+    $('#angBody').innerHTML = '<h2 id="sheetTitle">Angebot ' + esc(A.nr) + ' <span class="badge ' + (A.status === 'Angenommen' ? 'good' : A.status === 'Abgelehnt' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '') + '">' + esc(A.status) + '</span></h2>' +
+      '<div class="grid2 stack">' + inp('a-nr', 'nr', 'Angebotsnummer') + inp('a-date', 'date', 'Datum', 'date') + '</div>' +
+      '<div class="grid2 stack">' + inp('a-valid', 'valid', 'Gültig bis', 'date') + inp('a-name', 'name', 'Kunde') + '</div>' +
+      '<div class="grid2 stack">' + inp('a-email', 'email', 'E-Mail des Kunden', 'text', ' inputmode="email"') + inp('a-address', 'address', 'Rechnungsadresse') + '</div>' +
+      inp('a-site', 'site', 'Baustelle / Adresse') + inp('a-title', 'title', 'Betreff') +
+      '<div class="field"><label for="a-intro">Einleitung</label><textarea id="a-intro" data-h="intro" rows="4">' + esc(A.intro) + '</textarea></div>' +
+      '<h3 class="section-h">Leistungen</h3>' + kindSelect(A) + regionSelect(A) + standHtml(A.region) + rows +
+      '<div class="addbar"><select id="angAdd" aria-label="Leistung hinzufügen">' + opts + '</select><button type="button" class="btn small" data-act="ang-suggest">Aus Aufmaß vorschlagen</button></div>' +
+      '<div class="grid2 stack" style="margin-top:12px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
+      '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
+      '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="a-outro">Schlusstext</label><textarea id="a-outro" data-h="outro" rows="5">' + esc(A.outro) + '</textarea></div>' +
+      '<h3 class="section-h">Versand per E-Mail</h3>' +
+      '<p class="hint">Die App versendet nichts selbst. Speichere das PDF, öffne die E-Mail und hänge das PDF an.</p>' +
+      '<div class="field" style="margin-top:10px"><span class="lbl">An</span><div class="num" id="mailTo">' + esc(A.email || '(keine E-Mail-Adresse eingetragen)') + '</div></div>' +
+      '<div class="field"><label for="mailSubj">Betreff</label><input id="mailSubj" type="text" autocomplete="off" value="' + esc(m.sub) + '"></div>' +
+      '<div class="field"><label for="mailBody">Text</label><textarea id="mailBody" rows="9">' + esc(m.body) + '</textarea></div>' +
+      '<div class="actions" style="justify-content:flex-start;margin-bottom:12px"><button type="button" class="btn" data-act="ang-pdf">1. PDF speichern</button>' +
+      '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
+      '<p class="err" id="formErr" role="alert"></p>' +
+      '<div class="actions">' + (draft.id ? '<button type="button" class="btn danger left" data-act="ang-del">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="ang-save">Speichern</button>' +
+      '<button type="button" class="btn primary" data-act="ang-sent">Als versendet markieren</button></div>';
+  }
+  function updAng() {
+    var A = draft.a, c = calcAng(A);
+    document.querySelectorAll('#angBody .pos').forEach(function (el) {
+      var p = A.positions[Number(el.dataset.i)]; if (!p) return;
+      el.querySelector('[data-psum]').textContent = money(r2((Number(p.qty) || 0) * (Number(p.price) || 0)));
+      el.querySelector('[data-pbadge]').innerHTML = posBadge(p, A.region);
+    });
+    $('#angTotals').innerHTML = totalsHtml(A, c);
+    $('#mailTo').textContent = A.email || '(keine E-Mail-Adresse eingetragen)';
+    if (!draft.mailEdited) { var m = mailParts(A, c); $('#mailSubj').value = m.sub; $('#mailBody').value = m.body; }
+  }
+  function onSheetInput(t) {
+    if (draft.coll === 'aufmass') {
+      if (t.id === 'am-waste') { draft.waste = t.value; updAm(); return; }
+      var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
+      draft.rows[Number(pos.dataset.i)][t.dataset.f] = t.value;
+      if (t.dataset.f === 'type') renderAm(); else updAm();
+    } else if (draft.coll === 'angebot' || draft.coll === 'rechnung') {
+      var A = draft.a;
+      if (t.id === 'angAdd') { if (t.value) addPos(t.value); return; }
+      if (t.id === 'mailSubj' || t.id === 'mailBody') { draft.mailEdited = true; return; }
+      if (t.dataset.h) {
+        var k = t.dataset.h;
+        if (k === 'region') { repriceRegion(A, t.value); renderAng(); return; }
+        if (k === 'ckind') { repriceKind(A, t.value); renderAng(); return; }
+        if (k === 'rc') { A.rc = t.checked; A.vat = A.rc ? 0 : (setting('firma').kleinunt ? 0 : 19); renderAng(); return; }
+        if (t.type === 'checkbox') { A[k] = t.checked; return; }
+        if (draft.coll === 'rechnung' && (k === 'date' || k === 'terms' || k === 'due')) { reDates(A, k, t.value); return; }
+        A[k] = k === 'discount' ? (parseNum(t.value) || 0) : (k === 'vat' ? Number(t.value) : t.value);
+        updAng(); return;
+      }
+      var pe = t.closest('.pos');
+      if (pe && t.dataset.pf) {
+        var p = A.positions[Number(pe.dataset.i)], f = t.dataset.pf;
+        p[f] = (f === 'qty' || f === 'price') ? (parseNum(t.value) || 0) : t.value;
+        updAng();
+      }
+    }
+  }
+  async function saveAng() {
+    var A = draft.a;
+    if (!String(A.nr || '').trim()) return formErr('Bitte eine Angebotsnummer eintragen.');
+    if (!String(A.name || '').trim()) return formErr('Bitte den Kunden eintragen.');
+    if (!A.positions.length) return formErr('Bitte mindestens eine Leistung hinzufügen.');
+    for (var i = 0; i < A.positions.length; i++) {
+      var p = A.positions[i];
+      if (!String(p.text || '').trim()) return formErr('Bei Position ' + (i + 1) + ' fehlt die Leistung.');
+      if (!(Number(p.qty) > 0)) return formErr('Bei Position ' + (i + 1) + ' fehlt die Menge.');
+    }
+    var obj = JSON.parse(JSON.stringify(A)); delete obj.id;
+    try { draft.id = await persist('angebote', draft.id, obj); return true; }
+    catch (e) { return formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
+  }
+  async function markSent() {
+    var A = draft.a; A.status = 'Versendet'; A.sentAt = today();
+    if (!(await saveAng())) { A.status = 'Entwurf'; return; }
+    try {
+      var a = auftrag(A.auftragId);
+      if (a && (a.status === 'Anfrage' || a.status === 'Angebot')) await patch('auftraege', a.id, { status: 'Angebot', amount: calcAng(A).net2 });
+    } catch (e) { /* Status der Baustelle bleibt wie er war */ }
+    await closeSheet(false);
+    toast('Als versendet markiert');
+  }
+  async function delAng(btn) {
+    if (!draft.id) return;
+    if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich löschen?'; btn.classList.add('armed'); return; }
+    try { await removeDoc('angebote', draft.id); await closeSheet(false); toast('Gelöscht'); } catch (e) { formErr('Löschen hat nicht geklappt.'); }
+  }
+  async function copyMail() {
+    var txt = $('#mailSubj').value + '\n\n' + $('#mailBody').value;
+    try { await navigator.clipboard.writeText(txt); toast('Text kopiert'); }
+    catch (e) { var b = $('#mailBody'); b.focus(); b.select(); toast('Markiere den Text und kopiere ihn von Hand'); }
+  }
+  function prepMailLink(lk) {
+    var A = draft && draft.a; if (!A) return;
+    lk.href = 'mailto:' + encodeURIComponent(A.email || '').replace('%40', '@') + '?subject=' + encodeURIComponent($('#mailSubj').value) + '&body=' + encodeURIComponent($('#mailBody').value);
+  }
+
+  /* ---------- PDF ---------- */
+  function newPdf() { var J = window.jspdf && window.jspdf.jsPDF; return J ? new J({ unit: 'mm', format: 'a4' }) : null; }
+  function pdfFooter(d, f) {
+    var n = d.getNumberOfPages(), line = [f.name, f.taxid, f.iban ? 'IBAN ' + f.iban : '', f.bank].filter(Boolean).join('  ·  ');
+    for (var i = 1; i <= n; i++) {
+      d.setPage(i); d.setFont('helvetica', 'normal'); d.setFontSize(8); d.setTextColor(110);
+      if (line) d.text(d.splitTextToSize(line, 170), 105, 285, { align: 'center' });
+      d.text('Seite ' + i + ' von ' + n, 190, 291, { align: 'right' });
+    }
+  }
+  /** Zeichnet eine Tabellenzeile (Rahmen + senkrechte Linien) ins PDF. */
+  function pdfGrid(d, xs, top, h, fill) {
+    var x0 = xs[0], x1 = xs[xs.length - 1], i;
+    if (fill) { d.setFillColor(236, 239, 241); d.rect(x0, top, x1 - x0, h, 'F'); }
+    d.setDrawColor(150); d.setLineWidth(0.2); d.rect(x0, top, x1 - x0, h);
+    for (i = 1; i < xs.length - 1; i++) d.line(xs[i], top, xs[i], top + h);
+  }
+  function pdfHead(d, f, inv) {
+    var y = 20;
+    d.setFont('helvetica', 'bold'); d.setFontSize(12); d.setTextColor(20);
+    if (f.name) { d.text(f.name, 190, y, { align: 'right' }); y += 5; }
+    d.setFont('helvetica', 'normal'); d.setFontSize(9); d.setTextColor(80);
+    [f.owner, f.street, f.city, f.phone, f.email, inv && f.taxid ? 'Steuernr./USt-IdNr.: ' + f.taxid : ''].forEach(function (s) { if (s) { d.text(String(s), 190, y, { align: 'right' }); y += 4.2; } });
+    var sl = [f.name, f.street, f.city].filter(Boolean).join(' · ');
+    d.setFontSize(7); if (sl) d.text(sl, 20, 50);
+  }
+  /** Erzeugt das PDF für Angebot (inv falsy) oder Rechnung (inv true) als Blob.
+   * Gibt null zurück, wenn die PDF-Bibliothek nicht geladen ist (offline ohne Zwischenspeicher). */
+  function pdfAng(A, f, inv, annex) {
+    var d = newPdf(); if (!d) return null;
+    var c = calcAng(A), y;
+    pdfHead(d, f, inv);
+    d.setFontSize(11); d.setTextColor(20); y = 56;
+    [A.name].concat(String(A.address || '').split(',')).forEach(function (s) { s = String(s || '').trim(); if (s) { d.text(s, 20, y); y += 5; } });
+    y = 92;
+    d.setFont('helvetica', 'bold'); d.setFontSize(16); d.text(inv ? 'Rechnung ' + (A.nr || '(Entwurf)') : 'Angebot ' + A.nr, 20, y); y += 7;
+    if (inv && A.status === 'Storniert') { d.setFont('helvetica', 'bold'); d.setFontSize(11); d.setTextColor(179, 55, 45); d.text('STORNIERT' + (A.stornoAt ? ' am ' + fdate(A.stornoAt) : ''), 190, y - 7, { align: 'right' }); }
+    d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(80);
+    if (inv) {
+      d.text('Rechnungsdatum: ' + fdate(A.date) + '   ·   Zahlbar bis: ' + fdate(A.due), 20, y); y += 4.5;
+      d.text('Leistungszeitraum: ' + (A.servFrom === A.servTo ? fdate(A.servTo) : fdate(A.servFrom) + ' bis ' + fdate(A.servTo)), 20, y); y += 4.5;
+    } else { d.text('Datum: ' + fdate(A.date) + '   ·   Gültig bis: ' + fdate(A.valid), 20, y); y += 4.5; }
+    if (A.site) { d.text('Baustelle: ' + A.site, 20, y); y += 4.5; }
+    y += 4; d.setTextColor(20); d.setFont('helvetica', 'bold'); d.setFontSize(11);
+    d.splitTextToSize(A.title || '', 170).forEach(function (s) { d.text(s, 20, y); y += 5; });
+    y += 2; d.setFont('helvetica', 'normal'); d.setFontSize(10);
+    d.splitTextToSize(A.intro || '', 170).forEach(function (s) { d.text(s, 20, y); y += 4.6; });
+    y += 4;
+var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
+    function head() {
+      pdfGrid(d, XS, top, 7, true);
+      d.setFont('helvetica', 'bold'); d.setFontSize(8.5); d.setTextColor(60);
+      var ty = top + 4.8;
+      d.text('Pos.', 24.5, ty, { align: 'center' }); d.text('Leistung', 31, ty); d.text('Menge', 136, ty, { align: 'right' }); d.text('Einheit', 140, ty);
+      d.text('Einzelpreis', 170, ty, { align: 'right' }); d.text('Gesamt', 188, ty, { align: 'right' });
+      top += 7; d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(20);
+    }
+    function needT(h) { if (top + h > 272) { d.addPage(); top = 25; head(); } }
+    function need(h) { if (y + h > 272) { d.addPage(); y = 25; } }
+    head();
+    A.positions.forEach(function (p, i) {
+      var lines = d.splitTextToSize(String(p.text || ''), 86), h = Math.max(7, lines.length * 4.5 + 2.6), ty = top + 4.8;
+      needT(h); ty = top + 4.8;
+      pdfGrid(d, XS, top, h, false);
+      d.text(String(i + 1), 24.5, ty, { align: 'center' }); d.text(lines, 31, ty);
+      d.text(fmtQ(p.qty), 136, ty, { align: 'right' }); d.text(String(p.unit || ''), 140, ty);
+      d.text(de(p.price) + ' €', 170, ty, { align: 'right' }); d.text(de(r2((Number(p.qty) || 0) * (Number(p.price) || 0))) + ' €', 188, ty, { align: 'right' });
+      top += h;
+    });
+    y = top + 4; need(50);
+    function tot(l, v, bold) { d.setFont('helvetica', bold ? 'bold' : 'normal'); d.setFontSize(bold ? 11 : 10); d.text(l, 130, y); d.text(v, 190, y, { align: 'right' }); y += bold ? 6.5 : 5; }
+    var priv = A.ckind === 'privat', vv = Number(A.vat) > 0;
+    if (c.disc) { tot('Summe Leistungen', de(c.net) + ' €'); tot('Rabatt ' + fmtQ(A.discount) + ' %', '-' + de(c.disc) + ' €'); }
+    if (priv) {
+      tot('Netto', de(c.net2) + ' €');
+      if (vv) tot('Umsatzsteuer ' + A.vat + ' %', de(c.vat) + ' €');
+      d.setDrawColor(150); d.line(130, y - 3.5, 190, y - 3.5);
+      tot(vv ? 'Gesamt brutto' : 'Gesamt', de(c.gross) + ' €', true);
+      if (vv && c.lohnNet > 0) tot('darin Arbeitskosten brutto', de(c.lohnBrutto) + ' €');
+    } else {
+      d.setDrawColor(150); d.line(130, y - 3.5, 190, y - 3.5);
+      tot('Gesamt netto', de(c.net2) + ' €', true);
+      if (vv) { tot('Umsatzsteuer ' + A.vat + ' %', de(c.vat) + ' €'); tot('Gesamt brutto', de(c.gross) + ' €'); }
+    }
+    y += 4; d.setFont('helvetica', 'normal'); d.setFontSize(10);
+    if (Number(A.vat) === 0 && f.kleinunt) { need(6); d.text('Kein Ausweis der Umsatzsteuer gemäß § 19 UStG (Kleinunternehmerregelung).', 20, y); y += 7; }
+    if (!priv && A.rc) { need(6); d.text('Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG).', 20, y); y += 7; }
+    if (priv && vv && c.lohnNet > 0) {
+      need(12); d.setFontSize(9); d.setTextColor(80);
+      d.splitTextToSize('Der ausgewiesene Arbeitskostenanteil (inkl. Umsatzsteuer) kann für die Steuerermäßigung nach § 35a EStG relevant sein. Die Zahlung sollte per Überweisung erfolgen.', 170).forEach(function (s) { d.text(s, 20, y); y += 4; });
+      d.setFontSize(10); d.setTextColor(20); y += 3;
+    }
+    d.splitTextToSize(A.outro || '', 170).forEach(function (s) { need(5); d.text(s, 20, y); y += 4.6; });
+    if (f.owner) { need(14); y += 8; d.text(f.owner, 20, y); }
+    if (inv && annex && annex.rows && annex.rows.length) pdfAm({ title: 'Aufmaß zur Rechnung ' + (A.nr || ''), party: A.name, site: A.site }, annex.rows, parseNum(String(annex.waste)) || 0, f, d);
+    pdfFooter(d, f);
+    return d.output('blob');
+  }
+  function pdfAm(a, rows, waste, f, d0) {
+    var d = d0 || newPdf(); if (!d) return null;
+    if (d0) d.addPage();
+    var t = amTot(rows), y;
+    pdfHead(d, f);
+    d.setFont('helvetica', 'bold'); d.setFontSize(16); d.setTextColor(20); y = 60; d.text('Aufmaß', 20, y); y += 7;
+    d.setFont('helvetica', 'normal'); d.setFontSize(10); d.setTextColor(60);
+    [a.title, a.party, a.site, 'Datum: ' + fdate(today()) + '   ·   Maße in m'].forEach(function (s) { if (s) { d.text(String(s), 20, y); y += 4.8; } });
+    y += 6;
+var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
+    function head() {
+      pdfGrid(d, XS, top, 7, true);
+      d.setFont('helvetica', 'bold'); d.setFontSize(8.5); d.setTextColor(60);
+      var ty = top + 4.8;
+      d.setFontSize(8); d.text('Raum / Bauteil', 22, ty); d.text('Bereich', 58, ty); d.text('Länge', 95, ty, { align: 'right' }); d.text('Breite/Höhe', 116, ty, { align: 'right' });
+      d.text('Anz.', 129, ty, { align: 'right' }); d.text('Abzüge', 133, ty); d.text('Ergebnis', 188, ty, { align: 'right' });
+      top += 7; d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(20);
+    }
+    function needT(h) { if (top + h > 272) { d.addPage(); top = 25; head(); } }
+    function need(h) { if (y + h > 272) { d.addPage(); y = 25; } }
+    head();
+    rows.forEach(function (r) {
+      var lfm = r.type === 'sockel' || r.type === 'silikon';
+      var lines = d.splitTextToSize(String(r.room || ''), 32), ab = d.splitTextToSize(String(r.abz || ''), 25), n = Math.max(lines.length, ab.length), h = Math.max(7, n * 4.5 + 2.6);
+      needT(h); var ty = top + 4.8;
+      pdfGrid(d, XS, top, h, false);
+      d.text(lines, 22, ty); d.text(AM[r.type][0], 58, ty); d.text(String(r.l || '0'), 95, ty, { align: 'right' });
+      d.text(lfm ? '–' : String(r.b || '0'), 116, ty, { align: 'right' }); d.text(String(parseNum(r.n) || 1), 129, ty, { align: 'right' });
+      d.text(ab, 133, ty); d.text(fmtQ(amRes(r)) + ' ' + AM[r.type][1], 188, ty, { align: 'right' });
+      top += h;
+    });
+    y = top + 4; need(40);
+    function tot(l, v, bold) { d.setFont('helvetica', bold ? 'bold' : 'normal'); d.text(l, 110, y); d.text(v, 190, y, { align: 'right' }); y += 5.5; }
+    tot('Boden', fmtQ(t.boden) + ' m²'); tot('Wand', fmtQ(t.wand) + ' m²'); tot('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true);
+    tot('Sockel', fmtQ(t.sockel) + ' lfm'); tot('Silikonfugen', fmtQ(t.silikon) + ' lfm');
+    tot('Fliesenbedarf inkl. ' + fmtQ(waste) + ' % Verschnitt', fmtQ(t.flaeche * (1 + waste / 100)) + ' m²', true);
+    if (d0) return d;
+    pdfFooter(d, f);
+    return d.output('blob');
+  }
+  async function saveBlob(name, blob) {
+    if (!blob) { toast('PDF ist in dieser Ansicht nicht verfügbar'); return; }
+    try { await saveFile(name, blob, 'application/pdf'); toast('PDF gespeichert'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('PDF konnte nicht gespeichert werden'); }
+  }
+  function safeName(s) { return String(s || '').replace(/[^\wäöüÄÖÜß-]+/g, '-').replace(/^-+|-+$/g, ''); }
+  function pdfAngFile() { var A = draft.a; saveBlob('Angebot-' + safeName(A.nr) + '.pdf', pdfAng(A, setting('firma'))); }
+  function pdfAmFile() { var a = auftrag(draft.id), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10; saveBlob('Aufmass-' + safeName(a ? a.title : 'Baustelle') + '.pdf', pdfAm(a, amCleanRows(), w, setting('firma'))); }
+
+  /* ---------- Angebote-Liste ---------- */
+  function renderAngebote() {
+    var el = $('#angeboteList'), note = stateNote();
+    if (note) { el.innerHTML = note; $('#angeboteSum').textContent = ''; return; }
+    var rows = state.data.angebote.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); });
+    var open = rows.filter(function (x) { return x.status === 'Versendet'; });
+    $('#angeboteSum').innerHTML = rows.length + (rows.length === 1 ? ' Angebot' : ' Angebote') + ' · versendet, ohne Antwort: <span class="num">' + money(sum(open, function (x) { return calcAng(x).net2; })) + '</span> netto';
+    if (!rows.length) { el.innerHTML = '<div class="empty">Noch keine Angebote. Öffne unter „Baustellen & Materialeinkauf“ eine Baustelle und tippe auf „Angebot“.</div>'; return; }
+    el.innerHTML = rows.map(function (x) {
+      var cls = x.status === 'Angenommen' ? 'good' : x.status === 'Abgelehnt' ? 'bad' : x.status === 'Entwurf' ? 'warn' : '';
+      var c = calcAng(x);
+      return '<article class="row order" tabindex="0" role="button" data-edit="angebote:' + esc(x.id) + '">' +
+        '<div class="top1"><span class="vendor">' + esc(x.nr) + ' · ' + esc(x.name) + '</span><span class="num">' + (x.ckind === 'privat' ? money(c.gross) : money(c.net2) + ' netto') + '</span></div>' +
+        '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + '</div>' +
+        '<div class="tools"><select data-astatus="' + esc(x.id) + '" aria-label="Status von ' + esc(x.nr) + '">' + options(ANG_STAT, x.status) + '</select><span class="badge ' + cls + '">' + esc(x.status) + '</span>' +
+        (x.valid && x.status === 'Versendet' && x.valid < today() ? '<span class="badge bad">abgelaufen</span>' : '') + '</div></article>';
+    }).join('');
+  }
+
+  /* ---------- Rechnungen ---------- */
+  var DEF_RE_INTRO = 'Guten Tag,\n\nvielen Dank für Ihren Auftrag. Für die ausgeführten Leistungen stelle ich Ihnen Folgendes in Rechnung:';
+  var DEF_RE_OUTRO = 'Bitte überweisen Sie den Rechnungsbetrag bis zum angegebenen Fälligkeitsdatum unter Angabe der Rechnungsnummer auf das unten genannte Konto.\n\nVielen Dank für Ihren Auftrag.\n\nMit freundlichen Grüßen';
+
+  function reLocked(A) { return !!A.status && A.status !== 'Entwurf'; }
+  function bestAngebot(aid) {
+    var rank = { Angenommen: 0, Versendet: 1, Entwurf: 2 };
+    return state.data.angebote.filter(function (x) { return x.auftragId === aid && x.status !== 'Abgelehnt'; })
+      .sort(function (a, b) { return ((rank[a.status] || 0) - (rank[b.status] || 0)) || (b.date || '').localeCompare(a.date || ''); })[0];
+  }
+  function latestRechnung(aid) {
+    return state.data.rechnungen.filter(function (x) { return x.auftragId === aid && x.status !== 'Storniert'; })
+      .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
+  }
+  /** Nächste Rechnungsnummer R-JJJJ-NNN (höchste Nummer des Jahres + 1). Wird erst bei
+   * „Rechnung stellen“ vergeben, damit Entwürfe keine Nummern verbrauchen. */
+  function nextReNr() {
+    var y = today().slice(0, 4), max = 0;
+    state.data.rechnungen.forEach(function (x) { var m = /^R-(\d{4})-(\d+)$/.exec(x.nr || ''); if (m && m[1] === y) max = Math.max(max, Number(m[2])); });
+    return 'R-' + y + '-' + String(max + 1).padStart(3, '0');
+  }
+  // Übernimmt die Mengen aus dem Aufmaß der Baustelle in die Positionen und merkt sich das Aufmaß für die Anlage.
+  function applyAufmass(R) {
+    var a = auftrag(R.auftragId), n = 0;
+    R.amSnap = a && a.aufmass && a.aufmass.rows && a.aufmass.rows.length ? JSON.parse(JSON.stringify(a.aufmass)) : null;
+    if (!R.amSnap) return 0;
+    var t = amTot(R.amSnap.rows);
+    R.positions.forEach(function (p) {
+      var c = p.katId && catItem(p.katId);
+      if (c && c.basis && t[c.basis] > 0) {
+        var q = r2(t[c.basis]);
+        if (Math.abs(q - (Number(p.qty) || 0)) > 0.001) { if (p.angQty === undefined) p.angQty = Number(p.qty) || 0; p.qty = q; n++; }
+      }
+    });
+    return n;
+  }
+  function openRechnung(id, aid) {
+    var ex = id ? state.data.rechnungen.find(function (x) { return x.id === id; }) : null;
+    if (!ex && !aid) return;
+    var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma'), R;
+    if (ex) R = JSON.parse(JSON.stringify(ex));
+    else {
+      var ang = bestAngebot(aid), terms = a && typeof a.terms === 'number' ? a.terms : 14;
+      R = {
+        auftragId: aid, angebotId: ang ? ang.id : '', nr: '', date: today(), servFrom: a && a.date ? a.date : today(), servTo: today(),
+        terms: terms, due: addDays(today(), terms),
+        name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || '' : '',
+        title: 'Fliesenarbeiten ' + (a ? a.title : ''), region: ang ? ang.region || '' : detectRegion(a),
+        ckind: a && a.ckind === 'privat' ? 'privat' : 'firma', rc: ang ? !!ang.rc : false,
+        vat: ang ? Number(ang.vat) : (f.kleinunt ? 0 : 19), discount: ang ? Number(ang.discount) || 0 : 0,
+        positions: ang ? JSON.parse(JSON.stringify(ang.positions || [])) : [],
+        intro: DEF_RE_INTRO, outro: DEF_RE_OUTRO, annex: false, status: 'Entwurf'
+      };
+      R.positions.forEach(function (p) { p.angQty = Number(p.qty) || 0; });
+    }
+    if (!R.positions) R.positions = [];
+    draft = { coll: 'rechnung', sticky: true, id: id || null, a: R, confirm: false, confirmIssue: false, mailEdited: false };
+    if (!ex) {
+      applyAufmass(R);
+      if (!R.positions.length) suggest();
+      R.annex = !!R.amSnap;
+    }
+    showSheet('<div id="angBody"></div>', true);
+    renderRe();
+  }
+  function reMailParts(A, c) {
+    var f = setting('firma');
+    return {
+      sub: 'Rechnung ' + (A.nr || '') + (A.title ? ' – ' + A.title : ''),
+      body: 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\nvielen Dank für Ihren Auftrag. Im Anhang finden Sie meine Rechnung ' + (A.nr || '') + (A.title ? ' für „' + A.title + '“' : '') + ' über ' + money(c.gross) + (Number(A.vat) > 0 ? ' brutto' : '') + '.\n\nBitte überweisen Sie den Betrag bis zum ' + fdate(A.due) + ' unter Angabe der Rechnungsnummer.\n\nMit freundlichen Grüßen\n' + [f.owner || f.name, f.owner && f.name ? f.name : '', f.phone].filter(Boolean).join('\n')
+    };
+  }
+  function reRows(A) {
+    var priv = A.ckind === 'privat', cols = priv ? 8 : 7;
+    var body = A.positions.map(function (p, i) {
+      var diff = p.angQty !== undefined && Math.abs((Number(p.angQty) || 0) - (Number(p.qty) || 0)) > 0.001;
+      return '<tbody class="pos" data-i="' + i + '"><tr>' +
+        '<td class="nr">' + (i + 1) + '</td>' +
+        '<td style="min-width:150px"><input type="text" data-pf="text" aria-label="Leistung" autocomplete="off" value="' + esc(p.text) + '"></td>' +
+        '<td class="r" style="min-width:64px"><input type="text" inputmode="decimal" data-pf="qty" aria-label="Menge" autocomplete="off" value="' + fmtQ(p.qty) + '"></td>' +
+        '<td style="min-width:56px"><input type="text" data-pf="unit" aria-label="Einheit" autocomplete="off" value="' + esc(p.unit) + '"></td>' +
+        '<td class="r" style="min-width:78px"><input type="text" inputmode="decimal" data-pf="price" aria-label="Einzelpreis netto" autocomplete="off" value="' + de(p.price) + '"></td>' +
+        '<td><div class="cell" data-psum>' + money(r2((Number(p.qty) || 0) * (Number(p.price) || 0))) + '</div></td>' +
+        (priv ? '<td style="min-width:110px"><select data-pf="art" aria-label="Art"><option value="lohn"' + (p.art !== 'material' ? ' selected' : '') + '>Arbeit / Fahrt</option><option value="material"' + (p.art === 'material' ? ' selected' : '') + '>Material</option></select></td>' : '') +
+        '<td class="xb"><button type="button" data-act="ang-del-pos" data-i="' + i + '" aria-label="Position entfernen">×</button></td></tr>' +
+        '<tr><td class="sub" colspan="' + cols + '"><span data-pbadge>' + posBadge(p, A.region) + '</span>' + (diff ? ' <span class="hint">Aufmaß-Menge, im Angebot: ' + fmtQ(p.angQty) + '</span>' : '') + '</td></tr></tbody>';
+    }).join('');
+    return '<div class="tw"><table class="gt" style="min-width:' + (priv ? 700 : 580) + 'px"><thead><tr><th class="nr">Pos.</th><th>Leistung</th><th class="r">Menge</th><th>Einheit</th><th class="r">Einzelpreis €</th><th class="r">Gesamt</th>' + (priv ? '<th>Art</th>' : '') + '<th class="xb"></th></tr></thead>' + body + '</table></div>' +
+      (priv ? '<p class="hint" style="margin-bottom:8px">Art: Arbeit/Fahrt wird als Arbeitskosten für § 35a EStG ausgewiesen.</p>' : '');
+  }
+  function renderRe() {
+    var A = draft.a, c = calcAng(A), m = reMailParts(A, c), locked = reLocked(A), a = auftrag(A.auftragId);
+    var overdue = A.status === 'Gestellt' && A.due && A.due < today();
+    function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
+    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + '</option>'; }).join('') + '<option value="__free">Freie Position</option>';
+    var badge = A.status === 'Bezahlt' ? 'good' : A.status === 'Storniert' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '';
+    var actions;
+    if (!locked) actions = (draft.id ? '<button type="button" class="btn danger left" data-act="re-del">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-save">Speichern</button>' +
+      '<button type="button" class="btn primary cta" data-act="re-issue">✓ Rechnung stellen</button>';
+    else if (A.status === 'Gestellt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn primary cta" data-act="re-paid">✓ Als bezahlt markieren</button>' +
+      '<button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
+    else if (A.status === 'Bezahlt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
+    else actions = '<button type="button" class="btn" data-act="cancel">Schließen</button>';
+    $('#angBody').innerHTML = '<h2 id="sheetTitle">' + (A.nr ? 'Rechnung ' + esc(A.nr) : 'Neue Rechnung') + ' <span class="badge ' + badge + '">' + esc(A.status) + '</span>' + (overdue ? ' <span class="badge bad">überfällig</span>' : '') + '</h2>' +
+      (locked ? '<p class="hint" style="margin-bottom:10px">Gestellte Rechnungen lassen sich nicht mehr ändern. Für eine Korrektur stornierst du sie und stellst eine neue.</p>' :
+        '<p class="hint" style="margin-bottom:10px">Die Rechnungsnummer wird erst beim Stellen vergeben. Mengen kommen aus dem Aufmaß, Preise aus dem Angebot.</p>') +
+      '<div class="grid2 stack">' + inp('r-date', 'date', 'Rechnungsdatum', 'date') + '<div class="field"><label for="r-terms">Zahlungsziel</label><select id="r-terms" data-h="terms">' + options([0, 7, 14, 30, 60, 'custom'], A.terms, termLabel) + '</select></div></div>' +
+      '<div class="grid2 stack">' + inp('r-due', 'due', 'Fällig am', 'date') + inp('r-name', 'name', 'Kunde') + '</div>' +
+      '<div class="grid2 stack">' + inp('r-from', 'servFrom', 'Leistung von', 'date') + inp('r-to', 'servTo', 'Leistung bis', 'date') + '</div>' +
+      '<div class="grid2 stack">' + inp('r-email', 'email', 'E-Mail des Kunden', 'text', ' inputmode="email"') + inp('r-address', 'address', 'Rechnungsadresse') + '</div>' +
+      inp('r-site', 'site', 'Baustelle / Adresse') + inp('r-title', 'title', 'Betreff') +
+      '<div class="field"><label for="r-intro">Einleitung</label><textarea id="r-intro" data-h="intro" rows="4">' + esc(A.intro) + '</textarea></div>' +
+      '<h3 class="section-h">Leistungen</h3>' +
+      (a && a.aufmass ? '<div style="margin-bottom:10px"><button type="button" class="btn small" data-act="re-fromam">Mengen aus Aufmaß übernehmen</button></div>' : '<p class="hint" style="margin-bottom:10px">Zu dieser Baustelle gibt es noch kein Aufmaß.</p>') +
+      reRows(A) +
+      '<div class="addbar"><select id="angAdd" aria-label="Leistung hinzufügen">' + opts + '</select></div>' +
+      '<div class="grid2 stack" style="margin-top:12px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
+      '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
+      (A.ckind !== 'privat' ? '<label class="check"><input type="checkbox" id="a-rc" data-h="rc"' + (A.rc ? ' checked' : '') + '> Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)</label>' : '') +
+      '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
+      '<label class="check" style="margin-top:8px"><input type="checkbox" id="r-annex" data-h="annex"' + (A.annex ? ' checked' : '') + (A.amSnap ? '' : ' disabled') + '> Aufmaßblatt als Anlage anhängen</label>' +
+      '<div class="field" style="margin-top:12px"><label for="r-outro">Schlusstext</label><textarea id="r-outro" data-h="outro" rows="5">' + esc(A.outro) + '</textarea></div>' +
+      '<h3 class="section-h">Versand per E-Mail</h3>' +
+      '<p class="hint">Die App versendet nichts selbst. Speichere das PDF, öffne die E-Mail und hänge das PDF an.</p>' +
+      '<div class="field" style="margin-top:10px"><span class="lbl">An</span><div class="num" id="mailTo">' + esc(A.email || '(keine E-Mail-Adresse eingetragen)') + '</div></div>' +
+      '<div class="field"><label for="mailSubj">Betreff</label><input id="mailSubj" type="text" autocomplete="off" value="' + esc(m.sub) + '"></div>' +
+      '<div class="field"><label for="mailBody">Text</label><textarea id="mailBody" rows="9">' + esc(m.body) + '</textarea></div>' +
+      '<div class="actions" style="justify-content:flex-start;margin-bottom:12px"><button type="button" class="btn" data-act="re-pdf">1. PDF speichern</button>' +
+      '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
+      '<p class="err" id="formErr" role="alert"></p><div class="actions">' + actions + '</div>';
+    $('#angBody').classList.toggle('locked', locked);
+    if (locked) document.querySelectorAll('#angBody input, #angBody select, #angBody textarea').forEach(function (el) { if (el.id !== 'mailSubj' && el.id !== 'mailBody') el.disabled = true; });
+  }
+  function reDates(A, k, v) {
+    if (k === 'terms') A.terms = v === 'custom' ? 'custom' : Number(v); else A[k] = v;
+    if (k === 'due') { A.terms = 'custom'; var ts = $('#r-terms'); if (ts) ts.value = 'custom'; }
+    else if (A.terms !== 'custom' && A.date) { A.due = addDays(A.date, Number(A.terms)); var di = $('#r-due'); if (di) di.value = A.due; }
+    updAng();
+  }
+  function reCheck(A, strict) {
+    var i, p;
+    if (!String(A.name || '').trim()) return 'Bitte den Kunden eintragen.';
+    if (!A.positions.length) return 'Bitte mindestens eine Leistung hinzufügen.';
+    for (i = 0; i < A.positions.length; i++) {
+      p = A.positions[i];
+      if (!String(p.text || '').trim()) return 'Bei Position ' + (i + 1) + ' fehlt die Leistung.';
+      if (!(Number(p.qty) > 0)) return 'Bei Position ' + (i + 1) + ' fehlt die Menge.';
+    }
+    if (!strict) return '';
+    var f = setting('firma');
+    if (!f.name || !f.street || !f.city || !f.taxid) return 'Für eine Rechnung fehlen deine Firmendaten (Name, Straße, PLZ und Ort, Steuernummer). Trage sie unter „Firma und Preise“ ein.';
+    if (!String(A.address || '').trim()) return 'Bitte die Rechnungsadresse des Kunden eintragen.';
+    if (!A.date || !A.servFrom || !A.servTo) return 'Bitte Rechnungsdatum und Leistungszeitraum eintragen.';
+    if (A.servTo < A.servFrom) return 'Das Ende der Leistung liegt vor dem Beginn.';
+    if (!A.due) return 'Bitte ein Fälligkeitsdatum eintragen.';
+    return '';
+  }
+  async function saveRe(strict) {
+    var A = draft.a, msg = reCheck(A, strict);
+    if (msg) return formErr(msg);
+    var obj = JSON.parse(JSON.stringify(A)); delete obj.id;
+    try { draft.id = await persist('rechnungen', draft.id, obj); return true; }
+    catch (e) { return formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
+  }
+  async function issueRe(btn) {
+    var A = draft.a, msg = reCheck(A, true);
+    if (msg) return formErr(msg);
+    if (!draft.confirmIssue) { draft.confirmIssue = true; btn.textContent = 'Wirklich stellen? Danach nicht mehr änderbar'; btn.classList.add('armed'); return; }
+    A.nr = nextReNr(); A.status = 'Gestellt'; A.issuedAt = today();
+    if (!(await saveRe(true))) { A.nr = ''; A.status = 'Entwurf'; return; }
+    try { var a = auftrag(A.auftragId); if (a && a.status !== 'Bezahlt') await patch('auftraege', a.id, { status: 'Berechnet', amount: calcAng(A).net2 }); } catch (e) { /* Status der Baustelle bleibt */ }
+    draft.confirmIssue = false;
+    renderRe();
+    toast('Rechnung ' + A.nr + ' gestellt');
+  }
+  async function payRe() {
+    var A = draft.a; A.status = 'Bezahlt'; A.paidAt = today();
+    if (!(await saveRe(false))) { A.status = 'Gestellt'; return; }
+    try { var a = auftrag(A.auftragId); if (a) await patch('auftraege', a.id, { status: 'Bezahlt' }); } catch (e) { /* Status der Baustelle bleibt */ }
+    renderRe(); toast('Als bezahlt markiert');
+  }
+  async function stornoRe(btn) {
+    if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich stornieren?'; btn.classList.add('armed'); return; }
+    var A = draft.a, prev = A.status; A.status = 'Storniert'; A.stornoAt = today();
+    if (!(await saveRe(false))) { A.status = prev; return; }
+    try { var a = auftrag(A.auftragId); if (a && (a.status === 'Berechnet' || (prev === 'Bezahlt' && a.status === 'Bezahlt'))) await patch('auftraege', a.id, { status: 'Abgenommen' }); } catch (e) { /* Status der Baustelle bleibt */ }
+    draft.confirm = false; renderRe(); toast('Rechnung storniert');
+  }
+  async function delRe(btn) {
+    if (!draft.id || draft.a.status !== 'Entwurf') return;
+    if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich löschen?'; btn.classList.add('armed'); return; }
+    try { await removeDoc('rechnungen', draft.id); await closeSheet(false); toast('Entwurf gelöscht'); } catch (e) { formErr('Löschen hat nicht geklappt.'); }
+  }
+  function pdfReFile() {
+    var A = draft.a;
+    saveBlob('Rechnung-' + safeName(A.nr || 'Entwurf') + '.pdf', pdfAng(A, setting('firma'), true, A.annex && A.amSnap ? A.amSnap : null));
+  }
+  function renderRechnungen() {
+    var el = $('#rechnungenList'), note = stateNote();
+    if (note) { el.innerHTML = note; $('#rechnungenSum').textContent = ''; return; }
+    var rows = state.data.rechnungen.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); });
+    var open = rows.filter(function (x) { return x.status === 'Gestellt'; });
+    var late = open.filter(function (x) { return x.due && x.due < today(); });
+    $('#rechnungenSum').innerHTML = rows.length + (rows.length === 1 ? ' Rechnung' : ' Rechnungen') + ' · offen: <span class="num">' + money(sum(open, function (x) { return calcAng(x).gross; })) + '</span>' + (late.length ? ' · ' + late.length + ' überfällig' : '');
+    if (!rows.length) { el.innerHTML = '<div class="empty">Noch keine Rechnungen. Öffne unter „Baustellen & Materialeinkauf“ eine Baustelle und tippe auf „Rechnung“. Die Mengen kommen aus dem Aufmaß.</div>'; return; }
+    el.innerHTML = rows.map(function (x) {
+      var cls = x.status === 'Bezahlt' ? 'good' : x.status === 'Storniert' ? 'bad' : x.status === 'Entwurf' ? 'warn' : '';
+      var c = calcAng(x), od = x.status === 'Gestellt' && x.due && x.due < today();
+      return '<article class="row order" tabindex="0" role="button" data-edit="rechnungen:' + esc(x.id) + '">' +
+        '<div class="top1"><span class="vendor">' + esc(x.nr || 'Entwurf') + ' · ' + esc(x.name) + '</span><span class="num">' + money(c.gross) + '</span></div>' +
+        '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + (x.due ? ' · fällig ' + fdate(x.due) : '') + '</div>' +
+        '<div class="tools"><span class="badge ' + cls + '">' + esc(x.status) + '</span>' + (od ? '<span class="badge bad">überfällig</span>' : '') +
+        (x.status === 'Gestellt' || x.status === 'Bezahlt' ? '<button type="button" class="btn small danger" data-act="re-storno-list" data-id="' + esc(x.id) + '">Stornieren</button>' : '') + '</div></article>';
+    }).join('');
+  }
+
+  /* ---------- 9 Ereignisse ---------- */
+  /** Wechselt den Reiter und schreibt ihn in den URL-Hash. */
+  function setTab(t) {
+    state.tab = t;
+    try { if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t); } catch (e) { }
+    render(); window.scrollTo(0, 0);
+  }
+  document.addEventListener('click', function (e) {
+    var lk = e.target.closest('#mailLink');
+    if (lk) { prepMailLink(lk); return; }
+    var a = e.target.closest('[data-act]');
+    if (a) {
+      var act = a.dataset.act;
+      if (act === 'tab') setTab(a.dataset.tab);
+      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : openBeleg(); }
+      else if (act === 'cancel') closeSheet(true);
+      else if (act === 'delete') del(a);
+      else if (act === 'trip-calc') fillTrip(false);
+      else if (act === 'site-calc') siteCalc();
+      else if (act === 'sync-save') syncSave();
+      else if (act === 'sync-auto') syncAuto();
+      else if (act === 'doc-del') {
+        var did = a.dataset.id;
+        if (state.docDel !== did) { state.docDel = did; renderOrdner(); }
+        else {
+          state.docDel = null;
+          var dd = state.data.dokumente.find(function (x) { return x.id === did; });
+          removeDoc('dokumente', did).then(function () { if (dd && dd.fileId) return dropAsset(dd.fileId); }).then(function () { toast('Datei entfernt'); renderOrdner(); }, function () { toast('Entfernen ging nicht'); });
+        }
+      }
+      else if (act === 'photo-remove') { draft.photoId = null; draft.photoData = null; draft.photoKind = null; renderPhotoBox(); }
+      else if (act === 'settings') openSettings();
+      else if (act === 'set-save') saveSettings();
+      else if (act === 'aufmass') openAufmass(a.dataset.id);
+      else if (act === 'am-add') { draft.rows.push(newAmRow()); renderAm(); }
+      else if (act === 'am-del') { draft.rows.splice(Number(a.dataset.i), 1); if (!draft.rows.length) draft.rows.push(newAmRow()); renderAm(); }
+      else if (act === 'am-save') saveAm();
+      else if (act === 'am-csv') exportAm();
+      else if (act === 'am-pdf') pdfAmFile();
+      else if (act === 'angebot') { var ea = latestAngebot(a.dataset.id); if (ea) openAngebot(ea.id); else openAngebot(null, a.dataset.id); }
+      else if (act === 'ang-suggest') { var nn = suggest(); renderAng(); if (!nn) toast('Kein Aufmaß vorhanden. Erfasse zuerst das Aufmaß.'); }
+      else if (act === 'ang-del-pos') { draft.a.positions.splice(Number(a.dataset.i), 1); renderAng(); }
+      else if (act === 'ang-save') { saveAng().then(function (ok) { if (ok) { closeSheet(false); toast('Angebot gespeichert'); } }); }
+      else if (act === 'ang-sent') markSent();
+      else if (act === 'ang-pdf') pdfAngFile();
+      else if (act === 'ang-copy') copyMail();
+      else if (act === 'ang-del') delAng(a);
+      else if (act === 'goto-angebote') setTab('angebote');
+      else if (act === 'goto-rechnungen') setTab('rechnungen');
+      else if (act === 'rechnung') { var er = latestRechnung(a.dataset.id); if (er) openRechnung(er.id); else openRechnung(null, a.dataset.id); }
+      else if (act === 're-save') { saveRe(false).then(function (ok) { if (ok) { closeSheet(false); toast('Rechnung gespeichert'); } }); }
+      else if (act === 're-issue') issueRe(a);
+      else if (act === 're-pdf') pdfReFile();
+      else if (act === 're-paid') payRe();
+      else if (act === 're-storno') stornoRe(a);
+      else if (act === 're-storno-list') { openRechnung(a.dataset.id); setTimeout(function () { var sb = document.querySelector('#sheet [data-act="re-storno"]'); if (sb) stornoRe(sb); }, 60); }
+      else if (act === 're-del') delRe(a);
+      else if (act === 're-fromam') { var nr2 = applyAufmass(draft.a); draft.a.annex = !!draft.a.amSnap; renderRe(); toast(nr2 ? nr2 + ' Menge(n) aus dem Aufmaß übernommen' : 'Die Mengen stimmen schon mit dem Aufmaß überein'); }
+      else if (act === 'export-belege') exportBelege();
+      else if (act === 'export-auftraege') exportAuftraege();
+      else if (act === 'clear-examples') clearExamples();
+      else if (act === 'goto-nophoto') { state.fb = { month: 'all', cat: 'all', q: '', nophoto: true }; $('#fb-q').value = ''; setTab('belege'); }
+      else if (act === 'ov') {
+        var g = a.dataset.go;
+        if (g === 'month') { state.fb = { month: today().slice(0, 7), cat: 'all', q: '', nophoto: false }; $('#fb-q').value = ''; setTab('belege'); }
+        else if (g === 'year') { state.fb = { month: 'all', cat: 'all', q: '', nophoto: false, year: today().slice(0, 4) }; $('#fb-q').value = ''; setTab('belege'); }
+        else if (g === 'cat') { state.fb = { month: 'all', cat: a.dataset.cat, q: '', nophoto: false, year: today().slice(0, 4) }; $('#fb-q').value = ''; setTab('belege'); }
+        else if (g === 'kmmonth') { state.fb = { month: today().slice(0, 7), cat: 'all', q: '', nophoto: false, km: true }; $('#fb-q').value = ''; setTab('belege'); }
+        else if (g === 'kmyear') { state.fb = { month: 'all', cat: 'all', q: '', nophoto: false, year: today().slice(0, 4), km: true }; $('#fb-q').value = ''; setTab('belege'); }
+        else if (g === 'remind') { var dn = setting('erinnerung').done === today(); persist('settings', 'erinnerung', { done: dn ? '' : today() }).then(function () { toast(dn ? 'Erinnerung wieder offen' : 'Erinnerung erledigt'); }, function () { toast('Das ließ sich nicht speichern'); }); }
+        else if (g === 'sitekm') { state.fa = { kind: 'kunde', open: false, km: true, year: today().slice(0, 4) }; setTab('auftraege'); }
+        else if (g === 'run') { state.fa = { kind: 'kunde', open: true, run: true }; setTab('auftraege'); }
+        else if (g === 'inv') setTab('rechnungen');
+      }
+      else if (act === 'fa-kind') { state.fa.kind = a.dataset.kind; state.fa.run = false; renderAuftraege(); }
+      else if (act === 'fb-clear') { state.fb.year = ''; state.fb.km = false; renderBelege(); }
+      else if (act === 'fa-clear') { state.fa.run = false; state.fa.km = false; state.fa.year = ''; renderAuftraege(); }
+      else if (act === 'goto-kunden') { state.fa = { kind: 'kunde', open: true }; setTab('auftraege'); }
+      else if (act === 'goto-late') { state.fa = { kind: 'all', open: true }; setTab('auftraege'); }
+      return;
+    }
+    var row = e.target.closest('[data-edit]');
+    if (row && !e.target.closest('select, a, button, label, input')) {
+      var p = row.dataset.edit.split(':');
+      openEdit(p[0], p[1]);
+      return;
+    }
+    if (e.target.id === 'sheet' && !(draft && draft.sticky)) closeSheet(true);
+  });
+  document.addEventListener('submit', function (e) { e.preventDefault(); save(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(true); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.row')) {
+      e.preventDefault();
+      var p = e.target.dataset.edit.split(':');
+      openEdit(p[0], p[1]);
+    }
+  });
+  document.addEventListener('input', function (e) {
+    if (draft && draft.sticky) { onSheetInput(e.target); return; }
+    if (e.target.id === 'f-km' || e.target.id === 'f-place' || e.target.id === 'f-vaddr') renderTrip();
+    if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
+    if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
+  });
+  document.addEventListener('change', function (e) { if (e.target && e.target.id === 'syncFile') { var f = e.target.files && e.target.files[0]; syncLoad(f).then(function () { e.target.value = ''; }); } });
+  document.addEventListener('change', async function (e) {
+    var t = e.target;
+    if (draft && draft.sticky) return;
+    if (t.id === 'ordnerName') { persist('settings', 'ordner', { name: String(t.value).trim() }).then(function () { toast('Ordnername gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
+    if (t.dataset && t.dataset.doc) { patch('dokumente', t.dataset.doc, { name: String(t.value).trim() }).then(function () { toast('Name gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
+    if (t.id === 'f-place' || t.id === 'f-vendor' || t.id === 'f-vaddr') { fillTrip(true); return; }
+    if (t.id === 'f-back') { var kk = parseNum(val('f-km')); if (kk > 0) { $('#f-km').value = String(t.checked ? kk * 2 : kk / 2).replace('.', ','); } renderTrip(); return; }
+    if (t.id === 'fb-month') { state.fb.month = t.value; renderBelege(); }
+    else if (t.id === 'fb-cat') { state.fb.cat = t.value; renderBelege(); }
+    else if (t.id === 'fb-nophoto') { state.fb.nophoto = t.checked; renderBelege(); }
+    else if (t.id === 'fa-open') { state.fa.open = t.checked; renderAuftraege(); }
+    else if (t.id === 'f-kind') {
+      $('#f-status').innerHTML = options(STAT[t.value], STAT[t.value][0]);
+      var kd = t.value === 'kunde';
+      $('#partyLbl').textContent = kd ? 'Kunde' : 'Händler / Lieferant';
+      $('#amountLbl').textContent = kd ? 'Auftragswert netto (€)' : 'Betrag netto (€)';
+      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
+    }
+    else if (draft && draft.coll === 'auftraege' && (t.id === 'f-date' || t.id === 'f-terms')) {
+      var tm = $('#f-terms').value;
+      if (tm !== 'custom' && $('#f-date').value) $('#f-due').value = addDays($('#f-date').value, Number(tm));
+    }
+    else if (draft && draft.coll === 'auftraege' && t.id === 'f-due') { $('#f-terms').value = 'custom'; }
+    else if (t.id === 'f-vendor' && draft && draft.coll === 'belege' && !draft.id) {
+      var name = t.value.trim().toLowerCase();
+      var prev = state.data.belege.filter(function (b) { return (b.vendor || '').toLowerCase() === name; }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
+      if (prev) { $('#f-cat').value = prev.cat; $('#f-vat').value = String(prev.vat); $('#f-pay').value = prev.pay; }
+    }
+    else if (t.dataset && t.dataset.astatus) {
+      try {
+        var ag = state.data.angebote.find(function (x) { return x.id === t.dataset.astatus; });
+        await patch('angebote', t.dataset.astatus, { status: t.value });
+        if (t.value === 'Angenommen' && ag) {
+          var oa = auftrag(ag.auftragId);
+          if (oa && (oa.status === 'Anfrage' || oa.status === 'Angebot')) await patch('auftraege', oa.id, { status: 'Beauftragt', amount: calcAng(ag).net2 });
+        }
+        toast('Status: ' + t.value);
+      } catch (err) { toast('Status ließ sich nicht ändern'); render(); }
+    }
+    else if (t.dataset && t.dataset.status) {
+      try { await patch('auftraege', t.dataset.status, { status: t.value }); toast('Status: ' + t.value); }
+      catch (err) { toast('Status ließ sich nicht ändern'); render(); }
+    }
+  });
+
+  /* ---------- 10 Start ---------- */
+  function readHash() { var h = (location.hash || '').replace('#', ''); if (TABS.indexOf(h) >= 0) state.tab = h; }
+  window.addEventListener('hashchange', function () { readHash(); render(); });
+
+  /** Start: Dienste der Claude-Umgebung anfragen; wenn keine Datenbank da ist, lokal arbeiten. */
+  async function init() {
+    readHash();
+    $('#fb-cat').innerHTML = '<option value="all">Alle Kategorien</option>' + options(CATS, '');
+    render();
+    function use(n) {
+      if (!window.claude || !window.claude.use) return Promise.resolve(null);
+      return window.claude.use(n).catch(function () { return null; });
+    }
+    var got = await Promise.all([use('db'), use('assets'), use('downloads'), use('mcp')]);
+    ASSETS = got[1]; DL = got[2]; MAP = got[3];
+    if (got[0]) {
+      DB = got[0]; mode = 'db';
+      setTimeout(function () { if (!allLoaded() && !state.err) { state.slow = true; renderMode(); } }, 10000);
+      COLS.forEach(function (c) {
+        DB.collection(c).onSnapshot(function (snap) {
+          state.data[c] = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+          state.loaded[c] = true; if (allLoaded()) state.slow = false;
+          render();
+        }, function () { state.err = true; render(); });
+      });
+    } else {
+      mode = 'local'; loadLocal();
+    }
+    render();
+  }
+  init();
+})();
+</script>

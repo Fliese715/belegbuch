@@ -370,6 +370,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     </section>
     <section id="v-ordner" hidden>
       <div class="field"><label for="ordnerName">Name des Ordners (du kannst ihn jederzeit ändern)</label><input id="ordnerName" type="text" autocomplete="off" placeholder="Verträge / PDF"></div>
+      <div class="field" id="ordnerAdd" hidden><label for="ordnerFile">PDF-Datei hinzufügen</label><input type="file" id="ordnerFile" accept="application/pdf,.pdf"></div>
       <div class="listbar"><span class="sum" id="ordnerSum"></span></div>
       <div class="list" id="ordnerList"></div>
     </section>
@@ -593,9 +594,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   }
-  /** Inhalt für Sicherungs- und Abgleich-Datei: verschlüsselt, wenn ein Passwort gesetzt ist. */
-  async function packText() {
-    var plain = syncText(); if (!CRYPT) return plain;
+  /** Inhalt für Sicherungs- und Abgleich-Datei: verschlüsselt, wenn ein Passwort gesetzt ist.
+   * @param {boolean} full true = mit Fotos und PDFs; false = nur Daten (für die häufigen Stände im Gerätespeicher) */
+  async function packText(full) {
+    var plain = full ? await fullText() : syncText(); if (!CRYPT) return plain;
     var iv = crypto.getRandomValues(new Uint8Array(12));
     var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, CRYPT.key, new TextEncoder().encode(plain));
     return JSON.stringify({ app: 'belegbuch', v: 2, enc: 'AES-GCM', kdf: 'PBKDF2-SHA256', iter: CRYPT.iter, salt: CRYPT.salt, iv: b64(iv), exported: new Date().toISOString(), data: b64(ct) });
@@ -656,8 +658,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   var idbP = null;
   function idb() {
     if (!idbP) idbP = new Promise(function (res, rej) {
-      var r = indexedDB.open('belegbuch-sicherung', 1);
-      r.onupgradeneeded = function () { r.result.createObjectStore('snap', { keyPath: 't' }); r.result.createObjectStore('kv'); };
+      var r = indexedDB.open('belegbuch-sicherung', 2);
+      r.onupgradeneeded = function () {
+        var d = r.result, have = d.objectStoreNames;
+        if (!have.contains('snap')) d.createObjectStore('snap', { keyPath: 't' });
+        if (!have.contains('kv')) d.createObjectStore('kv');
+        if (!have.contains('files')) d.createObjectStore('files');
+      };
       r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
     });
     return idbP;
@@ -667,6 +674,74 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function idbPut(store, val, key) { return idbReq(store, true, function (o) { return key === undefined ? o.put(val) : o.put(val, key); }); }
   function idbDel(store, key) { return idbReq(store, true, function (o) { return o.delete(key); }); }
   function idbKeys(store) { return idbReq(store, false, function (o) { return o.getAllKeys(); }); }
+
+  /* ---------- Dateien (Beleg-Fotos, PDFs) ----------
+   * Betriebsart 'db':    Dateien liegen in der Datei-Ablage von Claude, Adresse /_blob/<id>.
+   * Betriebsart 'local': Dateien liegen als Blob in IndexedDB (Speicher 'files', Schlüssel = id);
+   *                      FILES hält dazu Objekt-URLs für die Anzeige. Dateien werden lokal nie
+   *                      gelöscht, damit jede Wiederherstellung ihre Fotos wiederfindet.
+   * Sicherungs- und Abgleich-Dateien enthalten alle Dateien, auf die ein Dokument verweist. */
+  var FILES = {}; // id -> {type, url}
+  function canFiles() { return !!ASSETS || mode === 'local'; }
+  /** Adresse zum Anzeigen/Öffnen einer Datei; '' wenn sie auf diesem Gerät fehlt. */
+  function fileSrc(id) { if (!id) return ''; if (mode === 'db') return '/_blob/' + id; return FILES[id] ? FILES[id].url : ''; }
+  function fileRemember(id, type, blob) { FILES[id] = { type: type, url: URL.createObjectURL(blob) }; }
+  async function loadFiles() {
+    if (mode !== 'local') return;
+    try {
+      var keys = await idbKeys('files');
+      for (var i = 0; i < keys.length; i++) { if (!FILES[keys[i]]) { var f = await idbGet('files', keys[i]); if (f && f.blob) fileRemember(keys[i], f.type, f.blob); } }
+    } catch (e) { }
+  }
+  /** Legt eine Datei im Gerätespeicher ab. @returns {Promise<string>} id */
+  async function addFile(blob, name) {
+    var id = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    await idbPut('files', { type: blob.type || 'application/octet-stream', name: name || '', blob: blob }, id);
+    fileRemember(id, blob.type, blob); return id;
+  }
+  /** Verkleinert ein Foto auf höchstens 1800 px Kantenlänge (JPEG); bei Fehlern bleibt das Original. */
+  async function shrinkImage(file) {
+    try {
+      var bmp = await createImageBitmap(file), k = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+      var cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bmp.width * k)); cv.height = Math.max(1, Math.round(bmp.height * k));
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      var out = await new Promise(function (res) { cv.toBlob(res, 'image/jpeg', 0.85); });
+      return out || file;
+    } catch (e) { return file; }
+  }
+  /** ids aller Dateien, auf die Belege und der PDF-Ordner verweisen. */
+  function fileIds() {
+    var ids = {};
+    state.data.belege.forEach(function (b) { if (b.photoId) ids[b.photoId] = true; });
+    state.data.dokumente.forEach(function (d) { if (d.fileId) ids[d.fileId] = true; });
+    return Object.keys(ids);
+  }
+  /** Alle verwiesenen Dateien als {id: {type, name, b64}} für Sicherung und Abgleich. */
+  async function filesForExport() {
+    var out = {}, ids = fileIds();
+    for (var i = 0; i < ids.length; i++) {
+      try {
+        var blob = null, name = '';
+        if (mode === 'db') { var r = await fetch('/_blob/' + ids[i]); if (r.ok) blob = await r.blob(); }
+        else { var f = await idbGet('files', ids[i]); if (f) { blob = f.blob; name = f.name || ''; } }
+        if (blob) out[ids[i]] = { type: blob.type || '', name: name, b64: b64(await blob.arrayBuffer()) };
+      } catch (e) { /* fehlende Datei: Eintrag bleibt, Datei fehlt in der Sicherung */ }
+    }
+    return out;
+  }
+  /** Übernimmt Dateien aus einer Sicherung/Abgleich-Datei in den Gerätespeicher (nur 'local').
+   * @returns {Promise<number>} Anzahl neu abgelegter Dateien */
+  async function importFiles(files) {
+    if (mode !== 'local' || !files) return 0;
+    var n = 0, ids = Object.keys(files);
+    for (var i = 0; i < ids.length; i++) {
+      var f = files[ids[i]]; if (FILES[ids[i]] || !f || !f.b64) continue;
+      try { var blob = new Blob([unb64(f.b64)], { type: f.type || 'application/octet-stream' }); await idbPut('files', { type: blob.type, name: f.name || '', blob: blob }, ids[i]); fileRemember(ids[i], blob.type, blob); n++; } catch (e) { }
+    }
+    return n;
+  }
+  /** Vollständiger Inhalt für Sicherung und Abgleich: Daten und Dateien. */
+  async function fullText() { return JSON.stringify({ app: 'belegbuch', v: 1, exported: new Date().toISOString(), data: state.data, files: await filesForExport() }); }
 
   /* ---------- Automatische Sicherung: alle 30 Minuten, solange die App geöffnet ist ---------- */
   var AUTO_MS = 30 * 60000, AUTO_KEEP = 48, AUTO_FILE = 'belegbuch-sicherung-auto.json';
@@ -686,7 +761,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       for (var i = 0; i < keys.length - AUTO_KEEP; i++) await idbDel('snap', keys[i]);
       lsSet('belegbuch:lastauto', String(now));
       if (dirHandle && dirOk) {
-        try { await dirWrite(AUTO_FILE, text); await dirWrite('belegbuch-sicherung-' + today() + '.json', text); lsSet('belegbuch:lastdir', String(now)); lsSet('belegbuch:lastbackup', String(now)); }
+        try { var ft = await packText(true); await dirWrite(AUTO_FILE, ft); await dirWrite('belegbuch-sicherung-' + today() + '.json', ft); lsSet('belegbuch:lastdir', String(now)); lsSet('belegbuch:lastbackup', String(now)); }
         catch (e) { dirOk = false; }
       }
     } catch (e) { /* ohne Gerätespeicher gibt es keine automatische Sicherung */ }
@@ -714,7 +789,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function initBackup() {
     try { CRYPT = (await idbGet('kv', 'key')) || null; } catch (e) { CRYPT = null; }
     try { dirHandle = (await idbGet('kv', 'dir')) || null; if (dirHandle && dirHandle.queryPermission) dirOk = (await dirHandle.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { dirHandle = null; }
-    await loadSnaps(); renderBackup();
+    await loadFiles(); await loadSnaps(); render();
     setInterval(function () { autoBackup(false); }, 60000);
     document.addEventListener('visibilitychange', function () { autoBackup(false); });
     autoBackup(false);
@@ -759,10 +834,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function restoreAskText(file) {
     var d = file.data, n = function (c) { return Array.isArray(d[c]) ? d[c].length : 0; };
-    $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
+    $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen' + (file.files ? ', ' + plural(Object.keys(file.files).length, 'Datei', 'Dateien') : '') + '. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
   }
   async function backupSave() {
-    try { await saveFile('belegbuch-sicherung-' + today() + '.json', await packText(), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
+    try { await saveFile('belegbuch-sicherung-' + today() + '.json', await packText(true), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function restorePick(f) {
@@ -779,6 +854,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    * @param {boolean} keep true = vorher den aktuellen Stand für „Rückgängig“ merken */
   async function restoreApply(file, keep) {
     if (keep) lsSet('belegbuch:vorher', syncText());
+    await importFiles(file.files);
     var now = Date.now(), inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
     for (var ci = 0; ci < COLS.length; ci++) {
       var c = COLS[ci], rows = (Array.isArray(inc[c]) ? inc[c] : []).filter(function (d) { return d && d.id && !(c === 'settings' && d.id === 'geloescht'); });
@@ -815,6 +891,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    * @throws {{code:'bad'}} wenn die Datei keine Belegbuch-Datei ist */
   async function syncMerge(text) {
     var file = await unpack(text);
+    var nf = await importFiles(file.files);
     var inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
     var it = ((inc.settings || []).find(function (x) { return x.id === 'geloescht'; }) || {}).map || {};
     Object.keys(it).forEach(function (k) { if (!(tomb[k] >= it[k])) tomb[k] = it[k]; });
@@ -838,9 +915,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
     if (Object.keys(tomb).length) await rawSet('settings', 'geloescht', { map: tomb, _t: Date.now() });
     if (!DB) { saveLocal(); render(); }
+    n.files = nf;
     return n;
   }
-  function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt.'; }
+  function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt' + (n.files ? ', ' + plural(n.files, 'Datei', 'Dateien') + ' übernommen' : '') + '.'; }
   function stamp() { var d = new Date(); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
   /** Übergibt eine Datei an den Nutzer: in Claude über den Speichern-Dialog,
    * sonst als normaler Browser-Download. */
@@ -852,7 +930,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
   async function syncSave() {
-    try { await saveFile(SYNC_NAME, await packText(), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); markBackup(); toast('Abgleich-Datei gespeichert'); }
+    try { await saveFile(SYNC_NAME, await packText(true), 'application/json'); syncNote(stamp() + ' (Datei gespeichert)'); markBackup(); toast('Abgleich-Datei gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function syncLoad(f) {
@@ -865,7 +943,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try {
       if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'Belegbuch Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
       var n = await syncMerge(await (await syncHandle.getFile()).text());
-      var w = await syncHandle.createWritable(); await w.write(await packText()); await w.close();
+      var w = await syncHandle.createWritable(); await w.write(await packText(true)); await w.close();
       syncNote(stamp() + ' (automatisch)'); markBackup(); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -943,9 +1021,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var drafts = state.data.angebote.filter(function (x) { return x.status === 'Entwurf'; });
     if (drafts.length) todo += '<button type="button" data-act="goto-angebote"><span>' + drafts.length + (drafts.length === 1 ? ' Angebot ist noch nicht versendet' : ' Angebote sind noch nicht versendet') + '</span><span class="badge warn">Ansehen</span></button>';
     var nophoto = B.filter(function (b) { return !b.photoId && !b.photoData; });
-    if (ASSETS && nophoto.length) todo += '<button type="button" data-act="goto-nophoto"><span>' + nophoto.length + (nophoto.length === 1 ? ' Beleg hat kein Foto' : ' Belege haben kein Foto') + '</span><span class="badge warn">Ansehen</span></button>';
+    if (canFiles() && nophoto.length) todo += '<button type="button" data-act="goto-nophoto"><span>' + nophoto.length + (nophoto.length === 1 ? ' Beleg hat kein Foto' : ' Belege haben kein Foto') + '</span><span class="badge warn">Ansehen</span></button>';
     $('#todo').innerHTML = todo || '<div class="ok">Nichts offen. Alle Belege haben ein Foto, kein Auftrag ist überfällig.</div>';
-    if (!ASSETS && !todo) $('#todo').innerHTML = '<div class="ok">Nichts überfällig.</div>';
+    if (!canFiles() && !todo) $('#todo').innerHTML = '<div class="ok">Nichts überfällig.</div>';
 
     var by = {};
     year.forEach(function (b) { by[b.cat || 'Sonstiges'] = (by[b.cat || 'Sonstiges'] || 0) + b.gross; });
@@ -971,7 +1049,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
   }
   function renderBelege() {
-    $('#fb-nophoto-wrap').hidden = !ASSETS;
+    $('#fb-nophoto-wrap').hidden = !canFiles();
     var months = [], seen = {};
     state.data.belege.forEach(function (b) { var m = (b.date || '').slice(0, 7); if (m && !seen[m]) { seen[m] = 1; months.push(m); } });
     months.sort().reverse();
@@ -998,7 +1076,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
     var om = orderMap();
     $('#belegeList').innerHTML = rows.map(function (b) {
-      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : '<img class="thumb" alt="" loading="lazy" src="/_blob/' + esc(b.photoId) + '">') : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
+      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : (fileSrc(b.photoId) ? '<img class="thumb" alt="" loading="lazy" src="' + esc(fileSrc(b.photoId)) + '">' : '<span class="thumb pdf">Foto</span>')) : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
       var ord = b.orderId && om[b.orderId];
       return '<article class="row" tabindex="0" role="button" data-edit="belege:' + esc(b.id) + '">' + thumb +
         '<div class="main"><div class="vendor">' + esc(b.vendor) + '</div>' +
@@ -1085,12 +1163,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var el = $('#ordnerList'); if (!el) return;
     var docs = (state.data.dokumente || []).slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
     $('#ordnerSum').textContent = docs.length + (docs.length === 1 ? ' Datei' : ' Dateien');
-    if (!docs.length) { el.innerHTML = '<div class="empty">Noch keine PDF-Dateien. Schick mir ein PDF im Chat und sag dazu „in den Ordner“, dann liegt es hier.</div>'; return; }
+    var of = $('#ordnerAdd'); if (of) of.hidden = mode !== 'local';
+    if (!docs.length) { el.innerHTML = '<div class="empty">' + (mode === 'local' ? 'Noch keine PDF-Dateien. Füge oben eine Datei hinzu.' : 'Noch keine PDF-Dateien. Schick mir ein PDF im Chat und sag dazu „in den Ordner“, dann liegt es hier.') + '</div>'; return; }
     el.innerHTML = docs.map(function (d) {
       var ask = state.docDel === d.id;
       return '<article class="row"><span class="thumb pdf">PDF</span><div class="main"><input class="docname" type="text" autocomplete="off" aria-label="Dateiname" data-doc="' + esc(d.id) + '" value="' + esc(d.name || '') + '">' +
         '<div class="meta">' + (d.date ? fdate(d.date) : '') + (d.note ? ' · ' + esc(d.note) : '') + '</div>' +
-        '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><a class="btn small" href="/_blob/' + esc(d.fileId) + '" target="_blank" rel="noopener">Öffnen</a>' +
+        '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + (fileSrc(d.fileId) ? '<a class="btn small" href="' + esc(fileSrc(d.fileId)) + '" target="_blank" rel="noopener">Öffnen</a>' : '<span class="badge warn">Datei fehlt auf diesem Gerät</span>') +
         '<button type="button" class="btn small' + (ask ? ' danger' : '') + '" data-act="doc-del" data-id="' + esc(d.id) + '">' + (ask ? 'Wirklich entfernen?' : 'Entfernen') + '</button></div></div></article>';
     }).join('');
   }
@@ -1361,14 +1440,17 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function renderPhotoBox(msg) {
     var box = $('#photoBox'); if (!box) return;
-    var html = '', has = draft.photoId || draft.photoData;
+    var html = '', has = draft.photoId || draft.photoData, src = draft.photoId ? fileSrc(draft.photoId) : (draft.photoData || '');
     if (has) {
-      html += '<div class="photo">' + (draft.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : '<img class="thumb" alt="Beleg-Foto" src="' + (draft.photoId ? '/_blob/' + esc(draft.photoId) : esc(draft.photoData)) + '">') +
-        (draft.photoId ? '<a href="/_blob/' + esc(draft.photoId) + '" target="_blank" rel="noopener">Öffnen</a>' : '') +
+      html += '<div class="photo">' + (draft.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : (src ? '<img class="thumb" alt="Beleg-Foto" src="' + esc(src) + '">' : '<span class="thumb pdf">Foto</span>')) +
+        (draft.photoId && src ? '<a href="' + esc(src) + '" target="_blank" rel="noopener">Öffnen</a>' : '') +
+        (draft.photoId && !src ? '<span class="badge warn">Datei fehlt auf diesem Gerät</span>' : '') +
         '<button type="button" class="btn small" data-act="photo-remove">Foto entfernen</button></div>';
-    } else {
+    } else if (mode !== 'local') {
       html += '<p class="hint" style="margin:0">Noch kein Foto. Schick den Beleg im Chat an Claude, dann wird er samt Foto angelegt.</p>';
     }
+    if (mode === 'local') html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Foto oder PDF des Belegs hinzufügen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf"></div>';
+    if (msg) html += '<p class="hint" style="margin:6px 0 0">' + esc(msg) + '</p>';
     box.innerHTML = html;
   }
   /** Öffnet das Formular für Baustelle bzw. Materialbestellung. */
@@ -2437,6 +2519,18 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pwDlgIn') { e.preventDefault(); pwDone(true); } });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.files || !t.files[0]) return;
+    if (t.id === 'photoFile' && draft && draft.coll === 'belege') {
+      var f = t.files[0], pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+      (pdf ? Promise.resolve(f) : shrinkImage(f)).then(function (blob) { return addFile(blob, f.name); }).then(function (id) {
+        if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = pdf ? 'pdf' : 'img'; renderPhotoBox('Datei übernommen. Sie wird mit dem Beleg gespeichert.');
+      }, function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
+    } else if (t.id === 'ordnerFile') {
+      var g = t.files[0];
+      addFile(g, g.name).then(function (id) { return persist('dokumente', null, { name: g.name, date: today(), note: '', fileId: id }); }).then(function () { t.value = ''; toast('PDF abgelegt'); }, function () { toast('Die Datei ließ sich nicht ablegen'); });
+    }
+  });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'backupFile') { var bf = e.target.files && e.target.files[0]; restorePick(bf).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'syncFile') { var f = e.target.files && e.target.files[0]; syncLoad(f).then(function () { e.target.value = ''; }); } });
   document.addEventListener('change', async function (e) {

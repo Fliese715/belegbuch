@@ -37,8 +37,11 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Wiederherstellen ersetzt den ganzen Bestand (`restoreApply()`), der Stand davor bleibt einmal
   rückholbar. In „Zu erledigen“ erscheint ein Hinweis, wenn die Sicherung fehlt oder älter als
   drei Tage ist und es seitdem Änderungen gab.
+- **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der
+  Claude-Fassung in deren Datei-Ablage. Sicherungs- und Abgleich-Dateien enthalten alle Dateien,
+  auf die ein Dokument verweist (Base64, `filesForExport()` / `importFiles()`).
 - **Automatische Sicherung:** alle 30 Minuten, solange die App geöffnet ist und sich etwas geändert
-  hat (`autoBackup()`): bis zu 48 Stände in IndexedDB, zusätzlich als Datei in einem gewählten
+  hat (`autoBackup()`): bis zu 48 Stände in IndexedDB (nur Daten, ohne Dateien), zusätzlich vollständig als Datei in einem gewählten
   Ordner, wenn der Browser die File System Access API anbietet.
 - **Verschlüsselung:** Mit gesetztem Passwort werden Sicherungen und Abgleich-Datei mit AES-GCM
   verschlüsselt, Schlüssel per PBKDF2-SHA256 (250 000 Runden). Gespeichert wird nur der abgeleitete,

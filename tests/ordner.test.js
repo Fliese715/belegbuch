@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
  await page.fill('#ordnerName','Dokumente 2026'); await page.press('#ordnerName','Tab'); await page.waitForTimeout(200);
  console.log('tab nach Umbenennung:',await page.textContent('#tab-ordner'));
  await page.fill('.docname','Würth Rechnung Silikon.pdf'); await page.press('.docname','Tab'); await page.waitForTimeout(200);
- console.log(await page.evaluate(()=>JSON.parse(localStorage.getItem('belegbuch:dokumente')).map(d=>d.name).join()), '|', await page.$eval('#ordnerList a','a=>a.getAttribute('+"'href'"+')'));
+ console.log(await page.evaluate(()=>JSON.parse(localStorage.getItem('belegbuch:dokumente')).map(d=>d.name).join()), '|', await page.textContent('#ordnerList .badge'));
  await page.click('[data-act="doc-del"]'); console.log(await page.textContent('[data-act="doc-del"]'));
  await page.click('[data-act="doc-del"]'); await page.waitForTimeout(300); console.log('nach Löschen:',await page.textContent('#ordnerSum'));
  console.log('Fehler:',errs.join('|')||'keine'); await b.close();})();

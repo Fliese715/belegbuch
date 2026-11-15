@@ -286,7 +286,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <button type="button" data-act="tab" data-tab="belege">Kosten &amp; Fahrten</button>
       <button type="button" data-act="tab" data-tab="auftraege">Baustellen &amp; Materialeinkauf</button>
       <button type="button" data-act="tab" data-tab="rechnungen">Rechnungen</button>
-      <button type="button" data-act="tab" data-tab="ordner" id="tab-ordner">Ordner (vorläufig)</button>
+      <button type="button" data-act="tab" data-tab="ordner" id="tab-ordner">Verträge / PDF</button>
       <button type="button" data-act="tab" data-tab="angebote">Angebote</button>
     </nav>
     <div class="mode" id="mode">Lädt …</div>
@@ -350,7 +350,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <div class="list" id="angeboteList"></div>
     </section>
     <section id="v-ordner" hidden>
-      <div class="field"><label for="ordnerName">Name des Ordners (vorläufig, du kannst ihn jederzeit ändern)</label><input id="ordnerName" type="text" autocomplete="off" placeholder="Ordner (vorläufig)"></div>
+      <div class="field"><label for="ordnerName">Name des Ordners (du kannst ihn jederzeit ändern)</label><input id="ordnerName" type="text" autocomplete="off" placeholder="Verträge / PDF"></div>
       <div class="listbar"><span class="sum" id="ordnerSum"></span></div>
       <div class="list" id="ordnerList"></div>
     </section>
@@ -824,7 +824,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- Ordner für PDF-Dateien ---------- */
-  function ordnerTitle() { return String(setting('ordner').name || '').trim() || 'Ordner (vorläufig)'; }
+  function ordnerTitle() { return String(setting('ordner').name || '').trim() || 'Verträge / PDF'; }
   function renderOrdner() {
     var tb = $('#tab-ordner'); if (tb) tb.textContent = ordnerTitle();
     var inp = $('#ordnerName'); if (inp && document.activeElement !== inp) inp.value = String(setting('ordner').name || '');

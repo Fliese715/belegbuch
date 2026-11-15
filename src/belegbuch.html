@@ -200,6 +200,13 @@ input[type="text"], input[type="date"], select {
 .row .amt .sub { font-size: 12px; color: var(--muted); }
 .thumb { width: 48px; height: 48px; flex: none; border-radius: 6px; object-fit: cover; border: 1px solid var(--line); background: var(--surface-2); }
 #backupH { scroll-margin-top: 150px; }
+.sheet.viewer { max-width: 900px; display: flex; flex-direction: column; height: 94%; }
+.viewer-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.viewer-h h2 { margin: 0; font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-b { flex: 1; min-height: 0; overflow: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.viewer-b img { display: block; width: 100%; height: auto; }
+.viewer-b img.zoom { width: 250%; max-width: none; }
+.viewer-b iframe { display: block; width: 100%; height: 100%; min-height: 320px; border: 0; background: #fff; }
 .syncbox { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .syncbox input[type=file] { width: 100%; min-height: 44px; }
 .docname { font-weight: 600; min-height: 40px; }
@@ -384,6 +391,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 </div>
 
 <div class="overlay" id="sheet" hidden><div class="sheet" id="sheetBody" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+<div class="overlay" id="viewer" hidden><div class="sheet viewer" role="dialog" aria-modal="true" aria-labelledby="viewerT">
+  <div class="viewer-h"><h2 id="viewerT"></h2><button type="button" class="btn small" data-act="viewer-close">Schließen</button></div>
+  <div class="viewer-b" id="viewerBody"></div>
+  <p class="hint" id="viewerMsg" style="margin:8px 0 0"></p>
+  <div class="actions"><button type="button" class="btn" id="viewerShare" data-act="viewer-share" hidden>Mit anderer App öffnen</button><button type="button" class="btn cta" data-act="viewer-save">Auf dem Gerät speichern</button></div>
+</div></div>
 <div class="overlay" id="pwDlg" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pwDlgT">
   <h2 id="pwDlgT" style="margin:0 0 8px;font-size:18px">Passwort der Sicherung</h2>
   <p class="hint" id="pwDlgMsg" style="margin:0 0 10px"></p>
@@ -743,6 +756,49 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Vollständiger Inhalt für Sicherung und Abgleich: Daten und Dateien. */
   async function fullText() { return JSON.stringify({ app: 'belegbuch', v: 1, exported: new Date().toISOString(), data: state.data, files: await filesForExport() }); }
 
+  /* ---------- Anzeige von Fotos und PDFs in der App ----------
+   * Neue Fenster mit blob:-Adressen funktionieren in installierten Web-Apps und auf Android
+   * oft nicht. Deshalb zeigt die App Dateien selbst an: Fotos als Bild (Tippen = vergrößern),
+   * PDFs in einem eingebetteten Rahmen. Wo der Browser PDFs nicht einbettet (Android),
+   * bleiben „Mit anderer App öffnen“ (Teilen) und „Auf dem Gerät speichern“. */
+  var viewing = null; // {blob, name, url, own}
+  async function openFile(id, kind, label) {
+    var blob = null, msg = '';
+    try {
+      if (mode === 'db') { var r = await fetch('/_blob/' + id); if (r.ok) blob = await r.blob(); }
+      else { var f = await idbGet('files', id); if (f) blob = f.blob; }
+    } catch (e) { }
+    var pdf = kind === 'pdf' || (blob && blob.type === 'application/pdf');
+    var name = safeName(label || 'Beleg') + (pdf ? '.pdf' : '.jpg');
+    var url = blob ? URL.createObjectURL(blob) : fileSrc(id);
+    if (!url) { toast('Die Datei liegt nicht auf diesem Gerät'); return; }
+    viewing = { blob: blob, name: name, url: url, own: !!blob };
+    $('#viewerT').textContent = label || (pdf ? 'PDF' : 'Foto');
+    $('#viewerBody').innerHTML = pdf ? '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>' : '<img alt="' + esc(label || 'Foto') + '" data-act="viewer-zoom" src="' + esc(url) + '">';
+    if (pdf) msg = 'Bleibt die Fläche leer, kann dieser Browser PDFs nicht in der App anzeigen. Nimm dann einen der Knöpfe unten.';
+    else msg = 'Tippe auf das Bild, um es zu vergrößern.';
+    $('#viewerMsg').textContent = msg;
+    var canShare = false;
+    try { canShare = !!(blob && navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: blob.type })] })); } catch (e) { }
+    $('#viewerShare').hidden = !canShare;
+    $('#viewer').hidden = false;
+  }
+  function closeViewer() {
+    if (viewing && viewing.own) { try { URL.revokeObjectURL(viewing.url); } catch (e) { } }
+    viewing = null; $('#viewerBody').innerHTML = ''; $('#viewer').hidden = true;
+  }
+  async function viewerSave() {
+    if (!viewing) return;
+    if (!viewing.blob) { $('#viewerMsg').textContent = 'Die Datei ließ sich nicht laden.'; return; }
+    try { await saveFile(viewing.name, viewing.blob, viewing.blob.type); toast('Datei gespeichert'); }
+    catch (e) { if (!e || e.code !== 'declined') $('#viewerMsg').textContent = 'Speichern ging nicht.'; }
+  }
+  async function viewerShare() {
+    if (!viewing || !viewing.blob) return;
+    try { await navigator.share({ files: [new File([viewing.blob], viewing.name, { type: viewing.blob.type })], title: viewing.name }); }
+    catch (e) { if (!e || e.name !== 'AbortError') $('#viewerMsg').textContent = 'Das Öffnen mit einer anderen App ging nicht. Nimm „Auf dem Gerät speichern“.'; }
+  }
+
   /* ---------- Automatische Sicherung: alle 30 Minuten, solange die App geöffnet ist ---------- */
   var AUTO_MS = 30 * 60000, AUTO_KEEP = 48, AUTO_FILE = 'belegbuch-sicherung-auto.json';
   var SNAPS = [], dirHandle = null, dirOk = false, autoBusy = false;
@@ -1076,7 +1132,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
     var om = orderMap();
     $('#belegeList').innerHTML = rows.map(function (b) {
-      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : (fileSrc(b.photoId) ? '<img class="thumb" alt="" loading="lazy" src="' + esc(fileSrc(b.photoId)) + '">' : '<span class="thumb pdf">Foto</span>')) : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
+      var fo = b.photoId && fileSrc(b.photoId) ? ' data-act="file-open" data-id="' + esc(b.photoId) + '" data-kind="' + esc(b.photoKind || 'img') + '" data-label="' + esc('Beleg ' + (b.vendor || '')) + '" title="Beleg anzeigen"' : '';
+      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf"' + fo + '>PDF</span>' : (fileSrc(b.photoId) ? '<img class="thumb" alt="Beleg anzeigen" loading="lazy"' + fo + ' src="' + esc(fileSrc(b.photoId)) + '">' : '<span class="thumb pdf">Foto</span>')) : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
       var ord = b.orderId && om[b.orderId];
       return '<article class="row" tabindex="0" role="button" data-edit="belege:' + esc(b.id) + '">' + thumb +
         '<div class="main"><div class="vendor">' + esc(b.vendor) + '</div>' +
@@ -1169,7 +1226,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var ask = state.docDel === d.id;
       return '<article class="row"><span class="thumb pdf">PDF</span><div class="main"><input class="docname" type="text" autocomplete="off" aria-label="Dateiname" data-doc="' + esc(d.id) + '" value="' + esc(d.name || '') + '">' +
         '<div class="meta">' + (d.date ? fdate(d.date) : '') + (d.note ? ' · ' + esc(d.note) : '') + '</div>' +
-        '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + (fileSrc(d.fileId) ? '<a class="btn small" href="' + esc(fileSrc(d.fileId)) + '" target="_blank" rel="noopener">Öffnen</a>' : '<span class="badge warn">Datei fehlt auf diesem Gerät</span>') +
+        '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + (fileSrc(d.fileId) ? '<button type="button" class="btn small" data-act="file-open" data-id="' + esc(d.fileId) + '" data-kind="pdf" data-label="' + esc(String(d.name || 'Dokument').replace(/\.pdf$/i, '')) + '">Öffnen</button>' : '<span class="badge warn">Datei fehlt auf diesem Gerät</span>') +
         '<button type="button" class="btn small' + (ask ? ' danger' : '') + '" data-act="doc-del" data-id="' + esc(d.id) + '">' + (ask ? 'Wirklich entfernen?' : 'Entfernen') + '</button></div></div></article>';
     }).join('');
   }
@@ -1443,7 +1500,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var html = '', has = draft.photoId || draft.photoData, src = draft.photoId ? fileSrc(draft.photoId) : (draft.photoData || '');
     if (has) {
       html += '<div class="photo">' + (draft.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : (src ? '<img class="thumb" alt="Beleg-Foto" src="' + esc(src) + '">' : '<span class="thumb pdf">Foto</span>')) +
-        (draft.photoId && src ? '<a href="' + esc(src) + '" target="_blank" rel="noopener">Öffnen</a>' : '') +
+        (draft.photoId && src ? '<button type="button" class="btn small" data-act="file-open" data-id="' + esc(draft.photoId) + '" data-kind="' + esc(draft.photoKind || 'img') + '" data-label="' + esc('Beleg ' + (val('f-vendor') || '')) + '">Öffnen</button>' : '') +
         (draft.photoId && !src ? '<span class="badge warn">Datei fehlt auf diesem Gerät</span>' : '') +
         '<button type="button" class="btn small" data-act="photo-remove">Foto entfernen</button></div>';
     } else if (mode !== 'local') {
@@ -2422,6 +2479,11 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'site-calc') siteCalc();
       else if (act === 'sync-save') syncSave();
       else if (act === 'backup-save') backupSave();
+      else if (act === 'file-open') openFile(a.dataset.id, a.dataset.kind, a.dataset.label);
+      else if (act === 'viewer-close') closeViewer();
+      else if (act === 'viewer-save') viewerSave();
+      else if (act === 'viewer-share') viewerShare();
+      else if (act === 'viewer-zoom') a.classList.toggle('zoom');
       else if (act === 'pw-set') pwSet();
       else if (act === 'pw-clear') pwClear();
       else if (act === 'pw-ok') pwDone(true);
@@ -2505,6 +2567,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
   document.addEventListener('submit', function (e) { e.preventDefault(); save(); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !$('#pwDlg').hidden) { pwDone(false); return; }
+    if (e.key === 'Escape' && !$('#viewer').hidden) { closeViewer(); return; }
     if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(true); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.row')) {
       e.preventDefault();

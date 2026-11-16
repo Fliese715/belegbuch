@@ -65,8 +65,8 @@ self.addEventListener('fetch', function (e) {
     }).catch(function () {
       return caches.match(req, { ignoreSearch: true }).then(function (m) { return m || caches.match('./index.html'); });
     }));
-  } else if (/cdnjs\.cloudflare\.com|fonts\.(googleapis|gstatic)\.com/.test(url.host)) {
-    /* PDF-Bibliothek und Schrift: aus dem Cache, sonst laden und merken. */
+  } else if (/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.(googleapis|gstatic)\.com/.test(url.host)) {
+    /* PDF-Bibliothek, Texterkennung und Schrift: aus dem Cache, sonst laden und merken. */
     e.respondWith(caches.match(req).then(function (m) {
       return m || fetch(req).then(function (r) { var cp = r.clone(); caches.open(VERSION).then(function (c) { c.put(req, cp); }); return r; });
     }));

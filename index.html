@@ -756,6 +756,115 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Vollständiger Inhalt für Sicherung und Abgleich: Daten und Dateien. */
   async function fullText() { return JSON.stringify({ app: 'belegbuch', v: 1, exported: new Date().toISOString(), data: state.data, files: await filesForExport() }); }
 
+  /* ---------- Texterkennung (OCR) beim Hinzufügen eines Belegs ----------
+   * Nur in der Betriebsart 'local' (die Claude-Umgebung lässt fremde Skripte/Worker nicht zu).
+   * Fotos: Tesseract.js (Sprache Deutsch). PDFs: zuerst der eingebettete Text über pdf.js; hat die
+   * erste Seite keinen, wird sie gerendert und wie ein Foto gelesen.
+   * Bibliotheken und Sprachdaten werden erst bei Bedarf von jsDelivr geladen, brauchen also beim
+   * ersten Mal Internet; der Service Worker hält sie danach vor. Ohne Netz bleibt die Erkennung
+   * aus und der Beleg wird von Hand ausgefüllt. Erkannte Werte füllen nur leere Felder. */
+  var OCR_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  var PDFJS_SRC = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+  var PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  var ocrWorker = null, ocrRun = 0;
+  function loadScript(url) {
+    return new Promise(function (res, rej) {
+      var el = document.createElement('script'), timer = setTimeout(function () { rej({ code: 'offline' }); }, 25000);
+      el.src = url; el.onload = function () { clearTimeout(timer); res(); }; el.onerror = function () { clearTimeout(timer); el.remove(); rej({ code: 'offline' }); };
+      document.head.appendChild(el);
+    });
+  }
+  /** Liest den Text eines Bildes (Blob oder Canvas). @param {function(number)} onPct Fortschritt 0–100 */
+  async function ocrImage(img, onPct) {
+    if (!window.Tesseract) await loadScript(OCR_SRC);
+    if (!ocrWorker) ocrWorker = await window.Tesseract.createWorker('deu', 1, { logger: function (m) { if (m && m.status === 'recognizing text' && ocrWorker && ocrWorker.onPct) ocrWorker.onPct(Math.round((m.progress || 0) * 100)); } });
+    ocrWorker.onPct = onPct;
+    var r = await ocrWorker.recognize(img);
+    return (r && r.data && r.data.text) || '';
+  }
+  /** Text eines PDFs: eingebetteter Text der ersten zwei Seiten, sonst OCR der ersten Seite. */
+  async function pdfText(blob, onPct) {
+    if (!window.pdfjsLib) await loadScript(PDFJS_SRC);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    var doc = await window.pdfjsLib.getDocument({ data: await blob.arrayBuffer() }).promise, text = '';
+    for (var n = 1; n <= Math.min(2, doc.numPages); n++) {
+      var tc = await (await doc.getPage(n)).getTextContent(), lastY = null;
+      tc.items.forEach(function (it) { var y = it.transform ? Math.round(it.transform[5]) : null; text += (lastY !== null && y !== lastY ? '\n' : ' ') + it.str; lastY = y; });
+      text += '\n';
+    }
+    if (text.replace(/\s/g, '').length >= 40) return text;
+    var page = await doc.getPage(1), vp = page.getViewport({ scale: 2 }), cv = document.createElement('canvas');
+    cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    return ocrImage(cv, onPct);
+  }
+  function ocrAmount(str) { var m = String(str).match(/(\d{1,3}(?:[.\s]\d{3})+|\d+)\s?,\s?(\d{2})(?!\d)/g); if (!m) return []; return m.map(function (x) { return parseFloat(x.replace(/[.\s]/g, '').replace(',', '.')); }); }
+  /** Sucht in erkanntem Belegtext nach Datum, Bruttobetrag, MwSt-Satz, Lieferant und Adresse.
+   * Bewusst vorsichtig: lieber ein Feld leer lassen als einen falschen Wert eintragen.
+   * @param {string} text  @returns {{date?:string, gross?:number, vat?:number, vendor?:string, vaddr?:string, place?:string}} */
+  function parseReceipt(text) {
+    var out = {}, lines = String(text || '').split(/\r?\n/).map(function (l) { return l.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    var all = lines.join('\n'), low = all.toLowerCase(), i, m;
+    // Datum: bevorzugt neben „Datum“, sonst das erste plausible
+    var dre = /(\d{1,2})\s?[.\/-]\s?(\d{1,2})\s?[.\/-]\s?(\d{4}|\d{2})(?!\d)/g, dates = [], yNow = new Date().getFullYear();
+    lines.forEach(function (l) { var k; dre.lastIndex = 0; while ((k = dre.exec(l))) { var d = +k[1], mo = +k[2], y = +k[3]; if (y < 100) y += 2000; if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2015 && y <= yNow + 1) dates.push({ iso: y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2), key: /datum|date/i.test(l) && !/liefer|fällig|zahlbar|leistung/i.test(l) }); } });
+    if (dates.length) out.date = (dates.find(function (d) { return d.key; }) || dates[0]).iso;
+    // Betrag: Zeilen mit Schlüsselwörtern nach Rang, sonst der größte Betrag
+    var ranks = [/zu zahlen|zahlbetrag|rechnungsbetrag|endbetrag|gesamtbetrag|endsumme|gesamtsumme/i, /summe|total|gesamt|brutto/i, /betrag|eur|€/i], skip = /netto|mwst|mehrwert|ust|steuer|rabatt|gegeben|rückgeld|zurück|wechselgeld|iban|tel|fax|kunden|bon-?nr|beleg-?nr/i, best = null;
+    for (var r = 0; r < ranks.length && best === null; r++) {
+      lines.forEach(function (l, idx) {
+        if (!ranks[r].test(l) || (r > 0 && skip.test(l))) return;
+        var am = ocrAmount(l); if (!am.length && lines[idx + 1] && !skip.test(lines[idx + 1])) am = ocrAmount(lines[idx + 1]).slice(0, 1);
+        if (am.length) { var v = am[am.length - 1]; if (best === null || v > best) best = v; }
+      });
+    }
+    if (best === null) { lines.forEach(function (l) { if (skip.test(l)) return; ocrAmount(l).forEach(function (v) { if (best === null || v > best) best = v; }); }); }
+    if (best !== null && best > 0 && best < 1000000) out.gross = Math.round(best * 100) / 100;
+    // MwSt: nur wenn eindeutig genau ein Satz vorkommt
+    var has19 = /(^|[^\d,.])19(,0+)?\s?%/.test(all), has7 = /(^|[^\d,.])7(,0+)?\s?%/.test(all);
+    if (has19 && !has7) out.vat = 19; else if (has7 && !has19) out.vat = 7;
+    // Lieferant: bekannter Name aus früheren Belegen, sonst die erste brauchbare Kopfzeile
+    var known = {}; state.data.belege.forEach(function (b) { if (b.vendor && b.vendor.length >= 3) known[b.vendor] = 1; });
+    var kv = Object.keys(known).sort(function (a, b) { return b.length - a.length; }).find(function (v) { return low.indexOf(v.toLowerCase()) >= 0; });
+    if (kv) out.vendor = kv;
+    else for (i = 0; i < Math.min(6, lines.length); i++) { var l = lines[i], letters = (l.match(/[A-Za-zÄÖÜäöüß]/g) || []).length; if (letters >= 3 && letters >= l.length * 0.5 && !/rechnung|quittung|kassenbon|beleg|datum|seite|kunde|steuer|tel\b|www\.|@/i.test(l)) { out.vendor = l.slice(0, 60); break; } }
+    // Adresse: Zeile mit Postleitzahl und Ort, davor oder darin die Straße; die eigene Adresse zählt nicht
+    var f = setting('firma') || {}, ownPlz = (String(f.city || '').match(/\d{5}/) || [''])[0], ownStreet = String(f.street || '').toLowerCase().replace(/\s/g, '');
+    var streetRe = /([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\- ]*?(?:stra(?:ß|ss)e|str\.|weg|platz|allee|bogen|chaussee|damm|ring|gasse|ufer|hof|markt)\s?\d+(?:\s?[a-z](?![a-zäöü]))?(?:\s?-\s?\d+)?)/i;
+    for (i = 0; i < lines.length; i++) {
+      m = lines[i].match(/(?:^|[\s,])(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?: [A-ZÄÖÜa-zäöü][A-Za-zÄÖÜäöüß.\-]+){0,2})/); if (!m) continue;
+      var st = (lines[i].match(streetRe) || (i > 0 ? lines[i - 1].match(streetRe) : null) || [])[1] || '';
+      if (st && ownStreet && st.toLowerCase().replace(/\s/g, '').indexOf(ownStreet) >= 0) continue;
+      if (!st && m[1] === ownPlz) continue;
+      out.place = m[2].trim(); if (st) out.vaddr = st.trim() + ', ' + m[1] + ' ' + out.place; break;
+    }
+    return out;
+  }
+  /** Startet die Texterkennung für die Datei des offenen Beleg-Formulars und füllt leere Felder. */
+  async function ocrBeleg(blob, pdf) {
+    if (mode !== 'local' || !draft || draft.coll !== 'belege') return;
+    var run = ++ocrRun, stillOpen = function () { return run === ocrRun && draft && draft.coll === 'belege' && $('#photoBox'); };
+    var say = function (t) { if (stillOpen()) renderPhotoBox(t); };
+    if (navigator.onLine === false && !window.Tesseract) { say('Datei übernommen. Ohne Internet gibt es keine Texterkennung, bitte die Felder von Hand ausfüllen.'); return; }
+    say('Text wird gelesen …');
+    try {
+      var onPct = function (p) { say('Text wird gelesen … ' + p + ' %'); };
+      var text = pdf ? await pdfText(blob, onPct) : await ocrImage(blob, onPct);
+      if (!stillOpen()) return;
+      var r = parseReceipt(text), got = [];
+      var put = function (id, v, label) { var el = $('#' + id); if (el && v != null && v !== '' && !String(el.value).trim()) { el.value = v; got.push(label); } };
+      put('f-vendor', r.vendor, 'Lieferant');
+      put('f-gross', r.gross != null ? String(r.gross.toFixed(2)).replace('.', ',') : '', 'Betrag');
+      if (r.date && !draft.id && $('#f-date') && $('#f-date').value === today() && r.date !== today()) { $('#f-date').value = r.date; got.push('Datum'); }
+      if (r.vat != null && !draft.id && $('#f-vat') && Number($('#f-vat').value) !== r.vat) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
+      put('f-vaddr', r.vaddr, 'Adresse'); put('f-place', r.place, 'Ort');
+      if (r.vaddr || r.place) { try { fillTrip(true); } catch (e) { } }
+      say(got.length ? 'Erkannt und eingetragen: ' + got.join(', ') + '. Bitte mit dem Beleg vergleichen, die Erkennung macht Fehler.' : 'Der Text ließ sich nicht sicher lesen. Bitte die Felder von Hand ausfüllen.');
+    } catch (e) {
+      say(e && e.code === 'offline' ? 'Datei übernommen. Die Texterkennung braucht beim ersten Mal Internet; bitte die Felder von Hand ausfüllen.' : 'Datei übernommen. Die Texterkennung hat nicht geklappt; bitte die Felder von Hand ausfüllen.');
+    }
+  }
+
   /* ---------- Anzeige von Fotos und PDFs in der App ----------
    * Neue Fenster mit blob:-Adressen funktionieren in installierten Web-Apps und auf Android
    * oft nicht. Deshalb zeigt die App Dateien selbst an: Fotos als Bild (Tippen = vergrößern),
@@ -1506,6 +1615,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else if (mode !== 'local') {
       html += '<p class="hint" style="margin:0">Noch kein Foto. Schick den Beleg im Chat an Claude, dann wird er samt Foto angelegt.</p>';
     }
+    if (mode === 'local' && draft.photoId && src) html += '<button type="button" class="btn small" data-act="ocr-again" style="margin-top:8px">Text aus dem Beleg lesen</button>';
     if (mode === 'local') html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Foto oder PDF des Belegs hinzufügen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf"></div>';
     if (msg) html += '<p class="hint" style="margin:6px 0 0">' + esc(msg) + '</p>';
     box.innerHTML = html;
@@ -2479,6 +2589,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'site-calc') siteCalc();
       else if (act === 'sync-save') syncSave();
       else if (act === 'backup-save') backupSave();
+      else if (act === 'ocr-again') { if (draft && draft.photoId) idbGet('files', draft.photoId).then(function (rec) { if (rec) ocrBeleg(rec.blob, draft.photoKind === 'pdf'); }); }
       else if (act === 'file-open') openFile(a.dataset.id, a.dataset.kind, a.dataset.label);
       else if (act === 'viewer-close') closeViewer();
       else if (act === 'viewer-save') viewerSave();
@@ -2588,7 +2699,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       var f = t.files[0], pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
       (pdf ? Promise.resolve(f) : shrinkImage(f)).then(function (blob) { return addFile(blob, f.name); }).then(function (id) {
         if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = pdf ? 'pdf' : 'img'; renderPhotoBox('Datei übernommen. Sie wird mit dem Beleg gespeichert.');
-      }, function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
+        return idbGet('files', id).then(function (rec) { return ocrBeleg(rec.blob, pdf); });
+      }).catch(function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
     } else if (t.id === 'ordnerFile') {
       var g = t.files[0];
       addFile(g, g.name).then(function (id) { return persist('dokumente', null, { name: g.name, date: today(), note: '', fileId: id }); }).then(function () { t.value = ''; toast('PDF abgelegt'); }, function () { toast('Die Datei ließ sich nicht ablegen'); });

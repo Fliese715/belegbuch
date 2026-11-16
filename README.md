@@ -40,6 +40,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der
   Claude-Fassung in deren Datei-Ablage. Sicherungs- und Abgleich-Dateien enthalten alle Dateien,
   auf die ein Dokument verweist (Base64, `filesForExport()` / `importFiles()`).
+- **Texterkennung:** beim Hinzufügen eines Fotos oder PDFs zu einem Beleg (nur Web-App):
+  Tesseract.js (Deutsch) für Fotos, pdf.js für PDF-Text; beide werden erst bei Bedarf von jsDelivr
+  geladen. `parseReceipt()` sucht Datum, Bruttobetrag, MwSt-Satz, Lieferant und Adresse und füllt
+  nur leere Felder. Der Test dazu arbeitet mit einer nachgebauten Erkennung (fester Text).
 - **Automatische Sicherung:** alle 30 Minuten, solange die App geöffnet ist und sich etwas geändert
   hat (`autoBackup()`): bis zu 48 Stände in IndexedDB (nur Daten, ohne Dateien), zusätzlich vollständig als Datei in einem gewählten
   Ordner, wenn der Browser die File System Access API anbietet.
@@ -60,7 +64,7 @@ sh tests/run.sh          # braucht Node.js und Playwright (Chromium)
 Die Tests sind Rauchtests: Sie spielen typische Abläufe im Browser durch (Rechnung stellen und
 stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Sicherung und Wiederherstellung, automatische Sicherung mit Passwort, Abgleich zwischen zwei
 Geräten, Neuladen ohne Netz) und schlagen bei Abstürzen und Seitenfehlern fehl. Sie prüfen keine
-einzelnen Rechenergebnisse; PDF-Inhalte sind nicht automatisch geprüft.
+einzelnen Rechenergebnisse; PDF-Inhalte und die echte Texterkennung sind nicht automatisch geprüft.
 
 ### Bekannte Grenzen
 

@@ -1319,12 +1319,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         '<div class="meta">' + esc(a.party) + (a.site ? ' · ' + esc(a.site) : '') + (a.kind === 'lieferant' ? ' · Materialbestellung' : '') + (area ? ' · ' + String(area).replace('.', ',') + ' m² · ' + money(a.amount / area) + '/m²' : '') + '</div>' +
         (a.kind === 'kunde' ? nkLine(a) : '') +
         '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' +
-          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : abschlaege(a.id).length ? 'Schlussrechnung' : 'Rechnung') + '</button>' + (!latestRechnung(a.id) || latestRechnung(a.id).status === 'Entwurf' ? '<button type="button" class="btn small" data-act="abschlag" data-id="' + esc(a.id) + '">Abschlag</button>' : '') : '') +
+          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : abschlaege(a.id).length ? 'Schlussrechnung' : 'Rechnung') + '</button>' + (!latestRechnung(a.id) || latestRechnung(a.id).status === 'Entwurf' ? '<button type="button" class="btn small" data-act="abschlag" data-id="' + esc(a.id) + '">Abschlagsrechnung</button>' : '') : '') +
         (a.due ? '<span class="badge ' + (late ? 'bad' : '') + '">' + 'Fällig ' + fdate(a.due) + (late ? ' · überfällig' : '') + '</span>' : '') +
         (a.status === 'Bezahlt' ? '<span class="badge good">bezahlt</span>' : '') + (siteKmTotal(a) > 0 ? '<span class="badge">Fahrten ' + fmtQ(siteKmTotal(a)) + ' km (' + Math.max(1, Math.round(Number(a.visits) || 1)) + '×)</span>' : '') +
         (lb.length ? '<span class="badge">' + lb.length + (lb.length === 1 ? ' Beleg' : ' Belege') + '</span>' : '') +
         (a.ckind === 'privat' ? '<span class="badge">Privatkunde</span>' : '') +
-        (a.kind === 'kunde' && abschlaege(a.id).length ? '<span class="badge">' + plural(abschlaege(a.id).length, 'Abschlag', 'Abschläge') + ' · ' + money(sum(abschlaege(a.id), function (x) { return calcAng(x).gross; })) + '</span>' : '') +
+        (a.kind === 'kunde' && abschlaege(a.id).length ? '<span class="badge">' + plural(abschlaege(a.id).length, 'Abschlagsrechnung', 'Abschlagsrechnungen') + ' · ' + money(sum(abschlaege(a.id), function (x) { return calcAng(x).gross; })) + '</span>' : '') +
         (inv ? '<span class="badge ' + (inv.status === 'Bezahlt' ? 'good' : inv.status === 'Gestellt' && inv.due && inv.due < today() ? 'bad' : '') + '">Rechnung ' + esc(inv.nr || 'Entwurf') + ' · ' + esc(inv.status) + '</span>' : (a.kind === 'kunde' && a.status === 'Abgenommen' ? '<span class="badge warn">Rechnung fehlt</span>' : '')) +
         (a.aufmass && a.aufmass.rows && a.aufmass.rows.length ? '<span class="badge">Aufmaß ' + fmtQ(amTot(a.aufmass.rows).flaeche) + ' m²</span>' : '') +
         '</div></article>';
@@ -1358,7 +1358,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var erloes, src;
     var abs = abschlaege(a.id);
     if (inv && issued(inv)) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = RE_LABEL[reType(inv)] + ' ' + (inv.nr || ''); }
-    else if (abs.length) { erloes = sum(abs, function (x) { var cc = calcAng(x); return klein ? cc.gross : cc.net2; }); src = plural(abs.length, 'Abschlag', 'Abschläge') + ', noch keine Schlussrechnung'; }
+    else if (abs.length) { erloes = sum(abs, function (x) { var cc = calcAng(x); return klein ? cc.gross : cc.net2; }); src = plural(abs.length, 'Abschlagsrechnung', 'Abschlagsrechnungen') + ', noch keine Schlussrechnung'; }
     else { erloes = Number(a.amount) || 0; src = 'Auftragswert, noch keine Rechnung'; }
     var lb = state.data.belege.filter(function (b) { return b.orderId === a.id; });
     var material = sum(lb, function (b) { return klein ? b.gross : b.gross - vatPart(b.gross, b.vat); });
@@ -2178,7 +2178,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       h += row('Gesamt netto', money(c.net2), true) + (v ? row('Umsatzsteuer ' + A.vat + ' %', money(c.vat)) + row('Gesamt brutto', money(c.gross)) : '');
     }
     if ((A.deduct || []).length) {
-      A.deduct.forEach(function (x) { h += row('abzüglich Abschlag ' + esc(x.nr) + ' vom ' + fdate(x.date), '-' + money(x.gross)); });
+      A.deduct.forEach(function (x) { h += row('abzüglich Abschlagsrechnung ' + esc(x.nr) + ' vom ' + fdate(x.date), '-' + money(x.gross)); });
       h += row('Noch zu zahlen', money(payable(A)), true);
     }
     h += '</table>';
@@ -2389,7 +2389,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       if (vv) { tot('Umsatzsteuer ' + A.vat + ' %', de(c.vat) + ' €'); tot('Gesamt brutto', de(c.gross) + ' €'); }
     }
     if ((A.deduct || []).length) {
-      A.deduct.forEach(function (x) { need(6); tot('abzgl. ' + x.nr + ' vom ' + fdate(x.date), '-' + de(x.gross) + ' €'); });
+      A.deduct.forEach(function (x) { need(6); d.setFont('helvetica', 'normal'); d.setFontSize(9); d.text('abzgl. Abschlagsrechnung ' + x.nr + ' vom ' + fdate(x.date), 70, y); d.text('-' + de(x.gross) + ' €', 190, y, { align: 'right' }); y += 5; });
       d.setDrawColor(150); d.line(130, y - 3.5, 190, y - 3.5);
       tot('Noch zu zahlen', de(payable(A)) + ' €', true);
     }

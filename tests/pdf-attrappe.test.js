@@ -38,7 +38,7 @@ const Y = String(new Date().getFullYear());
     const t = await page.evaluate(() => window.__pdf.join(' | ')); await page.click('#sheet [data-act="cancel"]'); return [dl.suggestedFilename(), t];
   };
   let [n, t] = await pdf('[data-act="re-pdf"]', 's1');
-  assert(n === `Schlussrechnung-R-${Y}-003.pdf` && /Schlussrechnung R-\d{4}-003/.test(t) && /abzgl\. R-\d{4}-001/.test(t) && /Noch zu zahlen \| 1000,00 €/.test(t) && /§ 19 UStG/.test(t), 'Schlussrechnung: ' + n);
+  assert(n === `Schlussrechnung-R-${Y}-003.pdf` && /Schlussrechnung R-\d{4}-003/.test(t) && /abzgl\. Abschlagsrechnung R-\d{4}-001/.test(t) && /Noch zu zahlen \| 1000,00 €/.test(t) && /§ 19 UStG/.test(t), 'Schlussrechnung: ' + n);
   [n, t] = await pdf('[data-act="re-pdf"]', 'x1');
   assert(n === `Stornorechnung-R-${Y}-004.pdf` && /Stornorechnung R-\d{4}-004/.test(t) && /Storno zur Abschlagsrechnung R-\d{4}-002/.test(t) && /-2000,00 €/.test(t) && !/Zahlbar bis/.test(t), 'Stornorechnung: ' + n);
   [n, t] = await pdf('[data-act="mahn-pdf"]', 's1');

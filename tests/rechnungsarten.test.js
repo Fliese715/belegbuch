@@ -27,11 +27,11 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   await page.click('#sheet [data-act="cancel"]');
   const t1 = await abschlag('1000'); assert(new RegExp('Abschlagsrechnung R-' + Y + '-001').test(t1), 'erste Abschlagsrechnung: ' + t1);
   const t2 = await abschlag('500'); assert(new RegExp('Abschlagsrechnung R-' + Y + '-002').test(t2), 'zweite Abschlagsrechnung: ' + t2);
-  assert(/2 Abschläge · 1\.785,00/.test(await card()) && /Schlussrechnung/.test(await card()), 'Karte: 2 Abschläge 1.785,00 €, Knopf „Schlussrechnung“');
+  assert(/2 Abschlagsrechnungen · 1\.785,00/.test(await card()) && /Schlussrechnung/.test(await card()), 'Karte: 2 Abschläge 1.785,00 €, Knopf „Schlussrechnung“');
   // Schlussrechnung
   await page.click('#auftraegeList article:has-text("Bad EG") [data-act="rechnung"]'); await page.waitForSelector('#angTotals');
   const tot = (await page.textContent('#angTotals')).replace(/\s+/g, ' ');
-  assert(/Neue Schlussrechnung/.test(await page.textContent('#sheetTitle')) && /abzüglich Abschlag R-\d{4}-001.*-1\.190,00.*abzüglich Abschlag R-\d{4}-002.*-595,00.*Noch zu zahlen\s*595,00/.test(tot), 'Schlussrechnung zieht beide Abschläge ab: ' + tot.slice(-150));
+  assert(/Neue Schlussrechnung/.test(await page.textContent('#sheetTitle')) && /abzüglich Abschlagsrechnung R-\d{4}-001.*-1\.190,00.*abzüglich Abschlagsrechnung R-\d{4}-002.*-595,00.*Noch zu zahlen\s*595,00/.test(tot), 'Schlussrechnung zieht beide Abschläge ab: ' + tot.slice(-150));
   await issue(); const sr = (await page.textContent('#sheetTitle')).replace(/\s+/g, ' ');
   assert(new RegExp('Schlussrechnung R-' + Y + '-003').test(sr), 'Schlussrechnung gestellt: ' + sr);
   assert(/über 595,00\s€/.test(await page.inputValue('#mailBody')), 'E-Mail-Text nennt den Restbetrag');

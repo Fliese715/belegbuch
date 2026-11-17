@@ -127,6 +127,13 @@ button, input, select { font: inherit; color: inherit; }
 .btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 .badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.pgrid figure { margin: 0; min-width: 0; }
+.pgrid .pimg { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--line); }
+.pgrid .pimg img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.pgrid .pdel { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 99px; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 16px; cursor: pointer; }
+.pgrid figcaption { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+canvas.sig { display: block; width: 100%; max-width: 420px; height: 130px; background: #fff; border: 1px dashed var(--muted); border-radius: 8px; touch-action: none; margin-bottom: 6px; }
 .nk { width: 100%; border-collapse: collapse; font-size: 14px; }
 .nk td { padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .nk td.num { text-align: right; white-space: nowrap; padding-left: 12px; }
@@ -299,6 +306,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <button type="button" data-act="tab" data-tab="belege">Kosten &amp; Fahrten</button>
       <button type="button" data-act="tab" data-tab="auftraege">Baustellen &amp; Materialeinkauf</button>
       <button type="button" data-act="tab" data-tab="rechnungen">Rechnungen</button>
+      <button type="button" data-act="tab" data-tab="kunden">Kunden</button>
       <button type="button" data-act="tab" data-tab="ordner" id="tab-ordner">Verträge / PDF</button>
       <button type="button" data-act="tab" data-tab="angebote">Angebote</button>
     </nav>
@@ -319,6 +327,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <div class="tiles" id="tiles" style="margin-top:20px"></div>
       <h2 class="section-h" id="catsTitle">Ausgaben nach Kategorie</h2>
       <div class="bars" id="cats"></div>
+      <h2 class="section-h">Jahresübersicht</h2>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px"><div class="field" style="margin:0"><label for="jahrSel">Jahr</label><select id="jahrSel"></select></div><button type="button" class="btn small" data-act="jahr-pdf">Als PDF speichern</button></div>
+      <div id="jahrBox"></div>
       <h2 class="section-h" id="backupH">Sicherung</h2>
       <div class="syncbox">
         <p class="hint" id="backupInfo" style="margin:0"></p>
@@ -385,6 +396,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       <div class="field" id="ordnerAdd" hidden><label for="ordnerFile">PDF-Datei hinzufügen</label><input type="file" id="ordnerFile" accept="application/pdf,.pdf"></div>
       <div class="listbar"><span class="sum" id="ordnerSum"></span></div>
       <div class="list" id="ordnerList"></div>
+    </section>
+    <section id="v-kunden" hidden>
+      <div class="field"><label for="kq">Kunden suchen</label><input id="kq" type="text" enterkeyhint="search" autocomplete="off" placeholder="Name, Ort, Telefon"></div>
+      <div class="listbar"><span class="sum" id="kundenSum"></span><button type="button" class="btn small" id="kImport" data-act="k-import" hidden>Aus Aufträgen übernehmen</button></div>
+      <div class="list" id="kundenList"></div>
     </section>
     <section id="v-rechnungen" hidden>
       <div class="listbar">
@@ -469,11 +485,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
   /* ---------- Zustand (einzige Quelle für alle render-Funktionen) ---------- */
   /** Reiter in Anzeige-Reihenfolge; Schlüssel = id der <section> ohne 'v-' = URL-Hash. */
-  var TABS = ['uebersicht', 'belege', 'auftraege', 'rechnungen', 'ordner', 'angebote'];
+  var TABS = ['uebersicht', 'belege', 'auftraege', 'rechnungen', 'kunden', 'ordner', 'angebote'];
   var state = {
     tab: 'uebersicht',
-    data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [] },
-    loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false },
+    data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [], kunden: [] },
+    loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false, kunden: false },
     fb: { month: 'all', cat: 'all', q: '', nophoto: false },
     fa: { kind: 'kunde', open: true },
     slow: false, err: false
@@ -530,7 +546,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- 2 Speicher: Konto-Datenbank, sonst nur dieser Browser ---------- */
-  var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente'];
+  var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente', 'kunden'];
   /** Schreibt alle Sammlungen in localStorage (nur Betriebsart 'local'). */
   function saveLocal() {
     try { COLS.forEach(function (c) { localStorage.setItem('belegbuch:' + c, JSON.stringify(state.data[c])); }); } catch (e) { /* ohne Speicher gehen Daten beim Schließen verloren */ }
@@ -732,6 +748,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var ids = {};
     state.data.belege.forEach(function (b) { if (b.photoId) ids[b.photoId] = true; });
     state.data.dokumente.forEach(function (d) { if (d.fileId) ids[d.fileId] = true; });
+    state.data.auftraege.forEach(function (a) { (a.photos || []).forEach(function (f) { if (f.id) ids[f.id] = true; }); });
     return Object.keys(ids);
   }
   /** Alle verwiesenen Dateien als {id: {type, name, b64}} für Sicherung und Abgleich. */
@@ -854,6 +871,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     say('Text wird gelesen …');
     try {
       var onPct = function (p) { say('Text wird gelesen … ' + p + ' %'); };
+      if (pdf) { var emb = null; try { emb = await pdfXml(blob); } catch (e) { } var er = emb && parseEInvoice(emb); if (er) { if (stillOpen()) fillFromEInv(er); return; } }
       var text = pdf ? await pdfText(blob, onPct) : await ocrImage(blob, onPct);
       if (!stillOpen()) return;
       var r = parseReceipt(text), got = [];
@@ -870,6 +888,66 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
   }
 
+  /* ---------- E-Rechnungen lesen (XRechnung UBL / CII, ZUGFeRD-PDF) ----------
+   * Liest Rechnungsnummer, Datum, Lieferant mit Adresse, Bruttobetrag und Steuersatz aus der XML.
+   * Bei PDFs wird die eingebettete XML (ZUGFeRD/Factur-X) über pdf.js gesucht. */
+  /** @returns {?{format, nr, date, vendor, gross, vat, street, plz, city, lines}} */
+  function parseEInvoice(text) {
+    var doc; try { doc = new DOMParser().parseFromString(String(text || ''), 'application/xml'); } catch (e) { return null; }
+    if (!doc || doc.getElementsByTagName('parsererror').length) return null;
+    var root = doc.documentElement, ln = root.localName;
+    function kid(el, n) { if (!el) return null; for (var i = 0; i < el.children.length; i++) if (el.children[i].localName === n) return el.children[i]; return null; }
+    function desc(el, n) { return el ? el.getElementsByTagNameNS('*', n)[0] || null : null; }
+    function path(el, ns) { for (var i = 0; i < ns.length && el; i++) el = desc(el, ns[i]); return el; }
+    function tx(el) { return el ? String(el.textContent || '').trim() : ''; }
+    var r = { lines: [] };
+    if (ln === 'Invoice' || ln === 'CreditNote') {
+      var sup = desc(root, 'AccountingSupplierParty'), ad = desc(sup, 'PostalAddress');
+      r.format = 'XRechnung (UBL)'; r.nr = tx(kid(root, 'ID')); r.date = tx(kid(root, 'IssueDate'));
+      r.vendor = tx(path(sup, ['PartyLegalEntity', 'RegistrationName'])) || tx(path(sup, ['PartyName', 'Name']));
+      r.street = tx(desc(ad, 'StreetName')); r.plz = tx(desc(ad, 'PostalZone')); r.city = tx(desc(ad, 'CityName'));
+      r.gross = parseFloat(tx(path(root, ['LegalMonetaryTotal', 'TaxInclusiveAmount'])) || tx(path(root, ['LegalMonetaryTotal', 'PayableAmount'])));
+      r.vat = parseFloat(tx(path(root, ['TaxTotal', 'TaxSubtotal', 'TaxCategory', 'Percent'])));
+      Array.prototype.forEach.call(doc.getElementsByTagNameNS('*', ln === 'Invoice' ? 'InvoiceLine' : 'CreditNoteLine'), function (l) { r.lines.push(tx(path(l, ['Item', 'Name'])) + ' · ' + tx(desc(l, 'LineExtensionAmount'))); });
+    } else if (ln === 'CrossIndustryInvoice') {
+      var sel = desc(root, 'SellerTradeParty'), pa = desc(sel, 'PostalTradeAddress'), dt = tx(path(root, ['ExchangedDocument', 'IssueDateTime', 'DateTimeString']));
+      r.format = 'ZUGFeRD / XRechnung (CII)'; r.nr = tx(path(root, ['ExchangedDocument', 'ID']));
+      r.date = /^\d{8}$/.test(dt) ? dt.slice(0, 4) + '-' + dt.slice(4, 6) + '-' + dt.slice(6, 8) : '';
+      r.vendor = tx(kid(sel, 'Name')); r.street = tx(desc(pa, 'LineOne')); r.plz = tx(desc(pa, 'PostcodeCode')); r.city = tx(desc(pa, 'CityName'));
+      r.gross = parseFloat(tx(desc(root, 'GrandTotalAmount')) || tx(desc(root, 'DuePayableAmount')));
+      r.vat = parseFloat(tx(path(root, ['ApplicableHeaderTradeSettlement', 'ApplicableTradeTax', 'RateApplicablePercent'])) || tx(desc(root, 'RateApplicablePercent')));
+      Array.prototype.forEach.call(doc.getElementsByTagNameNS('*', 'IncludedSupplyChainTradeLineItem'), function (l) { r.lines.push(tx(path(l, ['SpecifiedTradeProduct', 'Name'])) + ' · ' + tx(desc(l, 'LineTotalAmount'))); });
+    } else return null;
+    if (!(r.gross > 0) && !r.vendor) return null;
+    if (!isNaN(r.vat)) r.vat = [19, 7, 0].reduce(function (b, v) { return Math.abs(v - r.vat) < Math.abs(b - r.vat) ? v : b; }, 19);
+    return r;
+  }
+  /** Sucht eine eingebettete E-Rechnung (XML-Anhang) in einem PDF. @returns {Promise<?string>} */
+  async function pdfXml(blob) {
+    if (!window.pdfjsLib) await loadScript(PDFJS_SRC);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    var doc = await window.pdfjsLib.getDocument({ data: await blob.arrayBuffer() }).promise, at = await doc.getAttachments();
+    if (!at) return null;
+    var k = Object.keys(at).find(function (n) { return /\.xml$/i.test(n); });
+    return k ? new TextDecoder().decode(at[k].content) : null;
+  }
+  /** Trägt die Werte einer E-Rechnung ins offene Beleg-Formular ein (nur leere Felder; Datum/MwSt wie bei der Texterkennung). */
+  function fillFromEInv(r) {
+    var got = [], put = function (id, v, label) { var el = $('#' + id); if (el && v != null && v !== '' && !String(el.value).trim()) { el.value = v; got.push(label); } };
+    put('f-vendor', r.vendor, 'Lieferant');
+    put('f-gross', r.gross > 0 ? r.gross.toFixed(2).replace('.', ',') : '', 'Betrag');
+    if (r.date && !draft.id && $('#f-date') && $('#f-date').value === today()) { $('#f-date').value = r.date; got.push('Datum'); }
+    if (!isNaN(r.vat) && !draft.id && $('#f-vat')) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
+    put('f-vaddr', [r.street, [r.plz, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), 'Adresse'); put('f-place', r.city, 'Ort');
+    put('f-note', r.nr ? 'Rechnung ' + r.nr : '', 'Rechnungsnummer');
+    if (r.street || r.city) { try { fillTrip(true); } catch (e) { } }
+    renderPhotoBox('E-Rechnung gelesen (' + r.format + '): ' + (got.length ? got.join(', ') + ' eingetragen.' : 'die Felder waren schon ausgefüllt.') + ' Die Werte stammen direkt aus der Rechnung.');
+  }
+  function einvHtml(r) {
+    return '<div style="padding:12px"><table class="nk"><tbody>' + [['Format', r.format], ['Rechnungssteller', r.vendor], ['Adresse', [r.street, [r.plz, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')], ['Rechnungsnummer', r.nr], ['Datum', r.date ? fdate(r.date) : ''], ['Betrag brutto', r.gross > 0 ? money(r.gross) : ''], ['Steuersatz', isNaN(r.vat) ? '' : r.vat + ' %']].filter(function (x) { return x[1]; }).map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="num">' + esc(x[1]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+      (r.lines.length ? '<h3 class="section-h">Positionen</h3><table class="nk"><tbody>' + r.lines.map(function (l) { return '<tr><td>' + esc(l) + '</td></tr>'; }).join('') + '</tbody></table>' : '') + '</div>';
+  }
+
   /* ---------- Anzeige von Fotos und PDFs in der App ----------
    * Neue Fenster mit blob:-Adressen funktionieren in installierten Web-Apps und auf Android
    * oft nicht. Deshalb zeigt die App Dateien selbst an: Fotos als Bild (Tippen = vergrößern),
@@ -882,14 +960,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (mode === 'db') { var r = await fetch('/_blob/' + id); if (r.ok) blob = await r.blob(); }
       else { var f = await idbGet('files', id); if (f) blob = f.blob; }
     } catch (e) { }
-    var pdf = kind === 'pdf' || (blob && blob.type === 'application/pdf');
-    var name = safeName(label || 'Beleg') + (pdf ? '.pdf' : '.jpg');
+    var pdf = kind === 'pdf' || (blob && blob.type === 'application/pdf'), xml = kind === 'xml' || (blob && /xml/.test(blob.type));
+    var name = safeName(label || 'Beleg') + (pdf ? '.pdf' : xml ? '.xml' : '.jpg');
     var url = blob ? URL.createObjectURL(blob) : fileSrc(id);
     if (!url) { toast('Die Datei liegt nicht auf diesem Gerät'); return; }
     viewing = { blob: blob, name: name, url: url, own: !!blob };
     $('#viewerT').textContent = label || (pdf ? 'PDF' : 'Foto');
-    $('#viewerBody').innerHTML = pdf ? '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>' : '<img alt="' + esc(label || 'Foto') + '" data-act="viewer-zoom" src="' + esc(url) + '">';
+    var er = xml && blob ? parseEInvoice(await blob.text()) : null;
+    $('#viewerBody').innerHTML = xml ? (er ? einvHtml(er) : '<p class="hint" style="padding:12px">Die E-Rechnung ließ sich nicht lesen.</p>') : pdf ? '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>' : '<img alt="' + esc(label || 'Foto') + '" data-act="viewer-zoom" src="' + esc(url) + '">';
     if (pdf) msg = 'Bleibt die Fläche leer, kann dieser Browser PDFs nicht in der App anzeigen. Nimm dann einen der Knöpfe unten.';
+    else if (xml) msg = 'Lesbare Ansicht der E-Rechnung. „Auf dem Gerät speichern“ speichert die Original-XML.';
     else msg = 'Tippe auf das Bild, um es zu vergrößern.';
     $('#viewerMsg').textContent = msg;
     var canShare = false;
@@ -1141,8 +1221,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     TABS.forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
-    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : '+ Beleg';
-    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : 'beleg';
+    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : state.tab === 'kunden' ? '+ Kunde' : '+ Beleg';
+    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : 'beleg';
     $('#fab').hidden = state.tab === 'angebote' || state.tab === 'rechnungen' || state.tab === 'ordner';
   }
   function renderBanner() {
@@ -1194,6 +1274,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (chase.length) todo += '<button type="button" data-act="goto-kunden"><span>' + chase.length + (chase.length === 1 ? ' Angebot wartet seit über 14 Tagen auf Antwort' : ' Angebote warten seit über 14 Tagen auf Antwort') + '</span><span class="badge">Nachfassen</span></button>';
     openInv.map(function (x) { return [x, nextMahn(x)]; }).filter(function (p) { return p[1]; }).slice(0, 3).forEach(function (p) {
       todo += '<button type="button" data-act="re-open" data-id="' + esc(p[0].id) + '"><span>' + esc(p[0].nr) + ' · ' + esc(p[0].name) + ': ' + p[1].label + ' fällig</span><span class="badge bad">Öffnen</span></button>';
+    });
+    A.filter(function (a) { return a.kind === 'kunde' && openMaengel(a); }).slice(0, 3).forEach(function (a) {
+      var late = a.abnahme.frist && a.abnahme.frist < today();
+      todo += '<button type="button" data-act="abnahme" data-id="' + esc(a.id) + '"><span>Mängel offen: ' + esc(a.title) + (a.abnahme.frist ? ', Frist ' + fdate(a.abnahme.frist) : '') + '</span><span class="badge ' + (late ? 'bad' : 'warn') + '">Ansehen</span></button>';
+    });
+    A.filter(function (a) { var g = gwEnd(a); return g && g >= today() && g <= addDays(today(), 90); }).slice(0, 3).forEach(function (a) {
+      todo += '<button type="button" data-act="abnahme" data-id="' + esc(a.id) + '"><span>Gewährleistung endet am ' + fdate(gwEnd(a)) + ': ' + esc(a.title) + ' (' + esc(a.party || '') + ')</span><span class="badge warn">Begehung?</span></button>';
     });
     if (lateInv.length) todo += '<button type="button" data-act="goto-rechnungen"><span>' + lateInv.length + (lateInv.length === 1 ? ' Rechnung ist überfällig' : ' Rechnungen sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
     var drafts = state.data.angebote.filter(function (x) { return x.status === 'Entwurf'; });
@@ -1255,7 +1342,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var om = orderMap();
     $('#belegeList').innerHTML = rows.map(function (b) {
       var fo = b.photoId && fileSrc(b.photoId) ? ' data-act="file-open" data-id="' + esc(b.photoId) + '" data-kind="' + esc(b.photoKind || 'img') + '" data-label="' + esc('Beleg ' + (b.vendor || '')) + '" title="Beleg anzeigen"' : '';
-      var thumb = b.photoId ? (b.photoKind === 'pdf' ? '<span class="thumb pdf"' + fo + '>PDF</span>' : (fileSrc(b.photoId) ? '<img class="thumb" alt="Beleg anzeigen" loading="lazy"' + fo + ' src="' + esc(fileSrc(b.photoId)) + '">' : '<span class="thumb pdf">Foto</span>')) : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
+      var thumb = b.photoId ? (b.photoKind === 'pdf' || b.photoKind === 'xml' ? '<span class="thumb pdf"' + fo + '>' + (b.photoKind === 'xml' ? 'XML' : 'PDF') + '</span>' : (fileSrc(b.photoId) ? '<img class="thumb" alt="Beleg anzeigen" loading="lazy"' + fo + ' src="' + esc(fileSrc(b.photoId)) + '">' : '<span class="thumb pdf">Foto</span>')) : (b.photoData ? '<img class="thumb" alt="" src="' + esc(b.photoData) + '">' : '');
       var ord = b.orderId && om[b.orderId];
       return '<article class="row" tabindex="0" role="button" data-edit="belege:' + esc(b.id) + '">' + thumb +
         '<div class="main"><div class="vendor">' + esc(b.vendor) + '</div>' +
@@ -1319,11 +1406,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         '<div class="meta">' + esc(a.party) + (a.site ? ' · ' + esc(a.site) : '') + (a.kind === 'lieferant' ? ' · Materialbestellung' : '') + (area ? ' · ' + String(area).replace('.', ',') + ' m² · ' + money(a.amount / area) + '/m²' : '') + '</div>' +
         (a.kind === 'kunde' ? nkLine(a) : '') +
         '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' +
-          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : abschlaege(a.id).length ? 'Schlussrechnung' : 'Rechnung') + '</button>' + (!latestRechnung(a.id) || latestRechnung(a.id).status === 'Entwurf' ? '<button type="button" class="btn small" data-act="abschlag" data-id="' + esc(a.id) + '">Abschlagsrechnung</button>' : '') : '') +
+          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button>' + (STAT.kunde.indexOf(a.status) >= STAT.kunde.indexOf('Beauftragt') || a.abnahme ? '<button type="button" class="btn small" data-act="abnahme" data-id="' + esc(a.id) + '">' + (a.abnahme ? 'Abnahme ✓' : 'Abnahme') + '</button>' : '') + '<button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : abschlaege(a.id).length ? 'Schlussrechnung' : 'Rechnung') + '</button>' + (!latestRechnung(a.id) || latestRechnung(a.id).status === 'Entwurf' ? '<button type="button" class="btn small" data-act="abschlag" data-id="' + esc(a.id) + '">Abschlagsrechnung</button>' : '') : '') +
         (a.due ? '<span class="badge ' + (late ? 'bad' : '') + '">' + 'Fällig ' + fdate(a.due) + (late ? ' · überfällig' : '') + '</span>' : '') +
         (a.status === 'Bezahlt' ? '<span class="badge good">bezahlt</span>' : '') + (siteKmTotal(a) > 0 ? '<span class="badge">Fahrten ' + fmtQ(siteKmTotal(a)) + ' km (' + Math.max(1, Math.round(Number(a.visits) || 1)) + '×)</span>' : '') +
         (lb.length ? '<span class="badge">' + lb.length + (lb.length === 1 ? ' Beleg' : ' Belege') + '</span>' : '') +
         (a.ckind === 'privat' ? '<span class="badge">Privatkunde</span>' : '') +
+        (a.kind === 'kunde' && (a.photos || []).length ? '<span class="badge">' + plural(a.photos.length, 'Foto', 'Fotos') + '</span>' : '') +
+        (openMaengel(a) ? '<span class="badge bad">Mängel offen' + (a.abnahme.frist ? ' · Frist ' + fdate(a.abnahme.frist) : '') + '</span>' : '') +
+        (gwEnd(a) ? '<span class="badge' + (gwEnd(a) < today() ? '' : ' good') + '">Gewährleistung ' + (gwEnd(a) < today() ? 'abgelaufen ' : 'bis ') + fdate(gwEnd(a)) + '</span>' : '') +
         (a.kind === 'kunde' && abschlaege(a.id).length ? '<span class="badge">' + plural(abschlaege(a.id).length, 'Abschlagsrechnung', 'Abschlagsrechnungen') + ' · ' + money(sum(abschlaege(a.id), function (x) { return calcAng(x).gross; })) + '</span>' : '') +
         (inv ? '<span class="badge ' + (inv.status === 'Bezahlt' ? 'good' : inv.status === 'Gestellt' && inv.due && inv.due < today() ? 'bad' : '') + '">Rechnung ' + esc(inv.nr || 'Entwurf') + ' · ' + esc(inv.status) + '</span>' : (a.kind === 'kunde' && a.status === 'Abgenommen' ? '<span class="badge warn">Rechnung fehlt</span>' : '')) +
         (a.aufmass && a.aufmass.rows && a.aufmass.rows.length ? '<span class="badge">Aufmaß ' + fmtQ(amTot(a.aufmass.rows).flaeche) + ' m²</span>' : '') +
@@ -1417,6 +1507,216 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } catch (e) { toast('Das ließ sich nicht speichern'); }
   }
 
+  /* ---------- Fotodokumentation, Abnahme, Gewährleistung ----------
+   * auftraege.photos = [{id (Datei), kind 'vorher'|'nachher'|'mangel', note, date}].
+   * auftraege.abnahme = {date, person, result 'ok'|'maengel'|'verweigert', maengel (Text, je Zeile ein
+   * Mangel), frist, mDone (Datum beseitigt), years (Gewährleistung), note, sigK, sigA (PNG als data-URL)}.
+   * Gewährleistung endet years Jahre nach der Abnahme (§ 634a BGB: 5 Jahre bei Bauwerken; VOB/B: 4). */
+  var PHOTO_KIND = { vorher: 'Vorher', nachher: 'Nachher', mangel: 'Mangel' };
+  /** Legt eine Datei ab: lokal im Gerätespeicher, in Claude in der Datei-Ablage. @returns {Promise<string>} id */
+  async function storeFile(blob, name) {
+    if (mode === 'local') return addFile(blob, name);
+    if (ASSETS) { var r = await ASSETS.upload(blob); return r.id; }
+    throw { code: 'nofiles' };
+  }
+  function renderPhotos() {
+    var box = $('#photosBox'); if (!box || !draft) return;
+    var list = draft.photos || [];
+    box.innerHTML = (list.length ? '<div class="pgrid">' + list.map(function (f, i) {
+      var src = fileSrc(f.id);
+      return '<figure><div class="pimg">' + (src ? '<img alt="' + esc(PHOTO_KIND[f.kind] || 'Foto') + '" src="' + esc(src) + '" data-act="file-open" data-id="' + esc(f.id) + '" data-kind="img" data-label="' + esc((PHOTO_KIND[f.kind] || 'Foto') + (f.note ? ': ' + f.note : '')) + '">' : '<span class="thumb pdf">fehlt</span>') +
+        '<button type="button" class="pdel" data-act="ph-del" data-i="' + i + '" aria-label="Foto entfernen">×</button></div><figcaption><span class="badge' + (f.kind === 'mangel' ? ' bad' : '') + '">' + esc(PHOTO_KIND[f.kind] || 'Foto') + '</span> ' + esc(f.note || '') + '</figcaption></figure>';
+    }).join('') + '</div>' : '<p class="hint" style="margin:0">Noch keine Fotos.</p>');
+  }
+  async function photoAdd(file) {
+    var msg = $('#photoMsg'); if (msg) msg.textContent = 'Foto wird übernommen …';
+    try {
+      var blob = await shrinkImage(file), id = await storeFile(blob, file.name);
+      if (!draft || draft.coll !== 'auftraege') return;
+      draft.photos = (draft.photos || []).concat([{ id: id, kind: val('ph-kind') || 'vorher', note: val('ph-note'), date: today() }]);
+      if ($('#ph-note')) $('#ph-note').value = ''; renderPhotos(); if (msg) msg.textContent = 'Foto übernommen. Es wird mit dem Auftrag gespeichert.';
+    } catch (e) { if (msg) msg.textContent = 'Das Foto ließ sich nicht übernehmen.'; }
+  }
+  function addYears(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setFullYear(d.getFullYear() + n); return d.toISOString().slice(0, 10); }
+  /** Ende der Gewährleistung oder '' (keine Abnahme bzw. verweigert). */
+  function gwEnd(a) { var ab = a && a.abnahme; return ab && ab.date && ab.result !== 'verweigert' ? addYears(ab.date, Number(ab.years) || 5) : ''; }
+  function openMaengel(a) { var ab = a.abnahme; return ab && ab.result === 'maengel' && String(ab.maengel || '').trim() && !ab.mDone; }
+  var sigPads = {};
+  function sigPad(cv) {
+    var ctx = cv.getContext('2d'), drawing = false, last = null, dpr = window.devicePixelRatio || 1, pad = { empty: true };
+    var w = cv.clientWidth || 300, h = cv.clientHeight || 120; cv.width = w * dpr; cv.height = h * dpr; ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+    function pos(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    cv.addEventListener('pointerdown', function (e) { drawing = true; last = pos(e); try { cv.setPointerCapture(e.pointerId); } catch (x) { } e.preventDefault(); });
+    cv.addEventListener('pointermove', function (e) { if (!drawing) return; var p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; pad.empty = false; e.preventDefault(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (n) { cv.addEventListener(n, function () { drawing = false; }); });
+    pad.clear = function () { ctx.clearRect(0, 0, cv.width, cv.height); pad.empty = true; };
+    pad.data = function () { return pad.empty ? '' : cv.toDataURL('image/png'); };
+    pad.draw = function (url) { if (!url) return; var im = new Image(); im.onload = function () { ctx.drawImage(im, 0, 0, w, h); pad.empty = false; }; im.src = url; };
+    return pad;
+  }
+  function openAbnahme(aid) {
+    var a = auftrag(aid); if (!a) return;
+    var f = setting('firma'), v = a.abnahme || { date: today(), person: a.party || '', result: 'ok', maengel: '', frist: addDays(today(), 14), mDone: '', years: 5, note: '' };
+    draft = { coll: 'abnahme', id: aid };
+    var nM = (a.photos || []).filter(function (x) { return x.kind === 'mangel'; }).length;
+    showSheet('<h2 id="sheetTitle">Abnahmeprotokoll</h2><form id="form" novalidate>' +
+      '<p class="hint" style="margin-bottom:10px">' + esc(a.title) + ' · ' + esc(a.party || '') + (a.site ? ' · ' + esc(a.site) : '') + '</p>' +
+      '<div class="grid2 stack"><div class="field"><label for="ab-date">Datum der Abnahme</label><input id="ab-date" type="date" value="' + esc(v.date) + '"></div>' +
+      '<div class="field"><label for="ab-person">Für den Kunden anwesend</label><input id="ab-person" type="text" autocomplete="off" value="' + esc(v.person) + '"></div></div>' +
+      '<div class="field"><label for="ab-result">Ergebnis</label><select id="ab-result">' + [['ok', 'Abgenommen ohne Mängel'], ['maengel', 'Abgenommen mit Mängeln (Vorbehalt)'], ['verweigert', 'Abnahme verweigert']].map(function (o) { return '<option value="' + o[0] + '"' + (v.result === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div id="ab-mWrap"' + (v.result === 'ok' ? ' hidden' : '') + '><div class="field"><label for="ab-maengel">Mängel (ein Mangel je Zeile)</label><textarea id="ab-maengel" rows="4">' + esc(v.maengel) + '</textarea></div>' +
+      (nM ? '<p class="hint" style="margin:-4px 0 8px">' + plural(nM, 'Mangel-Foto', 'Mangel-Fotos') + ' im Auftrag.</p>' : '') +
+      '<div class="grid2 stack"><div class="field"><label for="ab-frist">Frist zur Beseitigung</label><input id="ab-frist" type="date" value="' + esc(v.frist || '') + '"></div><div class="field"><label for="ab-mdone">Mängel beseitigt am</label><input id="ab-mdone" type="date" value="' + esc(v.mDone || '') + '"></div></div></div>' +
+      '<div class="field"><label for="ab-years">Gewährleistung</label><select id="ab-years">' + [[5, '5 Jahre (BGB, Bauwerk)'], [4, '4 Jahre (VOB/B vereinbart)'], [2, '2 Jahre (kein Bauwerk)']].map(function (o) { return '<option value="' + o[0] + '"' + (Number(v.years) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="ab-note">Bemerkungen</label><input id="ab-note" type="text" autocomplete="off" value="' + esc(v.note || '') + '"></div>' +
+      '<div class="field"><span class="lbl">Unterschrift Kunde</span><canvas class="sig" id="sigK" aria-label="Unterschrift Kunde, mit dem Finger zeichnen"></canvas><button type="button" class="btn small" data-act="sig-clear" data-k="sigK">Löschen</button></div>' +
+      '<div class="field"><span class="lbl">Unterschrift ' + esc(f.owner || 'Auftragnehmer') + '</span><canvas class="sig" id="sigA" aria-label="Unterschrift Auftragnehmer"></canvas><button type="button" class="btn small" data-act="sig-clear" data-k="sigA">Löschen</button></div>' +
+      '<p class="err" id="formErr" role="alert"></p><div class="actions">' + (a.abnahme ? '<button type="button" class="btn left" data-act="ab-pdf">PDF</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="button" class="btn primary" data-act="ab-save">Speichern</button></div></form>');
+    sigPads = { sigK: sigPad($('#sigK')), sigA: sigPad($('#sigA')) };
+    sigPads.sigK.draw(v.sigK); sigPads.sigA.draw(v.sigA);
+  }
+  async function saveAbnahme() {
+    var a = auftrag(draft.id); if (!a) return;
+    if (!val('ab-date')) return formErr('Bitte das Datum der Abnahme eintragen.');
+    var res = val('ab-result');
+    if (res === 'maengel' && !val('ab-maengel')) return formErr('Bitte die Mängel eintragen.');
+    var ab = { date: val('ab-date'), person: val('ab-person'), result: res, maengel: res === 'ok' ? '' : String($('#ab-maengel').value || '').trim(), frist: res === 'ok' ? '' : val('ab-frist'), mDone: res === 'ok' ? '' : val('ab-mdone'), years: Number(val('ab-years')) || 5, note: val('ab-note'), sigK: sigPads.sigK.data(), sigA: sigPads.sigA.data() };
+    var fields = { abnahme: ab }, order = STAT.kunde;
+    if (res !== 'verweigert' && order.indexOf(a.status) < order.indexOf('Abgenommen')) fields.status = 'Abgenommen';
+    try { await patch('auftraege', a.id, fields); await closeSheet(false); toast('Abnahme gespeichert'); } catch (e) { formErr('Speichern hat nicht geklappt.'); }
+  }
+  function pdfAbnahme(a, f) {
+    var d = newPdf(); if (!d) return null;
+    var ab = a.abnahme || {}, y = 60;
+    pdfHead(d, f);
+    d.setFont('helvetica', 'bold'); d.setFontSize(16); d.setTextColor(20); d.text('Abnahmeprotokoll', 20, y); y += 9;
+    d.setFont('helvetica', 'normal'); d.setFontSize(10);
+    function line(l, v) { if (!v) return; d.setFont('helvetica', 'bold'); d.text(l, 20, y); d.setFont('helvetica', 'normal'); d.splitTextToSize(String(v), 125).forEach(function (s) { d.text(s, 65, y); y += 5; }); y += 1; }
+    line('Leistung', a.title); line('Auftraggeber', a.party); line('Baustelle', a.site); line('Auftragnehmer', [f.name, f.owner].filter(Boolean).join(', '));
+    line('Datum der Abnahme', fdate(ab.date)); line('Anwesend', ab.person);
+    line('Ergebnis', ab.result === 'ok' ? 'Die Leistung wurde ohne Mängel abgenommen.' : ab.result === 'maengel' ? 'Die Leistung wurde unter Vorbehalt der unten genannten Mängel abgenommen.' : 'Die Abnahme wurde verweigert.');
+    if (ab.result !== 'ok' && ab.maengel) {
+      y += 2; d.setFont('helvetica', 'bold'); d.text('Mängel', 20, y); y += 5; d.setFont('helvetica', 'normal');
+      String(ab.maengel).split(/\n+/).filter(Boolean).forEach(function (m, i) { d.splitTextToSize((i + 1) + '. ' + m, 165).forEach(function (s) { d.text(s, 25, y); y += 5; }); });
+      if (ab.frist) { y += 1; d.text('Frist zur Beseitigung: ' + fdate(ab.frist), 20, y); y += 6; }
+    }
+    if (ab.result !== 'verweigert') line('Gewährleistung', (ab.years || 5) + ' Jahre ab Abnahme, bis ' + fdate(gwEnd(a)));
+    line('Bemerkungen', ab.note);
+    y = Math.max(y + 10, 215);
+    [['sigK', 'Auftraggeber' + (ab.person ? ' (' + ab.person + ')' : '')], ['sigA', 'Auftragnehmer' + (f.owner ? ' (' + f.owner + ')' : '')]].forEach(function (s, i) {
+      var x = i ? 115 : 20;
+      if (ab[s[0]]) { try { d.addImage(ab[s[0]], 'PNG', x, y, 75, 25); } catch (e) { } }
+      d.setDrawColor(120); d.line(x, y + 27, x + 75, y + 27); d.setFontSize(9); d.text(s[1], x, y + 32); d.text(fdate(ab.date), x, y + 37);
+    });
+    pdfFooter(d, f);
+    return d.output('blob');
+  }
+
+  /* ---------- Jahresübersicht ----------
+   * Umsatz = Summe der Rechnungsbeträge mit Rechnungsdatum im Jahr (gestellt, bezahlt, storniert samt
+   * Stornorechnung, die sich aufheben; Schlussrechnungen ohne die schon berechneten Abschläge).
+   * Kleinunternehmer: Grenzen § 19 UStG seit 2025: Vorjahr höchstens 25.000 €, laufendes Jahr 100.000 €. */
+  function jahrData(y) {
+    var inY = function (d) { return String(d || '').indexOf(y) === 0; };
+    var R = state.data.rechnungen.filter(function (x) { return x.nr && inY(x.date) && (issued(x) || x.status === 'Storniert' || reType(x) === 'storno'); });
+    var B = state.data.belege.filter(function (b) { return inY(b.date); }), cats = {};
+    B.forEach(function (b) { cats[b.cat || 'Sonstiges'] = (cats[b.cat || 'Sonstiges'] || 0) + (Number(b.gross) || 0); });
+    var A = state.data.auftraege.filter(function (a) { return a.kind === 'kunde'; });
+    var kmMat = sum(B, function (b) { return Number(b.km) || 0; }), kmBau = sum(A.filter(function (a) { return inY(a.date); }), siteKmTotal);
+    var hours = sum(A, function (a) { return sum((a.hours || []).filter(function (h) { return inY(h.d); }), function (h) { return Number(h.h) || 0; }); });
+    return { y: y, umsatz: r2(sum(R, payable)), nRe: R.filter(function (x) { return reType(x) !== 'storno'; }).length,
+      bezahlt: r2(sum(state.data.rechnungen.filter(function (x) { return x.status === 'Bezahlt' && inY(x.paidAt); }), payable)),
+      offen: r2(sum(R.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno'; }), payable)),
+      ausgaben: r2(sum(B, function (b) { return Number(b.gross) || 0; })), vorsteuer: r2(sum(B, function (b) { return vatPart(b.gross, b.vat); })), nBelege: B.length,
+      cats: Object.keys(cats).sort(function (a, b) { return cats[b] - cats[a]; }).map(function (k) { return [k, r2(cats[k])]; }),
+      kmMat: r2(kmMat), kmBau: r2(kmBau), hours: r2(hours) };
+  }
+  function jahrRows(d) {
+    var klein = isKlein(), rows = [
+      ['Rechnungen ' + d.y + ' (' + d.nRe + ')', money(d.umsatz)], ['davon offen', money(d.offen)], ['Zahlungseingänge ' + d.y, money(d.bezahlt)],
+      ['Ausgaben (' + plural(d.nBelege, 'Beleg', 'Belege') + ')' + (klein ? '' : ' brutto'), money(d.ausgaben)]];
+    if (!klein) rows.push(['darin Vorsteuer', money(d.vorsteuer)]);
+    d.cats.forEach(function (c) { rows.push(['  ' + c[0], money(c[1])]); });
+    rows.push(['Gefahrene km (Einkauf ' + fmtQ(d.kmMat) + ', Baustellen ' + fmtQ(d.kmBau) + ')', fmtQ(r2(d.kmMat + d.kmBau)) + ' km'], ['  × ' + money(kmRate()) + ' je km (Richtwert)', money(r2((d.kmMat + d.kmBau) * kmRate()))], ['Arbeitsstunden', hm(d.hours) + ' Std']);
+    return rows;
+  }
+  function kleinHinweis(d) {
+    if (!isKlein()) return '';
+    var cur = d.umsatz, cls = cur > 100000 ? 'bad' : cur > 25000 ? 'warn' : 'good';
+    return '<p class="hint" style="margin:8px 0 0"><span class="badge ' + cls + '">' + (cur > 100000 ? 'über 100.000 €' : cur > 25000 ? 'über 25.000 €' : 'unter 25.000 €') + '</span> Kleinunternehmer: Im laufenden Jahr darf der Umsatz 100.000 € nicht übersteigen, sonst gilt ab dem Umsatz, der die Grenze überschreitet, die Regelbesteuerung. Liegt er über 25.000 €, endet die Kleinunternehmerregelung im Folgejahr. Bitte mit dem Steuerberater klären.</p>';
+  }
+  function renderJahr() {
+    var sel = $('#jahrSel'), box = $('#jahrBox'); if (!sel || !box) return;
+    var ys = {}; ys[today().slice(0, 4)] = 1;
+    ['belege', 'rechnungen', 'auftraege'].forEach(function (c) { state.data[c].forEach(function (x) { if (/^\d{4}/.test(x.date || '')) ys[x.date.slice(0, 4)] = 1; }); });
+    var list = Object.keys(ys).sort().reverse(), cur = state.jahr && ys[state.jahr] ? state.jahr : list[0];
+    sel.innerHTML = list.map(function (y) { return '<option' + (y === cur ? ' selected' : '') + '>' + y + '</option>'; }).join('');
+    var d = jahrData(cur);
+    box.innerHTML = '<table class="nk"><tbody>' + jahrRows(d).map(function (r) { var sub = /^  /.test(r[0]); return '<tr><td' + (sub ? ' style="padding-left:14px;color:var(--muted)"' : '') + '>' + esc(r[0].trim()) + '</td><td class="num">' + r[1] + '</td></tr>'; }).join('') + '</tbody></table>' + kleinHinweis(d);
+  }
+  function pdfJahr(y, f) {
+    var doc = newPdf(); if (!doc) return null;
+    var d = jahrData(y), yy = 60;
+    pdfHead(doc, f);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(20); doc.text('Jahresübersicht ' + y, 20, yy); yy += 6;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80); doc.text('Erstellt am ' + fdate(today()) + ' mit dem Belegbuch. Vorarbeit für die Steuer, kein Ersatz für die Buchhaltung.', 20, yy); yy += 10;
+    doc.setFontSize(10.5); doc.setTextColor(20);
+    jahrRows(d).forEach(function (r) { var sub = /^  /.test(r[0]); doc.setFont('helvetica', sub ? 'normal' : 'bold'); doc.text(r[0].trim(), sub ? 28 : 20, yy); doc.setFont('helvetica', 'normal'); doc.text(String(r[1]).replace(/ /g, ' '), 190, yy, { align: 'right' }); yy += 6.5; if (yy > 270) { doc.addPage(); yy = 25; } });
+    if (isKlein()) { yy += 4; doc.setFontSize(9); doc.setTextColor(80); doc.splitTextToSize('Kleinunternehmer (§ 19 UStG): Grenzen 25.000 € im Vorjahr und 100.000 € im laufenden Jahr. Umsatz ' + y + ': ' + de(d.umsatz) + ' €.', 170).forEach(function (s) { doc.text(s, 20, yy); yy += 4.5; }); }
+    pdfFooter(doc, f);
+    return doc.output('blob');
+  }
+
+  /* ---------- Kundenkartei ----------
+   * kunden: name, ckind ('firma'|'privat'), address, phone, email, note. Aufträge verweisen über den
+   * Namen (auftraege.party); neue Kunden entstehen beim Speichern eines Kundenauftrags automatisch. */
+  function kundeByName(n) { n = String(n || '').trim().toLowerCase(); return n ? state.data.kunden.find(function (k) { return String(k.name || '').trim().toLowerCase() === n; }) : null; }
+  function kundeStats(k) {
+    var n = String(k.name || '').trim().toLowerCase();
+    var A = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && String(a.party || '').trim().toLowerCase() === n; });
+    var ids = {}; A.forEach(function (a) { ids[a.id] = 1; });
+    var R = state.data.rechnungen.filter(function (x) { return ids[x.auftragId] && (issued(x) || reType(x) === 'storno'); });
+    return { auftraege: A, umsatz: r2(sum(R, payable)), offen: r2(sum(R.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno'; }), payable)) };
+  }
+  function missingKunden() {
+    var seen = {}; return state.data.auftraege.filter(function (a) { var key = String(a.party || '').trim().toLowerCase(); if (a.kind !== 'kunde' || !key || seen[key] || kundeByName(a.party)) return false; seen[key] = 1; return true; });
+  }
+  function renderKunden() {
+    var el = $('#kundenList'); if (!el) return;
+    var q = String(state.kq || '').toLowerCase(), miss = missingKunden();
+    $('#kImport').hidden = !miss.length; if (miss.length) $('#kImport').textContent = plural(miss.length, 'Kunde', 'Kunden') + ' aus Aufträgen übernehmen';
+    var rows = state.data.kunden.filter(function (k) { return !q || [k.name, k.address, k.phone, k.email].join(' ').toLowerCase().indexOf(q) >= 0; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'de'); });
+    $('#kundenSum').textContent = plural(rows.length, 'Kunde', 'Kunden');
+    if (!rows.length) { el.innerHTML = '<div class="empty">' + (state.data.kunden.length ? 'Kein Kunde passt zur Suche.' : 'Noch keine Kunden. Tippe auf „+ Kunde“ oder übernimm sie aus deinen Aufträgen.') + '</div>'; return; }
+    el.innerHTML = rows.map(function (k) {
+      var st = kundeStats(k);
+      return '<article class="row order" tabindex="0" role="button" data-edit="kunden:' + esc(k.id) + '"><div class="top1"><span class="vendor">' + esc(k.name) + '</span><span class="num">' + money(st.umsatz) + '</span></div>' +
+        '<div class="meta">' + [k.address, k.phone, k.email].filter(Boolean).map(esc).join(' · ') + '</div>' +
+        '<div class="tools"><span class="badge">' + (k.ckind === 'privat' ? 'Privatkunde' : 'Firma') + '</span><span class="badge">' + plural(st.auftraege.length, 'Auftrag', 'Aufträge') + '</span>' + (st.offen ? '<span class="badge warn">offen ' + money(st.offen) + '</span>' : '') + '</div></article>';
+    }).join('');
+  }
+  function openKunde(id) {
+    var k = id ? state.data.kunden.find(function (x) { return x.id === id; }) : null, v = k || { name: '', ckind: 'privat', address: '', phone: '', email: '', note: '' };
+    draft = { coll: 'kunden', id: id || null, confirm: false, uploaded: [] };
+    var st = k ? kundeStats(k) : null;
+    showSheet('<h2 id="sheetTitle">' + (k ? 'Kunde bearbeiten' : 'Neuer Kunde') + '</h2><form id="form" novalidate>' +
+      '<div class="field"><label for="k-name">Name</label><input id="k-name" type="text" autocomplete="off" value="' + esc(v.name) + '"></div>' +
+      '<div class="field"><label for="k-ckind">Kundenart</label><select id="k-ckind"><option value="privat"' + (v.ckind === 'privat' ? ' selected' : '') + '>Privatkunde</option><option value="firma"' + (v.ckind !== 'privat' ? ' selected' : '') + '>Firma</option></select></div>' +
+      '<div class="field"><label for="k-addr">Adresse</label><input id="k-addr" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.address) + '"></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="k-phone">Telefon</label><input id="k-phone" type="tel" autocomplete="off" value="' + esc(v.phone) + '"></div><div class="field"><label for="k-email">E-Mail</label><input id="k-email" type="text" inputmode="email" autocomplete="off" value="' + esc(v.email) + '"></div></div>' +
+      '<div class="field"><label for="k-note">Notiz</label><input id="k-note" type="text" autocomplete="off" value="' + esc(v.note) + '"></div>' +
+      (st && st.auftraege.length ? '<div class="field trip"><span class="lbl">Aufträge</span><table class="nk"><tbody>' + st.auftraege.map(function (a) { return '<tr><td>' + esc(a.title) + (a.site ? ' · ' + esc(a.site) : '') + '</td><td class="num">' + esc(a.status) + '</td></tr>'; }).join('') + '</tbody></table><p class="hint" style="margin:6px 0 0">Umsatz ' + money(st.umsatz) + (st.offen ? ' · offen ' + money(st.offen) : '') + '</p></div>' : '') +
+      '<p class="err" id="formErr" role="alert"></p><div class="actions">' + (k ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>');
+  }
+  async function kundenImport() {
+    var miss = missingKunden();
+    try { for (var i = 0; i < miss.length; i++) { var a = miss[i]; await persist('kunden', null, { name: String(a.party).trim(), ckind: a.ckind === 'privat' ? 'privat' : 'firma', address: a.address || '', phone: '', email: a.email || '', note: '' }); } toast(plural(miss.length, 'Kunde', 'Kunden') + ' übernommen'); }
+    catch (e) { toast('Das ließ sich nicht speichern'); }
+  }
+
   /* ---------- Ordner für PDF-Dateien ---------- */
   function ordnerTitle() { return String(setting('ordner').name || '').trim() || 'Verträge / PDF'; }
   function renderOrdner() {
@@ -1439,7 +1739,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Baut die gesamte Oberfläche aus `state` neu auf. Wird nach jeder Datenänderung gerufen. */
   function render() {
     renderMode(); renderBanner(); renderTabs();
-    renderOverview(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderOrdner(); renderSync();
+    renderOverview(); renderJahr(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderKunden(); renderOrdner(); renderSync();
   }
 
   /* ---------- 5 Formulare ---------- */
@@ -1704,27 +2004,28 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var box = $('#photoBox'); if (!box) return;
     var html = '', has = draft.photoId || draft.photoData, src = draft.photoId ? fileSrc(draft.photoId) : (draft.photoData || '');
     if (has) {
-      html += '<div class="photo">' + (draft.photoKind === 'pdf' ? '<span class="thumb pdf">PDF</span>' : (src ? '<img class="thumb" alt="Beleg-Foto" src="' + esc(src) + '">' : '<span class="thumb pdf">Foto</span>')) +
+      html += '<div class="photo">' + (draft.photoKind === 'pdf' || draft.photoKind === 'xml' ? '<span class="thumb pdf">' + (draft.photoKind === 'xml' ? 'XML' : 'PDF') + '</span>' : (src ? '<img class="thumb" alt="Beleg-Foto" src="' + esc(src) + '">' : '<span class="thumb pdf">Foto</span>')) +
         (draft.photoId && src ? '<button type="button" class="btn small" data-act="file-open" data-id="' + esc(draft.photoId) + '" data-kind="' + esc(draft.photoKind || 'img') + '" data-label="' + esc('Beleg ' + (val('f-vendor') || '')) + '">Öffnen</button>' : '') +
         (draft.photoId && !src ? '<span class="badge warn">Datei fehlt auf diesem Gerät</span>' : '') +
         '<button type="button" class="btn small" data-act="photo-remove">Foto entfernen</button></div>';
     } else if (mode !== 'local') {
       html += '<p class="hint" style="margin:0">Noch kein Foto. Schick den Beleg im Chat an Claude, dann wird er samt Foto angelegt.</p>';
     }
-    if (mode === 'local' && draft.photoId && src) html += '<button type="button" class="btn small" data-act="ocr-again" style="margin-top:8px">Text aus dem Beleg lesen</button>';
-    if (mode === 'local') html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Foto oder PDF des Belegs hinzufügen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf"></div>';
+    if (mode === 'local' && draft.photoId && src && draft.photoKind !== 'xml') html += '<button type="button" class="btn small" data-act="ocr-again" style="margin-top:8px">Text aus dem Beleg lesen</button>';
+    if (mode === 'local') html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Foto, PDF oder E-Rechnung (XML) des Belegs hinzufügen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf,.xml,application/xml,text/xml"></div>';
     if (msg) html += '<p class="hint" style="margin:6px 0 0">' + esc(msg) + '</p>';
     box.innerHTML = html;
   }
   /** Öffnet das Formular für Baustelle bzw. Materialbestellung. */
   function openAuftrag(id) {
     var a = id ? state.data.auftraege.find(function (x) { return x.id === id; }) : null;
-    draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [], hours: (a && a.hours || []).slice() };
+    draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [], hours: (a && a.hours || []).slice(), photos: (a && a.photos || []).slice() };
     var v = a || { kind: state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde', party: '', title: '', site: '', area: '', amount: '', date: today(), due: addDays(today(), 14), terms: 14, status: STAT[state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde'][0], note: '' };
     var k = v.kind === 'lieferant' ? 'lieferant' : 'kunde';
     var terms = (v.terms !== undefined && v.terms !== null) ? v.terms : (v.due ? 'custom' : 14);
     var parties = {};
     state.data.auftraege.forEach(function (x) { if (x.party) parties[x.party] = 1; });
+    state.data.kunden.forEach(function (x) { if (x.name) parties[x.name] = 1; });
     showSheet(
       '<h2 id="sheetTitle">' + (a ? 'Auftrag bearbeiten' : 'Neuer Auftrag') + '</h2>' +
       '<form id="form" novalidate>' +
@@ -1745,12 +2046,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="grid2 stack" style="margin-top:8px"><div class="field"><label for="f-hd">Tag</label><input id="f-hd" type="date" value="' + today() + '"></div><div class="field"><label for="f-hh">Stunden</label><input id="f-hh" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 7,5"></div></div>' +
       '<div class="field"><label for="f-hn">Notiz zur Zeit (optional)</label><input id="f-hn" type="text" autocomplete="off" placeholder="z. B. Abdichtung"></div>' +
       '<button type="button" class="btn small" data-act="hrs-add">+ Zeit eintragen</button></div>' +
+      '<div class="field trip" id="photosWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Fotos der Baustelle</span><div id="photosBox"></div>' +
+      (mode === 'local' || ASSETS ? '<div class="grid2 stack" style="margin-top:8px"><div class="field"><label for="ph-kind">Art</label><select id="ph-kind"><option value="vorher">Vorher</option><option value="nachher">Nachher</option><option value="mangel">Mangel</option></select></div><div class="field"><label for="ph-note">Notiz (optional)</label><input id="ph-note" type="text" autocomplete="off" placeholder="z. B. Riss Ecke links"></div></div>' +
+        '<div class="field"><label for="ph-file">Foto hinzufügen</label><input id="ph-file" type="file" accept="image/*"></div><p class="hint" id="photoMsg" style="margin:0"></p>' : '<p class="hint" style="margin:8px 0 0">Fotos fügst du in der installierten App hinzu.</p>') + '</div>' +
       (a && k === 'kunde' ? '<div class="field trip"><span class="lbl">Nachkalkulation</span><div id="nkBox"></div></div>' : '') +
       '<p class="err" id="formErr" role="alert"></p>' +
       '<div class="actions">' + (a ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>'
     );
-    renderHours();
+    renderHours(); renderPhotos();
   }
 
   function formErr(msg) { var e = $('#formErr'); if (e) e.textContent = msg; return false; }
@@ -1759,7 +2063,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function save() {
     if (!draft) return;
     var obj, i, ids = [];
-    if (draft.coll === 'belege') {
+    if (draft.coll === 'kunden') {
+      if (!val('k-name')) return formErr('Bitte den Namen eintragen.');
+      var dup = kundeByName(val('k-name')); if (dup && dup.id !== draft.id) return formErr('Diesen Kunden gibt es schon.');
+      obj = { name: val('k-name'), ckind: val('k-ckind'), address: val('k-addr'), phone: val('k-phone'), email: val('k-email'), note: val('k-note') };
+    } else if (draft.coll === 'belege') {
       var gross = parseNum(val('f-gross'));
       if (!val('f-date')) return formErr('Bitte ein Datum angeben.');
       if (!val('f-vendor')) return formErr('Bitte den Lieferanten eintragen.');
@@ -1782,10 +2090,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var prevA = draft.id ? auftrag(draft.id) : null; if (prevA && prevA.aufmass) obj.aufmass = prevA.aufmass;
       if (obj.kind === 'kunde' && draft.hours && draft.hours.length) obj.hours = draft.hours;
       if (prevA && Number(prevA.timer) > 0) obj.timer = prevA.timer;
+      if (obj.kind === 'kunde' && draft.photos && draft.photos.length) obj.photos = draft.photos;
+      if (prevA && prevA.abnahme) obj.abnahme = prevA.abnahme;
     }
     var btn = $('#form [data-act="save"]'); if (btn) btn.disabled = true;
     try {
       await persist(draft.coll, draft.id, obj);
+      if (draft.coll === 'auftraege' && draft.droppedPhotos) { for (var dp = 0; dp < draft.droppedPhotos.length; dp++) await dropAsset(draft.droppedPhotos[dp]); }
+      if (draft.coll === 'auftraege' && obj.kind === 'kunde' && obj.party && !kundeByName(obj.party)) {
+        try { await persist('kunden', null, { name: obj.party, ckind: obj.ckind === 'privat' ? 'privat' : 'firma', address: obj.address || '', phone: '', email: obj.email || '', note: '' }); } catch (e) { /* Kunde bleibt ungespeichert */ }
+      }
       for (i = 0; i < ids.length; i++) await dropAsset(ids[i]);
       draft.uploaded = [];
       await closeSheet(false);
@@ -1965,7 +2279,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       .sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); })[0];
   }
   function openEdit(kind, id) {
-    if (kind === 'belege') openBeleg(id); else if (kind === 'angebote') openAngebot(id); else if (kind === 'rechnungen') openRechnung(id); else openAuftrag(id);
+    if (kind === 'belege') openBeleg(id); else if (kind === 'angebote') openAngebot(id); else if (kind === 'rechnungen') openRechnung(id); else if (kind === 'kunden') openKunde(id); else openAuftrag(id);
   }
   function posBadge(p, rid) {
     var c = p.katId && catItem(p.katId); if (!c) return '';
@@ -1990,6 +2304,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<p class="hint" style="margin-bottom:6px">Deine echten Entfernungen, einfache Fahrt ab Zuhause. Eine Zeile je Ort, zum Beispiel „Stralsund = 11“. Diese Werte gehen allen Schätzungen vor. Hin und zurück rechnet die App selbst.</p>' +
       '<div class="field"><textarea id="s-strecken" rows="5" aria-label="Meine Strecken" placeholder="Stralsund = 11&#10;Prohn = 25">' + esc(setting('strecken').text || '') + '</textarea></div>' +
       '<div class="field"><label for="s-kmrate">Fahrtkosten je km für die Nachkalkulation (€)</label><input id="s-kmrate" type="text" inputmode="decimal" autocomplete="off" value="' + de(kmRate()) + '"></div>' +
+      '<h3 class="section-h">Materialverbrauch (Richtwerte)</h3>' +
+      '<div class="grid2 stack">' + [['kleber', 'Fliesenkleber kg/m²'], ['fuge', 'Fugenmörtel kg/m²'], ['grund', 'Grundierung l/m²'], ['abd', 'Abdichtung kg/m²'], ['sil', 'Silikon lfm je Kartusche']].map(function (x) { return '<div class="field"><label for="s-m' + x[0] + '">' + x[1] + '</label><input id="s-m' + x[0] + '" type="text" inputmode="decimal" autocomplete="off" value="' + fmtQ(matSet()[x[0]]) + '"></div>'; }).join('') + '</div>' +
       '<h3 class="section-h">Mahnungen</h3>' +
       '<div class="grid2 stack"><div class="field"><label for="s-mfee">Mahngebühr je Mahnung (€)</label><input id="s-mfee" type="text" inputmode="decimal" autocomplete="off" value="' + de(mahnSet().fee) + '"></div>' +
       '<div class="field"><label for="s-mdays">Neue Zahlungsfrist (Tage)</label><input id="s-mdays" type="text" inputmode="numeric" autocomplete="off" value="' + mahnSet().days + '"></div></div>' +
@@ -2021,6 +2337,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try {
       await persist('settings', 'firma', firma);
       await persist('settings', 'strecken', { text: String($('#s-strecken').value || '') });
+      var mo = {}; Object.keys(MAT_DEF).forEach(function (k) { var n = parseNum(val('s-m' + k)); mo[k] = n > 0 ? r2(n) : MAT_DEF[k]; });
+      await persist('settings', 'material', mo);
       var kr = parseNum(val('s-kmrate')), mf = parseNum(val('s-mfee')), md = parseNum(val('s-mdays')), mb = parseNum(val('s-mbase'));
       await persist('settings', 'mahnung', { fee: mf >= 0 ? r2(mf) : 2.5, days: md > 0 ? Math.round(md) : 10, base: isNaN(mb) ? 1.52 : r2(mb) });
       await persist('settings', 'preise', { region: region, own: own, ownPrivat: ownP, kmRate: kr > 0 ? r2(kr) : KM_RATE });
@@ -2056,7 +2374,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function openAufmass(id) {
     var a = auftrag(id); if (!a) return;
     var am = a.aufmass || {};
-    draft = { coll: 'aufmass', sticky: true, id: id, rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10 };
+    draft = { coll: 'aufmass', sticky: true, id: id, rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10, abd: am.abd ? String(am.abd).replace('.', ',') : '' };
     if (!draft.rows.length) draft.rows.push(newAmRow());
     showSheet('<div id="amBody"></div>', true);
     renderAm();
@@ -2089,6 +2407,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<button type="button" class="btn small" data-act="am-add">+ Zeile</button>' +
       '<div class="field" style="margin-top:14px;max-width:260px"><label for="am-waste">Verschnitt Fliesenmaterial (%)</label><input id="am-waste" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(draft.waste).replace('.', ',')) + '"></div>' +
       '<div id="amSum">' + amSumHtml() + '</div>' +
+      '<h3 class="section-h">Materialbedarf</h3>' +
+      '<div class="field" style="max-width:260px"><label for="am-abd">Abdichtungsfläche (m², Nassbereich)</label><input id="am-abd" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="' + esc(draft.abd) + '"></div>' +
+      '<div id="matBox">' + matHtml() + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn small" data-act="mat-copy">Liste kopieren</button><button type="button" class="btn small" data-act="mat-order">Als Bestellung anlegen</button></div>' +
       '<div class="actions" style="margin-top:14px"><button type="button" class="btn small left" data-act="am-csv">CSV</button><button type="button" class="btn small" data-act="am-pdf">PDF</button>' +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="button" class="btn primary" data-act="am-save">Speichern</button></div>';
   }
@@ -2098,11 +2420,49 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       el.querySelector('[data-res]').textContent = fmtQ(amRes(r)) + ' ' + AM[r.type][1];
     });
     $('#amSum').innerHTML = amSumHtml();
+    var mb = $('#matBox'); if (mb) mb.innerHTML = matHtml();
   }
+  /* ---------- Materialrechner aus dem Aufmaß ----------
+   * Verbrauchswerte (settings/material) sind Richtwerte; Herstellerangaben gehen vor.
+   * Gebindegrößen sind feste Annahmen (Kleber 25 kg, Fuge 5 kg, Grundierung 5 l, Abdichtung 7 kg, Silikon 310 ml). */
+  var MAT_DEF = { kleber: 3.5, fuge: 0.5, grund: 0.15, abd: 1.2, sil: 10 };
+  function matSet() { var m = setting('material'), o = {}; Object.keys(MAT_DEF).forEach(function (k) { o[k] = Number(m[k]) > 0 ? Number(m[k]) : MAT_DEF[k]; }); return o; }
+  /** Materialliste: [{label, qty, unit, pack, packs}] */
+  function matList(t, waste, abd) {
+    var f = matSet(), w = 1 + (waste || 0) / 100, L = [];
+    function add(label, qty, unit, pack, packUnit) { if (qty > 0) L.push({ label: label, qty: r2(qty), unit: unit, pack: pack ? pack + ' ' + packUnit : '', packs: pack ? Math.ceil(qty / pack - 1e-9) : null }); }
+    add('Bodenfliesen inkl. ' + fmtQ(waste || 0) + ' % Verschnitt', t.boden * w, 'm²');
+    add('Wandfliesen inkl. ' + fmtQ(waste || 0) + ' % Verschnitt', t.wand * w, 'm²');
+    add('Sockelfliesen inkl. 10 %', t.sockel * 1.1, 'lfm');
+    add('Fliesenkleber (' + fmtQ(f.kleber) + ' kg/m²)', t.flaeche * f.kleber, 'kg', 25, 'kg Sack');
+    add('Fugenmörtel (' + fmtQ(f.fuge) + ' kg/m²)', t.flaeche * f.fuge, 'kg', 5, 'kg Sack');
+    add('Grundierung (' + fmtQ(f.grund) + ' l/m²)', t.flaeche * f.grund, 'l', 5, 'l Kanister');
+    add('Abdichtung (' + fmtQ(f.abd) + ' kg/m²)', (abd || 0) * f.abd, 'kg', 7, 'kg Eimer');
+    if (t.silikon > 0) L.push({ label: 'Silikon (' + fmtQ(f.sil) + ' lfm je Kartusche)', qty: r2(t.silikon), unit: 'lfm', pack: '310 ml Kartusche', packs: Math.ceil(t.silikon / f.sil - 1e-9) });
+    return L;
+  }
+  function matHtml() {
+    var t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
+    var L = matList(t, w, parseNum(String(draft.abd || '')) || 0);
+    if (!L.length) return '<p class="hint">Trage Maße ein, dann berechnet die App den Materialbedarf.</p>';
+    return '<table class="nk"><tbody>' + L.map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num"><b>' + (x.packs != null ? x.packs + ' × ' + esc(x.pack) : fmtQ(x.qty) + ' ' + x.unit) + '</b>' + (x.packs != null ? '<div class="hint" style="margin:0">' + fmtQ(x.qty) + ' ' + x.unit + '</div>' : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<p class="hint" style="margin:6px 0 0">Richtwerte. Herstellerangaben auf dem Gebinde gehen vor; die Verbrauchswerte änderst du unter „Firma und Preise“. Dichtband, Ecken und Schienen nach Bedarf.</p>';
+  }
+  function matText() {
+    var a = auftrag(draft.id), t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
+    return 'Material für ' + (a ? a.title : 'Baustelle') + '\n' + matList(t, w, parseNum(String(draft.abd || '')) || 0).map(function (x) { return '- ' + x.label + ': ' + fmtQ(x.qty) + ' ' + x.unit + (x.packs != null ? ' (' + x.packs + ' × ' + x.pack + ')' : ''); }).join('\n');
+  }
+  async function matCopy() { var txt = matText(); try { await navigator.clipboard.writeText(txt); toast('Materialliste kopiert'); } catch (e) { toast('Kopieren ging nicht'); } }
+  async function matOrder() {
+    var a = auftrag(draft.id), txt = matText();
+    try { await persist('auftraege', null, { kind: 'lieferant', title: 'Material für ' + (a ? a.title : 'Baustelle'), party: 'Händler eintragen', amount: 0, status: STAT.lieferant[0], date: today(), due: addDays(today(), 14), terms: 14, note: txt.split('\n').slice(1).join('; ').replace(/- /g, '') }); toast('Bestellung angelegt – Händler und Betrag ergänzen'); }
+    catch (e) { toast('Das ließ sich nicht speichern'); }
+  }
+
   function amCleanRows() { return draft.rows.filter(function (r) { return amRes(r) > 0 || String(r.room || '').trim(); }); }
   async function saveAm() {
     var rows = amCleanRows(), t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
-    var fields = { aufmass: { rows: rows, waste: w, date: today() } };
+    var abd = parseNum(String(draft.abd || '')); var fields = { aufmass: { rows: rows, waste: w, date: today(), abd: abd > 0 ? r2(abd) : 0 } };
     if (t.flaeche > 0) fields.area = r2(t.flaeche);
     try { await patch('auftraege', draft.id, fields); await closeSheet(false); toast('Aufmaß gespeichert'); }
     catch (e) { toast('Speichern hat nicht geklappt'); }
@@ -2239,6 +2599,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (t.id === 'mahnPausch') { draft.mahnPausch = t.checked; var mb = $('#mahnBox'); if (mb) mb.innerHTML = mahnHtml(draft.a); return; }
     if (draft.coll === 'aufmass') {
       if (t.id === 'am-waste') { draft.waste = t.value; updAm(); return; }
+      if (t.id === 'am-abd') { draft.abd = t.value; updAm(); return; }
       var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
       draft.rows[Number(pos.dataset.i)][t.dataset.f] = t.value;
       if (t.dataset.f === 'type') renderAm(); else updAm();
@@ -2836,13 +3197,22 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (a) {
       var act = a.dataset.act;
       if (act === 'tab') setTab(a.dataset.tab);
-      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : openBeleg(); }
+      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : openBeleg(); }
       else if (act === 'cancel') closeSheet(true);
       else if (act === 'delete') del(a);
       else if (act === 'trip-calc') fillTrip(false);
       else if (act === 'site-calc') siteCalc();
       else if (act === 'timer') toggleTimer(a.dataset.id);
       else if (act === 'abschlag') openRechnung(null, a.dataset.id, 'abschlag');
+      else if (act === 'k-import') kundenImport();
+      else if (act === 'jahr-pdf') { var jy = ($('#jahrSel') || {}).value || today().slice(0, 4); saveBlob('Jahresuebersicht-' + jy + '.pdf', pdfJahr(jy, setting('firma'))); }
+      else if (act === 'abnahme') openAbnahme(a.dataset.id);
+      else if (act === 'ab-save') saveAbnahme();
+      else if (act === 'ab-pdf') { var aa = auftrag(draft.id); saveBlob('Abnahmeprotokoll-' + safeName(aa ? aa.title : '') + '.pdf', pdfAbnahme(aa, setting('firma'))); }
+      else if (act === 'sig-clear') { if (sigPads[a.dataset.k]) sigPads[a.dataset.k].clear(); }
+      else if (act === 'ph-del') { var rm = draft.photos.splice(Number(a.dataset.i), 1)[0]; if (rm && mode !== 'local') draft.droppedPhotos = (draft.droppedPhotos || []).concat([rm.id]); renderPhotos(); }
+      else if (act === 'mat-copy') matCopy();
+      else if (act === 'mat-order') matOrder();
       else if (act === 're-open') openRechnung(a.dataset.id);
       else if (act === 'mahn-new') mahnNew();
       else if (act === 'mahn-pdf') mahnPdf(Number(a.dataset.i));
@@ -2952,16 +3322,24 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'f-km' || e.target.id === 'f-place' || e.target.id === 'f-vaddr') renderTrip();
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
+    if (e.target.id === 'kq') { state.kq = e.target.value; renderKunden(); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pwDlgIn') { e.preventDefault(); pwDone(true); } });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t || !t.files || !t.files[0]) return;
-    if (t.id === 'photoFile' && draft && draft.coll === 'belege') {
+    if (t.id === 'photoFile' && draft && draft.coll === 'belege' && (/xml/i.test(t.files[0].type) || /\.xml$/i.test(t.files[0].name))) {
+      var xf = t.files[0];
+      xf.text().then(function (txt) {
+        var er = parseEInvoice(txt); if (!er) { renderPhotoBox('Diese XML-Datei ist keine lesbare E-Rechnung.'); return; }
+        return addFile(new Blob([txt], { type: 'application/xml' }), xf.name).then(function (id) { if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = 'xml'; fillFromEInv(er); });
+      }).catch(function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
+    } else if (t.id === 'photoFile' && draft && draft.coll === 'belege') {
       var f = t.files[0], pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
       (pdf ? Promise.resolve(f) : shrinkImage(f)).then(function (blob) { return addFile(blob, f.name); }).then(function (id) {
         if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = pdf ? 'pdf' : 'img'; renderPhotoBox('Datei übernommen. Sie wird mit dem Beleg gespeichert.');
         return idbGet('files', id).then(function (rec) { return ocrBeleg(rec.blob, pdf); });
       }).catch(function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
+    } else if (t.id === 'ph-file') { photoAdd(t.files[0]).then(function () { t.value = ''; });
     } else if (t.id === 'ordnerFile') {
       var g = t.files[0];
       addFile(g, g.name).then(function (id) { return persist('dokumente', null, { name: g.name, date: today(), note: '', fileId: id }); }).then(function () { t.value = ''; toast('PDF abgelegt'); }, function () { toast('Die Datei ließ sich nicht ablegen'); });
@@ -2974,6 +3352,13 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (draft && draft.sticky) return;
     if (t.id === 'ordnerName') { persist('settings', 'ordner', { name: String(t.value).trim() }).then(function () { toast('Ordnername gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
     if (t.dataset && t.dataset.doc) { patch('dokumente', t.dataset.doc, { name: String(t.value).trim() }).then(function () { toast('Name gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
+    if (t.id === 'f-party' && draft && draft.coll === 'auftraege' && val('f-kind') === 'kunde') {
+      var kk = kundeByName(t.value);
+      if (kk) { if (!val('f-addr')) $('#f-addr').value = kk.address || ''; if (!val('f-email')) $('#f-email').value = kk.email || ''; $('#f-ckind').value = kk.ckind === 'privat' ? 'privat' : 'firma'; toast('Kundendaten übernommen'); }
+      return;
+    }
+    if (t.id === 'ab-result') { $('#ab-mWrap').hidden = t.value === 'ok'; return; }
+    if (t.id === 'jahrSel') { state.jahr = t.value; renderJahr(); return; }
     if (t.id === 'f-place' || t.id === 'f-vendor' || t.id === 'f-vaddr') { fillTrip(true); return; }
     if (t.id === 'f-back') { var kk = parseNum(val('f-km')); if (kk > 0) { $('#f-km').value = String(t.checked ? kk * 2 : kk / 2).replace('.', ','); } renderTrip(); return; }
     if (t.id === 'fb-month') { state.fb.month = t.value; renderBelege(); }
@@ -2985,7 +3370,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       var kd = t.value === 'kunde';
       $('#partyLbl').textContent = kd ? 'Kunde' : 'Händler / Lieferant';
       $('#amountLbl').textContent = kd ? 'Auftragswert netto (€)' : 'Betrag netto (€)';
-      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#hoursWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
+      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#hoursWrap').hidden = !kd; $('#photosWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
     }
     else if (draft && draft.coll === 'auftraege' && (t.id === 'f-date' || t.id === 'f-terms')) {
       var tm = $('#f-terms').value;

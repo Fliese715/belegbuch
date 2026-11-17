@@ -48,6 +48,14 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Mahnwesen:** Zahlungserinnerung, 1. und 2. Mahnung (`rechnungen.mahn`, `nextMahn()`, `mahnCalc()`,
   `pdfMahn()`): Gebühr ab der 1. Mahnung, Verzugszinsen ab der 1. Mahnung (Basiszins + 5 bzw. + 9
   Punkte), 40-€-Pauschale nur bei Firmen und nur einmal; Einstellungen in `settings/mahnung`.
+- **Materialrechner:** im Aufmaß (`matList()`), Verbrauchswerte in `settings/material`.
+- **Kundenkartei:** Sammlung `kunden`, Bezug über den Namen (`auftraege.party`); neue Kunden entstehen
+  beim Speichern eines Kundenauftrags.
+- **Fotodokumentation, Abnahme, Gewährleistung:** `auftraege.photos`, `auftraege.abnahme` mit
+  Unterschriften (Canvas → PNG), `gwEnd()` = Abnahme + 5/4/2 Jahre; Hinweise in „Zu erledigen“.
+- **E-Rechnungen lesen:** `parseEInvoice()` für XRechnung (UBL) und CII/ZUGFeRD, bei PDFs zuerst der
+  eingebettete XML-Anhang über pdf.js (`pdfXml()`), sonst Texterkennung.
+- **Jahresübersicht:** `jahrData()` in der Übersicht und als PDF, mit Kleinunternehmer-Grenzen.
 - **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der
   Claude-Fassung in deren Datei-Ablage. Sicherungs- und Abgleich-Dateien enthalten alle Dateien,
   auf die ein Dokument verweist (Base64, `filesForExport()` / `importFiles()`).
@@ -76,6 +84,9 @@ Die Tests sind Rauchtests: Sie spielen typische Abläufe im Browser durch (Rechn
 stornieren, Aufträge, Fahrstrecken mit simuliertem Mapbox, PDF-Ordner, Sicherung und Wiederherstellung, automatische Sicherung mit Passwort, Abgleich zwischen zwei
 Geräten, Neuladen ohne Netz) und schlagen bei Abstürzen und Seitenfehlern fehl. Sie prüfen keine
 einzelnen Rechenergebnisse; PDF-Inhalte und die echte Texterkennung sind nicht automatisch geprüft.
+PDFs werden mit einer nachgebauten Bibliothek geprüft (welche Texte geschrieben würden), nicht
+als echte Datei. Die Beispiel-E-Rechnungen in `tests/daten` sind selbst geschrieben und nicht gegen
+die offiziellen Prüfwerkzeuge validiert; ZUGFeRD-PDFs mit eingebetteter XML sind nicht getestet.
 
 ### Bekannte Grenzen
 
@@ -83,4 +94,4 @@ einzelnen Rechenergebnisse; PDF-Inhalte und die echte Texterkennung sind nicht a
 - Bei gleichzeitiger Änderung desselben Dokuments auf zwei Geräten gewinnt die spätere Uhrzeit
   (ganzes Dokument, kein Zusammenführen einzelner Felder).
 - `render()` baut immer alles neu; für sehr große Datenmengen wäre das zu langsam.
-- E-Rechnung (XRechnung/ZUGFeRD) ist nicht umgesetzt.
+- E-Rechnungen werden gelesen, aber nicht erzeugt (für Kleinunternehmer nicht vorgeschrieben).

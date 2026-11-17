@@ -1,4 +1,4 @@
-<title>Belegbuch</title>
+<title>FFH Bau und Büro</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -325,7 +325,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><button type="button" class="btn small back" id="backBtn" data-act="tab" data-tab="menu" hidden>‹ Menü</button><h1 id="pageTitle">Belegbuch</h1></div>
+    <div class="brand"><button type="button" class="btn small back" id="backBtn" data-act="tab" data-tab="menu" hidden>‹ Menü</button><h1 id="pageTitle">FFH Bau und Büro</h1></div>
     <div class="mode" id="mode">Lädt …</div>
   </header>
   <button type="button" class="fab" id="fab" data-act="new">+ Beleg</button>
@@ -696,7 +696,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function unpackErr(e) {
     var c = e && e.code;
-    return c === 'bad' ? 'Das ist keine Datei vom Belegbuch.' : c === 'cancel' ? 'Abgebrochen.' : c === 'wrongpw' ? 'Das Passwort war dreimal falsch.' : c === 'nocrypt' ? 'Dieser Browser kann hier nicht entschlüsseln.' : 'Die Datei ließ sich nicht lesen.';
+    return c === 'bad' ? 'Das ist keine Datei von FFH Bau und Büro.' : c === 'cancel' ? 'Abgebrochen.' : c === 'wrongpw' ? 'Das Passwort war dreimal falsch.' : c === 'nocrypt' ? 'Dieser Browser kann hier nicht entschlüsseln.' : 'Die Datei ließ sich nicht lesen.';
   }
   var pwResolve = null;
   /** Fragt in einem Dialog nach einem Passwort. @returns {Promise<?string>} null bei Abbruch */
@@ -1047,7 +1047,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- Automatische Sicherung: alle 30 Minuten, solange die App geöffnet ist ---------- */
-  var AUTO_MS = 30 * 60000, AUTO_KEEP = 48, AUTO_FILE = 'belegbuch-sicherung-auto.json';
+  var AUTO_MS = 30 * 60000, AUTO_KEEP = 48, AUTO_FILE = 'ffh-bau-buero-sicherung-auto.json';
   var SNAPS = [], dirHandle = null, dirOk = false, autoBusy = false;
   /** Legt einen Stand im Gerätespeicher ab und schreibt ihn, falls gewählt, in den Sicherungsordner.
    * Läuft nur, wenn seit der letzten automatischen Sicherung 30 Minuten vergangen sind UND sich
@@ -1064,7 +1064,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       for (var i = 0; i < keys.length - AUTO_KEEP; i++) await idbDel('snap', keys[i]);
       lsSet('belegbuch:lastauto', String(now));
       if (dirHandle && dirOk) {
-        try { var ft = await packText(true); await dirWrite(AUTO_FILE, ft); await dirWrite('belegbuch-sicherung-' + today() + '.json', ft); lsSet('belegbuch:lastdir', String(now)); lsSet('belegbuch:lastbackup', String(now)); }
+        try { var ft = await packText(true); await dirWrite(AUTO_FILE, ft); await dirWrite('ffh-bau-buero-sicherung-' + today() + '.json', ft); lsSet('belegbuch:lastdir', String(now)); lsSet('belegbuch:lastbackup', String(now)); }
         catch (e) { dirOk = false; }
       }
     } catch (e) { /* ohne Gerätespeicher gibt es keine automatische Sicherung */ }
@@ -1140,13 +1140,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     $('#restoreText').textContent = 'Sicherung vom ' + (file.exported ? fstamp(Date.parse(file.exported)) : 'unbekannten Datum') + ': ' + n('belege') + ' Belege, ' + n('auftraege') + ' Aufträge, ' + n('angebote') + ' Angebote, ' + n('rechnungen') + ' Rechnungen' + (file.files ? ', ' + plural(Object.keys(file.files).length, 'Datei', 'Dateien') : '') + '. Alle Daten in der App werden durch diesen Stand ersetzt. Was danach eingegeben wurde, geht verloren.';
   }
   async function backupSave() {
-    try { await saveFile('belegbuch-sicherung-' + today() + '.json', await packText(true), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
+    try { await saveFile('ffh-bau-buero-sicherung-' + today() + '.json', await packText(true), 'application/json'); markBackup(); $('#backupMsg').textContent = 'Sicherung gespeichert. Prüfe, dass die Datei im Download-Ordner liegt, und kopiere sie an einen zweiten Ort.'; toast('Sicherung gespeichert'); }
     catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
   }
   async function restorePick(f) {
     if (!f) return;
     var file = null;
-    try { file = await unpack(await f.text()); } catch (e) { pendingRestore = null; $('#backupMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Sicherung vom Belegbuch.' : unpackErr(e); renderBackup(); return; }
+    try { file = await unpack(await f.text()); } catch (e) { pendingRestore = null; $('#backupMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Sicherung von FFH Bau und Büro.' : unpackErr(e); renderBackup(); return; }
     pendingRestore = file; restoreAskText(file);
     $('#backupMsg').textContent = ''; renderBackup();
   }
@@ -1239,19 +1239,19 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function syncLoad(f) {
     if (!f) return;
     try { var n = await syncMerge(await f.text()); syncNote(stamp() + ' (Datei geladen)'); $('#syncMsg').textContent = syncMsg(n) + ' Speichere jetzt die Abgleich-Datei, damit das andere Gerät deinen Stand bekommt.'; toast('Abgleich-Datei geladen'); }
-    catch (e) { $('#syncMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : unpackErr(e); }
+    catch (e) { $('#syncMsg').textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei von FFH Bau und Büro.' : unpackErr(e); }
   }
   async function syncAuto() {
     var msg = $('#syncMsg');
     try {
-      if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'Belegbuch Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
+      if (!syncHandle) { var hs = await window.showOpenFilePicker({ types: [{ description: 'FFH Bau und Büro – Abgleich', accept: { 'application/json': ['.json'] } }] }); syncHandle = hs[0]; }
       var n = await syncMerge(await (await syncHandle.getFile()).text());
       var w = await syncHandle.createWritable(); await w.write(await packText(true)); await w.close();
       syncNote(stamp() + ' (automatisch)'); markBackup(); msg.textContent = syncMsg(n) + ' Die Datei ist auf dem neuen Stand.'; toast('Abgeglichen');
     } catch (e) {
       if (e && e.name === 'AbortError') return;
       if (e && (e.code === 'cancel' || e.code === 'wrongpw')) { msg.textContent = unpackErr(e); return; }
-      syncHandle = null; msg.textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei vom Belegbuch.' : 'Der automatische Abgleich ging nicht. Nimm „Datei laden“ und danach „Datei speichern“.';
+      syncHandle = null; msg.textContent = e && e.code === 'bad' ? 'Das ist keine Abgleich-Datei von FFH Bau und Büro.' : 'Der automatische Abgleich ging nicht. Nimm „Datei laden“ und danach „Datei speichern“.';
     }
   }
   async function dropAsset(id) {
@@ -1278,8 +1278,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : 'beleg';
     $('#fab').hidden = ['belege', 'auftraege', 'kunden'].indexOf(state.tab) < 0;
     $('#backBtn').hidden = state.tab === 'menu';
-    var T = { menu: 'Belegbuch', erledigen: 'Zu erledigen', uebersicht: 'Zahlen & Auswertung', belege: 'Kosten & Fahrten', auftraege: 'Baustellen & Material', rechnungen: 'Rechnungen & Angebote', angebote: 'Rechnungen & Angebote', kunden: 'Kunden', ordner: ordnerTitle(), sicherung: 'Datensicherung' };
-    $('#pageTitle').textContent = T[state.tab] || 'Belegbuch';
+    var T = { menu: 'FFH Bau und Büro', erledigen: 'Zu erledigen', uebersicht: 'Zahlen & Auswertung', belege: 'Kosten & Fahrten', auftraege: 'Baustellen & Material', rechnungen: 'Rechnungen & Angebote', angebote: 'Rechnungen & Angebote', kunden: 'Kunden', ordner: ordnerTitle(), sicherung: 'Datensicherung' };
+    $('#pageTitle').textContent = T[state.tab] || 'FFH Bau und Büro';
     document.querySelectorAll('#v-rechnungen .seg button, #v-angebote .seg button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.tab === state.tab)); });
   }
   function renderBanner() {
@@ -1723,7 +1723,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var d = jahrData(y), yy = 60;
     pdfHead(doc, f);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(20); doc.text('Jahresübersicht ' + y, 20, yy); yy += 6;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80); doc.text('Erstellt am ' + fdate(today()) + ' mit dem Belegbuch. Vorarbeit für die Steuer, kein Ersatz für die Buchhaltung.', 20, yy); yy += 10;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80); doc.text('Erstellt am ' + fdate(today()) + ' mit FFH Bau und Büro. Vorarbeit für die Steuer, kein Ersatz für die Buchhaltung.', 20, yy); yy += 10;
     doc.setFontSize(10.5); doc.setTextColor(20);
     jahrRows(d).forEach(function (r) { var sub = /^  /.test(r[0]); doc.setFont('helvetica', sub ? 'normal' : 'bold'); doc.text(r[0].trim(), sub ? 28 : 20, yy); doc.setFont('helvetica', 'normal'); doc.text(String(r[1]).replace(/ /g, ' '), 190, yy, { align: 'right' }); yy += 6.5; if (yy > 270) { doc.addPage(); yy = 25; } });
     if (isKlein()) { yy += 4; doc.setFontSize(9); doc.setTextColor(80); doc.splitTextToSize('Kleinunternehmer (§ 19 UStG): Grenzen 25.000 € im Vorjahr und 100.000 € im laufenden Jahr. Umsatz ' + y + ': ' + de(d.umsatz) + ' €.', 170).forEach(function (s) { doc.text(s, 20, yy); yy += 4.5; }); }

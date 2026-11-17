@@ -1,6 +1,6 @@
 {
-  "name": "Belegbuch",
-  "short_name": "Belegbuch",
+  "name": "FFH Bau und Büro",
+  "short_name": "FFH Bau+Büro",
   "description": "Belege, Baustellen, Angebote und Rechnungen – auch ohne Internet",
   "lang": "de",
   "start_url": "./index.html",

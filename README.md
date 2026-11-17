@@ -1,4 +1,4 @@
-# Belegbuch
+# FFH Bau und Büro (Belegbuch)
 
 Büro-App für einen Fliesenleger-Betrieb: Belege und Fahrten, Baustellen und Materialbestellungen,
 Aufmaß, Angebote, Rechnungen als PDF. Läuft als installierbare Web-App, auch ohne Internet.

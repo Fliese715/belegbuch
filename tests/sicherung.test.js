@@ -25,7 +25,7 @@ async function nav(p, t) {
   assert(/noch keine Sicherung/.test(await page.textContent('#todo')), 'Hinweis ohne Sicherung: ' + (await page.textContent('#todo')).slice(0, 60));
   await nav(page, 'sicherung'); const [d] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="backup-save"]')]);
   const file = TMP + '/sicherung.json'; await d.saveAs(file);
-  assert(/^belegbuch-sicherung-\d{4}-\d{2}-\d{2}\.json$/.test(d.suggestedFilename()), 'Dateiname ' + d.suggestedFilename());
+  assert(/^ffh-bau-buero-sicherung-\d{4}-\d{2}-\d{2}\.json$/.test(d.suggestedFilename()), 'Dateiname ' + d.suggestedFilename());
   assert(!/Sicherung/.test(await page.textContent('#todo')), 'Hinweis verschwindet nach dem Sichern');
   assert(/aktuell/.test(await page.textContent('#backupInfo')), 'Status: ' + (await page.textContent('#backupInfo')).slice(-45));
   // ändern: einen Beleg anlegen, einen löschen

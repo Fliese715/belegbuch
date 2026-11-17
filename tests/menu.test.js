@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
   await page.click('.mtile[data-tab="belege"]');
   assert(await page.textContent('#pageTitle') === 'Kosten & Fahrten' && await page.isVisible('#backBtn') && await page.isVisible('#fab'), 'Kachel öffnet „Kosten & Fahrten“ mit Zurück-Knopf und +');
   await page.click('#backBtn'); await page.waitForSelector('#v-menu:not([hidden])');
-  assert(await page.textContent('#pageTitle') === 'Belegbuch', 'Zurück-Knopf führt ins Menü');
+  assert(await page.textContent('#pageTitle') === 'FFH Bau und Büro', 'Zurück-Knopf führt ins Menü');
   await page.click('.mtile[data-tab="rechnungen"]'); await page.click('#v-rechnungen .seg [data-tab="angebote"]');
   assert(await page.isVisible('#v-angebote') && await page.textContent('#pageTitle') === 'Rechnungen & Angebote', 'Umschalter Rechnungen/Angebote');
   await page.goBack(); await page.waitForSelector('#v-menu:not([hidden])');

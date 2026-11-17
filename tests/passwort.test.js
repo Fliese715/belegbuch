@@ -42,7 +42,7 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   await tick(); assert((await snaps(A)).length === 3, 'nach 30 Minuten mit Änderung: neuer Stand');
   // Sicherungsordner
   await nav(A, 'sicherung'); await A.click('[data-act="dir-pick"]'); await A.waitForFunction(() => Object.keys(window.__files).length === 2);
-  const names = await A.evaluate(() => Object.keys(window.__files).sort().join(' ')); assert(/belegbuch-sicherung-\d{4}-\d{2}-\d{2}\.json belegbuch-sicherung-auto\.json/.test(names), 'Ordner: ' + names);
+  const names = await A.evaluate(() => Object.keys(window.__files).sort().join(' ')); assert(/ffh-bau-buero-sicherung-\d{4}-\d{2}-\d{2}\.json ffh-bau-buero-sicherung-auto\.json/.test(names), 'Ordner: ' + names);
   assert(await A.evaluate(() => Object.values(window.__files).every(t => t.includes('AES-GCM') && !t.includes('Würth'))), 'Dateien im Ordner sind verschlüsselt');
   assert(/Sicherungsordner „Sicherungen“/.test(await A.textContent('#autoInfo')), 'Status nennt den Ordner');
   // älteren Stand aus der Liste wiederherstellen (eigener Schlüssel, keine Passwortfrage)

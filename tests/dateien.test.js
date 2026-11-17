@@ -8,7 +8,7 @@ async function device(b) {
   const ctx = await b.newContext({ viewport: { width: 400, height: 800 }, acceptDownloads: true });
   const page = await ctx.newPage(); page.errs = []; page.on('pageerror', e => page.errs.push(e.message));
   await page.route('**/*', r => /^(file|blob):/.test(r.request().url()) ? r.continue() : r.abort());
-  await page.goto(APP); await page.waitForSelector('#backupInfo'); return page;
+  await page.goto(APP); await page.waitForSelector('#backupInfo', { state: 'attached' }); return page;
 }
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 (async () => {
@@ -43,17 +43,17 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   assert(true, 'Dateien bleiben nach Neuladen');
   // Sicherung enthält die Dateien
   await A.click('[data-act="tab"][data-tab="uebersicht"]');
-  const [d] = await Promise.all([A.waitForEvent('download'), A.click('[data-act="sync-save"]')]); const sf = TMP + '/abgleich-dateien.json'; await d.saveAs(sf);
+  await A.click('[data-act="tab"][data-tab="sicherung"]'); const [d] = await Promise.all([A.waitForEvent('download'), A.click('[data-act="sync-save"]')]); const sf = TMP + '/abgleich-dateien.json'; await d.saveAs(sf);
   const o = JSON.parse(fs.readFileSync(sf, 'utf8')); const fl = Object.values(o.files || {});
   assert(fl.length === 2 && fl.some(f => f.type === 'application/pdf' && Buffer.from(f.b64, 'base64').equals(PDF)), 'Abgleich-Datei enthält 2 Dateien, PDF unverändert');
   // zweites Gerät
-  const B = await device(b); await B.setInputFiles('#syncFile', sf); await B.waitForFunction(() => /Abgleich:/.test(document.querySelector('#syncMsg').textContent));
+  const B = await device(b); await B.click('[data-act="tab"][data-tab="sicherung"]'); await B.setInputFiles('#syncFile', sf); await B.waitForFunction(() => /Abgleich:/.test(document.querySelector('#syncMsg').textContent));
   assert(/2 Dateien übernommen/.test(await B.textContent('#syncMsg')), 'Gerät 2: ' + (await B.textContent('#syncMsg')).slice(0, 70));
   await B.click('[data-act="tab"][data-tab="belege"]'); await B.waitForSelector('#belegeList img.thumb'); assert(true, 'Gerät 2: Foto am Beleg');
   await B.click('[data-act="tab"][data-tab="ordner"]'); await B.waitForSelector('#ordnerList [data-act="file-open"]'); assert(true, 'Gerät 2: PDF im Ordner');
   // Wiederherstellen einer Sicherung mit Dateien auf einem leeren Gerät
-  const C = await device(b); await C.setInputFiles('#backupFile', sf); await C.waitForSelector('#restoreAsk:not([hidden])');
+  const C = await device(b); await C.click('[data-act="tab"][data-tab="sicherung"]'); await C.setInputFiles('#backupFile', sf); await C.waitForSelector('#restoreAsk:not([hidden])');
   assert(/2 Dateien/.test(await C.textContent('#restoreText')), 'Nachfrage nennt die Dateien');
-  await C.click('[data-act="restore-yes"]'); await C.click('[data-act="tab"][data-tab="belege"]'); await C.waitForSelector('#belegeList img.thumb'); assert(true, 'Gerät 3: Foto nach Wiederherstellung');
+  await C.click('[data-act="tab"][data-tab="sicherung"]'); await C.click('[data-act="restore-yes"]'); await C.click('[data-act="tab"][data-tab="belege"]'); await C.waitForSelector('#belegeList img.thumb'); assert(true, 'Gerät 3: Foto nach Wiederherstellung');
   console.log('Fehler: ' + ([A, B, C].map(p => p.errs.join('|')).filter(Boolean).join(' || ') || 'keine')); await b.close();
 })();

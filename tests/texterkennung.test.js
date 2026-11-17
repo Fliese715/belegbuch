@@ -57,9 +57,9 @@ async function open(b, text) {
   const page = await (await b.newContext({ viewport: { width: 400, height: 800 } })).newPage(); page.errs = []; page.on('pageerror', e => page.errs.push(e.message));
   await page.route('**/*', r => /^(file|blob):/.test(r.request().url()) ? r.continue() : r.abort());
   await page.addInitScript(text => { if (text != null) window.Tesseract = { createWorker: async (lang, oem, o) => ({ recognize: async () => { o.logger({ status: 'recognizing text', progress: 0.5 }); return { data: { text } }; } }) }; }, text);
-  await page.goto(APP); await page.waitForSelector('#backupInfo');
+  await page.goto(APP); await page.waitForSelector('#backupInfo', { state: 'attached' });
   await page.evaluate(() => { localStorage.setItem('belegbuch:settings', JSON.stringify([{ id: 'firma', street: 'Musterweg 1', city: '18439 Stralsund' }])); localStorage.setItem('belegbuch:belege', JSON.stringify([{ id: 'x1', date: '2026-01-05', vendor: 'Würth', gross: 10, vat: 19, cat: 'Material', pay: 'Bar' }])); });
-  await page.reload(); await page.waitForSelector('#backupInfo');
+  await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
   await page.click('[data-act="tab"][data-tab="belege"]'); await page.click('#fab'); return page;
 }
 const fields = p => p.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 'f-vaddr', 'f-place'].map(i => document.getElementById(i).value).join(' | '));

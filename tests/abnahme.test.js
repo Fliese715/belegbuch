@@ -54,7 +54,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   await page.fill('#ab-mdone', days(0)); await page.click('[data-act="ab-save"]'); await page.waitForTimeout(300);
   assert(!/Mängel offen/.test(await page.textContent('#todo')), 'nach „Mängel beseitigt“ kein Hinweis mehr');
   // Sicherung enthält Baustellenfotos
-  const [d2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="sync-save"]')]); await d2.saveAs(TMP + '/ab.json');
+  await page.click('[data-act="tab"][data-tab="sicherung"]'); const [d2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="sync-save"]')]); await d2.saveAs(TMP + '/ab.json');
   assert(Object.keys(JSON.parse(fs.readFileSync(TMP + '/ab.json', 'utf8')).files).length === 2, 'Abgleich-Datei enthält beide Baustellenfotos');
   console.log('Fehler: ' + (errs.join('|') || 'keine')); await b.close();
 })();

@@ -6,7 +6,7 @@ const Y = String(new Date().getFullYear());
 async function device(b, klein) {
   const page = await (await b.newContext({ viewport: { width: 400, height: 900 } })).newPage(); page.errs = []; page.on('pageerror', e => page.errs.push(e.message));
   await page.route('**/*', r => /^(file|blob):/.test(r.request().url()) ? r.continue() : r.abort());
-  await page.goto(APP); await page.waitForSelector('#backupInfo');
+  await page.goto(APP); await page.waitForSelector('#backupInfo', { state: 'attached' });
   await page.evaluate(([klein, Y]) => {
     localStorage.setItem('belegbuch:settings', JSON.stringify([{ id: 'firma', name: 'Test', street: 'Musterweg 1', city: '18439 Stralsund', kleinunt: klein }, { id: 'preise', region: 0, own: { stunde: 50 }, ownPrivat: {}, kmRate: 0.3 }]));
     localStorage.setItem('belegbuch:auftraege', JSON.stringify([

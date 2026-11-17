@@ -1353,7 +1353,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var inv = latestRechnung(a.id), klein = isKlein();
     var erloes, src;
     if (inv && (inv.status === 'Gestellt' || inv.status === 'Bezahlt')) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = 'Rechnung ' + (inv.nr || ''); }
-    else { erloes = Number(a.amount) || 0; src = 'Auftragswert (noch keine Rechnung)'; }
+    else { erloes = Number(a.amount) || 0; src = 'Auftragswert, noch keine Rechnung'; }
     var lb = state.data.belege.filter(function (b) { return b.orderId === a.id; });
     var material = sum(lb, function (b) { return klein ? b.gross : b.gross - vatPart(b.gross, b.vat); });
     var km = siteKmTotal(a) + sum(lb, function (b) { return Number(b.km) || 0; });
@@ -1386,7 +1386,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var box = $('#hoursBox'); if (!box || !draft) return;
     var list = (draft.hours || []).slice().map(function (x, i) { return { x: x, i: i }; }).sort(function (p, q) { return (q.x.d || '').localeCompare(p.x.d || ''); });
     box.innerHTML = (list.length ? '<table class="nk"><tbody>' + list.map(function (r) {
-      return '<tr><td>' + fdate(r.x.d) + (r.x.note ? ' · ' + esc(r.x.note) : '') + '</td><td class="num">' + hm(Number(r.x.h) || 0) + ' Std</td><td style="width:40px"><button type="button" class="btn small" data-act="hrs-del" data-i="' + r.i + '" aria-label="Eintrag vom ' + fdate(r.x.d) + ' löschen">×</button></td></tr>';
+      return '<tr><td>' + fdate(r.x.d) + (r.x.note ? ' · ' + esc(r.x.note) : '') + '</td><td class="num">' + hm(Number(r.x.h) || 0) + ' Std</td><td style="width:48px;padding-left:8px;text-align:right"><button type="button" class="btn small" data-act="hrs-del" data-i="' + r.i + '" aria-label="Eintrag vom ' + fdate(r.x.d) + ' löschen">×</button></td></tr>';
     }).join('') + '<tr class="sum"><td>Summe</td><td class="num">' + hm(hoursOf(draft)) + ' Std</td><td></td></tr></tbody></table>' : '<p class="hint" style="margin:0">Noch keine Arbeitszeit eingetragen.</p>');
     var nk = $('#nkBox'); if (nk && draft.id) { var a = auftrag(draft.id); if (a) nk.innerHTML = nkHtml(Object.assign({}, a, { hours: draft.hours })); }
   }

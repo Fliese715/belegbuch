@@ -27,6 +27,31 @@ Nettobetrag 276,91
 MwSt 19 % 52,61
 Rechnungsbetrag EUR 1.329,52
 Zahlbar bis 11.10.2026`;
+const VERSAND = `www.hypertrade24.de
+Hypertrade 24
+Hypertrade 24 e. K.
+schnell • gut • günstig Stefan Bahrami
+Baumschulweg 1
+47877 Willich
+info@hypertrade24.de
+USt-IdNr.: DE326137956
+Hypertrade 24 e. K. - Baumschulweg 1 - 47877 Willich Rechnungsdatum: 10.11.2026
+Auslieferungsdatum: 10.11.2026
+Sven Hinz Rechnung-Nr.: 42129
+Musterweg 1 Auftrags-Nr.: 43348
+18439 Stralsund / undefined Kunden-Nr.: 41726
+Rechnung
+1 Triton TRA147 Ersatzteil Zahnrad 1 Stück 29,99 € 19 % 29,99 €
+Zwischensumme 29,99 €
+DHL/Deutsche Post 5,90 €
+Paypal
+Transaktions-Nr.: 9UE69976SD1594814
+Gesamtsumme zzgl. MwSt. 30,16 €
+MwSt.: 19 % 5,73 €
+Gesamtsumme 35,89 €
+Betrag dankend erhalten !
+Hypertrade 24 e. K. - Inh. Stefan Bahrami - Baumschulweg 1 - 47877 Willich -
+Bankverbindung : Commerzbank Düsseldorf, IBAN: DE98 3004 0000 0101 4786 00`;
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 async function open(b, text) {
   const page = await (await b.newContext({ viewport: { width: 400, height: 800 } })).newPage(); page.errs = []; page.on('pageerror', e => page.errs.push(e.message));
@@ -48,6 +73,10 @@ const fields = p => p.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 
   await p.click('[data-act="save"]'); await p.waitForSelector('#belegeList img.thumb'); assert(true, 'Beleg mit Foto gespeichert');
   p = await open(b, RECHNUNG); await p.setInputFiles('#photoFile', TMP + '/bon.png'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
   assert(await fields(p) === 'Würth | 1329,52 | 2026-09-21 | 19 | Werftstraße 10, 18439 Stralsund | Stralsund', 'Rechnung (bekannter Lieferant, eigene Adresse übergangen): ' + await fields(p));
+  p = await open(b, VERSAND); await p.setInputFiles('#photoFile', TMP + '/bon.png'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
+  const fv = await fields(p), extra = await p.evaluate(() => [document.getElementById('f-pay').value, document.getElementById('f-note').value, document.getElementById('f-km').value].join(' | '));
+  assert(fv === 'Hypertrade 24 | 35,89 | 2026-11-10 | 19 | Baumschulweg 1, 47877 Willich | ' && extra === 'PayPal | Rechnung 42129 | ', 'Versandrechnung (Hypertrade): ' + fv + ' || ' + extra);
+  assert(/Versandrechnung: keine Fahrt/.test(await p.textContent('#photoBox')), 'Meldung: Versandrechnung, keine Fahrt');
   p = await open(b, BON); await p.fill('#f-vendor', 'Mein Eintrag'); await p.fill('#f-gross', '7'); await p.setInputFiles('#photoFile', TMP + '/bon.png'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
   assert((await fields(p)).startsWith('Mein Eintrag | 7 |'), 'ausgefüllte Felder werden nicht überschrieben');
   p = await open(b, 'xx ~~ 1l| ..'); await p.setInputFiles('#photoFile', TMP + '/bon.png'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));

@@ -853,13 +853,26 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     // Adresse: Zeile mit Postleitzahl und Ort, davor oder darin die Straße; die eigene Adresse zählt nicht
     var f = setting('firma') || {}, ownPlz = (String(f.city || '').match(/\d{5}/) || [''])[0], ownStreet = String(f.street || '').toLowerCase().replace(/\s/g, '');
     var streetRe = /([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\- ]*?(?:stra(?:ß|ss)e|str\.|weg|platz|allee|bogen|chaussee|damm|ring|gasse|ufer|hof|markt)\s?\d+(?:\s?[a-z](?![a-zäöü]))?(?:\s?-\s?\d+)?)/i;
-    for (i = 0; i < lines.length; i++) {
-      m = lines[i].match(/(?:^|[\s,])(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?: [A-ZÄÖÜa-zäöü][A-Za-zÄÖÜäöüß.\-]+){0,2})/); if (!m) continue;
-      var st = (lines[i].match(streetRe) || (i > 0 ? lines[i - 1].match(streetRe) : null) || [])[1] || '';
+    // Absenderzeilen wie „Firma - Straße 1 - 12345 Ort“ in Teile zerlegen; Beschriftungen („Rechnungsdatum:“) abschneiden
+    var segs = [];
+    lines.forEach(function (l) { l.split(/\s+[-–·|•]\s+|\s{3,}/).forEach(function (x) { x = x.trim(); if (x) segs.push(x); }); });
+    var label = /\b(rechnung\w*|datum|liefer\w*|tel(efon)?|fax|kunden\w*|auftrag\w*|ust\w*|steuer\w*|seite|e-?mail|www|bankverbindung|iban)\b.*$/i;
+    for (i = 0; i < segs.length; i++) {
+      var sg = segs[i].replace(label, '').trim();
+      m = sg.match(/(?:^|[\s,])(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?: (?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+|am|an|im|in|ob|der|bei|vor)){0,3})\s*$/); if (!m) continue;
+      var st = (sg.match(streetRe) || (i > 0 ? segs[i - 1].replace(label, '').match(streetRe) : null) || [])[1] || '';
       if (st && ownStreet && st.toLowerCase().replace(/\s/g, '').indexOf(ownStreet) >= 0) continue;
       if (!st && m[1] === ownPlz) continue;
       out.place = m[2].trim(); if (st) out.vaddr = st.trim() + ', ' + m[1] + ' ' + out.place; break;
     }
+    // Zahlungsart, Rechnungsnummer, Versand
+    if (/pay\s?pal/i.test(all)) out.pay = 'PayPal';
+    else if (/lastschrift|abbuchung/i.test(all)) out.pay = 'Lastschrift';
+    else if (/girocard|ec[- ]karte|kartenzahlung|kreditkarte|visa|mastercard|maestro|v pay/i.test(all)) out.pay = 'Karte';
+    else if (/\bbar\b|bargeld|rückgeld|wechselgeld/i.test(all)) out.pay = 'Bar';
+    else if (/zahlbar bis|bitte überweisen|zahlungsziel/i.test(all)) out.pay = 'Überweisung';
+    m = all.match(/rechnungs?[- ]?(?:nr|nummer)\.?\s*:?\s*([A-Z0-9][A-Z0-9\-\/]{2,})/i); if (m) out.nr = m[1];
+    out.versand = /\b(dhl|deutsche post|hermes|dpd|gls|ups|versandkosten|versand|paketdienst|spedition)\b/i.test(all);
     return out;
   }
   /** Startet die Texterkennung für die Datei des offenen Beleg-Formulars und füllt leere Felder. */
@@ -880,9 +893,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       put('f-gross', r.gross != null ? String(r.gross.toFixed(2)).replace('.', ',') : '', 'Betrag');
       if (r.date && !draft.id && $('#f-date') && $('#f-date').value === today() && r.date !== today()) { $('#f-date').value = r.date; got.push('Datum'); }
       if (r.vat != null && !draft.id && $('#f-vat') && Number($('#f-vat').value) !== r.vat) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
-      put('f-vaddr', r.vaddr, 'Adresse'); put('f-place', r.place, 'Ort');
-      if (r.vaddr || r.place) { try { fillTrip(true); } catch (e) { } }
-      say(got.length ? 'Erkannt und eingetragen: ' + got.join(', ') + '. Bitte mit dem Beleg vergleichen, die Erkennung macht Fehler.' : 'Der Text ließ sich nicht sicher lesen. Bitte die Felder von Hand ausfüllen.');
+      put('f-vaddr', r.vaddr, 'Adresse');
+      if (!r.versand) put('f-place', r.place, 'Ort');
+      if (r.pay && !draft.id && $('#f-pay') && PAYS.indexOf(r.pay) >= 0 && $('#f-pay').value !== r.pay) { $('#f-pay').value = r.pay; got.push('Zahlungsart'); }
+      put('f-note', r.nr ? 'Rechnung ' + r.nr : '', 'Rechnungsnummer');
+      if (!r.versand && (r.vaddr || r.place)) { try { fillTrip(true); } catch (e) { } }
+      say(got.length ? 'Erkannt und eingetragen: ' + got.join(', ') + '.' + (r.versand ? ' Versandrechnung: keine Fahrt eingetragen.' : '') + ' Bitte mit dem Beleg vergleichen, die Erkennung macht Fehler.' : 'Der Text ließ sich nicht sicher lesen. Bitte die Felder von Hand ausfüllen.');
     } catch (e) {
       say(e && e.code === 'offline' ? 'Datei übernommen. Die Texterkennung braucht beim ersten Mal Internet; bitte die Felder von Hand ausfüllen.' : 'Datei übernommen. Die Texterkennung hat nicht geklappt; bitte die Felder von Hand ausfüllen.');
     }

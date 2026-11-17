@@ -1,16 +1,21 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright'); const http=require('http'),fs=require('fs'),path=require('path');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
 const srv=http.createServer((q,r)=>{let f=q.url.split('?')[0]; if(f==='/')f='/index.html'; const p=path.join(__dirname,'..',f); if(!fs.existsSync(p)){r.writeHead(404);return r.end();} r.writeHead(200,{'content-type':types[path.extname(p)]||'application/octet-stream'}); r.end(fs.readFileSync(p));});
 (async()=>{ await new Promise(r=>srv.listen(8765,'127.0.0.1',r));
  const b=await chromium.launch(); const ctx=await b.newContext({viewport:{width:400,height:800}}); const page=await ctx.newPage(); const errs=[]; page.on('pageerror',e=>errs.push(e.message));
- await page.goto('http://localhost:8765/'); await page.waitForSelector('#tiles .tile');
+ await page.goto('http://localhost:8765/'); await page.waitForSelector('.mtile');
  await page.evaluate(()=>navigator.serviceWorker.ready); await page.waitForTimeout(1500);
  console.log('SW aktiv:',await page.evaluate(async()=>!!(await navigator.serviceWorker.getRegistration()).active),'| Cache:',await page.evaluate(async()=>(await (await caches.open((await caches.keys())[0])).keys()).map(k=>k.url.replace('http://localhost:8765','')).join(' ')));
  console.log('Manifest:',await page.evaluate(async()=>{const m=await (await fetch('manifest.webmanifest')).json();return m.name+' '+m.display+' '+m.icons.length+' Icons'}));
- await page.click('#fab'); await page.fill('#f-vendor','Offline-Test'); await page.fill('#f-gross','5'); await page.click('[data-act="save"]'); await page.waitForTimeout(300);
+ await nav(page, 'belege'); await page.click('#fab'); await page.fill('#f-vendor','Offline-Test'); await page.fill('#f-gross','5'); await page.click('[data-act="save"]'); await page.waitForTimeout(300);
  srv.close(); srv.closeAllConnections(); await ctx.setOffline(true);
- await page.reload(); await page.waitForSelector('#tiles .tile',{timeout:8000});
- await page.click('[data-act="tab"][data-tab="belege"]');
+ await page.reload(); await page.waitForSelector('#tiles .tile',{timeout:8000,state:'attached'});
+ await nav(page, 'belege');
  console.log('offline neu geladen, Belege:',await page.$$eval('#belegeList article',a=>a.length),'|',await page.textContent('#mode'));
  console.log('Fehler:',errs.join('|')||'keine'); await b.close();})();

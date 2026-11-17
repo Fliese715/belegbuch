@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 (async()=>{
  const b=await chromium.launch(); const page=await (await b.newContext({viewport:{width:400,height:900}})).newPage();
  const errs=[]; page.on('pageerror',e=>errs.push(e.message));
@@ -18,7 +23,7 @@ const { chromium } = require('playwright');
  await page.goto(APP);
  await page.addStyleTag({content:'[hidden]{display:none!important} body{margin:0}'});
  await page.waitForFunction(()=>document.querySelector('#mode'));
- await page.click('[data-act="tab"][data-tab="belege"]'); await page.click('#fab');
+ await nav(page, 'belege'); await page.click('#fab');
  await page.fill('#f-vaddr','Werftstraße 10, 18439 Stralsund'); await page.click('[data-act="trip-calc"]');
  await page.waitForFunction(()=>/Mapbox:/.test(document.querySelector('#tripMsg').textContent),{timeout:5000});
  console.log('km',await page.inputValue('#f-km'),'|',await page.textContent('#tripMsg'),'|place',await page.inputValue('#f-place'));

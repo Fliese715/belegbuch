@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // PDF-Erzeugung mit einer NACHGEBAUTEN PDF-Bibliothek (jsPDF lässt sich hier nicht laden):
 // prüft nur, dass Rechnung, Schlussrechnung, Stornorechnung und Mahnung ohne Fehler durchlaufen
 // und welche Texte geschrieben würden – nicht, wie das PDF aussieht.
@@ -33,7 +38,7 @@ const Y = String(new Date().getFullYear());
   await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
   const pdf = async (sel, id) => {
     await page.evaluate(() => { window.__pdf = []; });
-    await page.click('[data-act="tab"][data-tab="rechnungen"]'); await page.click(`#rechnungenList article[data-edit="rechnungen:${id}"] .vendor`); await page.waitForSelector('#angBody');
+    await nav(page, 'rechnungen'); await page.click(`#rechnungenList article[data-edit="rechnungen:${id}"] .vendor`); await page.waitForSelector('#angBody');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click(sel)]);
     const t = await page.evaluate(() => window.__pdf.join(' | ')); await page.click('#sheet [data-act="cancel"]'); return [dl.suggestedFilename(), t];
   };
@@ -43,7 +48,7 @@ const Y = String(new Date().getFullYear());
   assert(n === `Stornorechnung-R-${Y}-004.pdf` && /Stornorechnung R-\d{4}-004/.test(t) && /Storno zur Abschlagsrechnung R-\d{4}-002/.test(t) && /-2000,00 €/.test(t) && !/Zahlbar bis/.test(t), 'Stornorechnung: ' + n);
   [n, t] = await pdf('[data-act="mahn-pdf"]', 's1');
   assert(n === `Zahlungserinnerung-R-${Y}-003.pdf` && /Zahlungserinnerung zur Rechnung R-\d{4}-003/.test(t) && /Erinnerungstext/.test(t) && /IBAN DE00/.test(t), 'Mahnung: ' + n);
-  await page.evaluate(() => { window.__pdf = []; }); await page.click('[data-act="tab"][data-tab="uebersicht"]');
+  await page.evaluate(() => { window.__pdf = []; }); await nav(page, 'uebersicht');
   const [dj] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="jahr-pdf"]')]);
   t = await page.evaluate(() => window.__pdf.join(' | '));
   assert(dj.suggestedFilename() === `Jahresuebersicht-${Y}.pdf` && new RegExp('Jahresübersicht ' + Y).test(t) && /Rechnungen \d{4} \(1\) \| -1\.000,00 €/.test(t) && /Kleinunternehmer \(§ 19 UStG\)/.test(t), 'Jahresübersicht-PDF (Schlussrechnung 1.000 € minus Storno 2.000 € der Testdaten): ' + dj.suggestedFilename());

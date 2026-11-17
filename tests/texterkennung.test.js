@@ -1,6 +1,11 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const TMP = require('os').tmpdir();
 const { chromium } = require('playwright'); const fs = require('fs');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // Texterkennung beim Hinzufügen eines Belegs. Die Erkennungsbibliothek ist hier NACHGEBAUT
 // (liefert festen Text); geprüft wird das Auslesen der Werte und das Füllen des Formulars,
 // nicht die Qualität der echten Erkennung.
@@ -60,7 +65,7 @@ async function open(b, text) {
   await page.goto(APP); await page.waitForSelector('#backupInfo', { state: 'attached' });
   await page.evaluate(() => { localStorage.setItem('belegbuch:settings', JSON.stringify([{ id: 'firma', street: 'Musterweg 1', city: '18439 Stralsund' }])); localStorage.setItem('belegbuch:belege', JSON.stringify([{ id: 'x1', date: '2026-01-05', vendor: 'Würth', gross: 10, vat: 19, cat: 'Material', pay: 'Bar' }])); });
   await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.click('[data-act="tab"][data-tab="belege"]'); await page.click('#fab'); return page;
+  await nav(page, 'belege'); await page.click('#fab'); return page;
 }
 const fields = p => p.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 'f-vaddr', 'f-place'].map(i => document.getElementById(i).value).join(' | '));
 (async () => {

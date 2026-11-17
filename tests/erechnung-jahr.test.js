@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright'); const path = require('path');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // E-Rechnungen (XRechnung UBL, ZUGFeRD/CII als XML) einlesen und Jahresübersicht. Die Beispiel-XMLs
 // in tests/daten sind selbst geschrieben und nicht gegen die offiziellen Prüfwerkzeuge validiert.
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
@@ -20,7 +25,7 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
       { id: 'r4', auftragId: 'b1', nr: 'R-2025-004', type: 'storno', status: 'Storno', date: '2025-07-02', vat: 0, positions: [{ text: 'X', qty: -1, unit: 'psch', price: 500 }] },
       { id: 'r5', auftragId: 'b1', nr: 'R-2025-005', status: 'Gestellt', date: '2025-12-01', vat: 0, positions: pos(1000) }]));
   });
-  await page.reload(); await page.waitForSelector('#jahrBox', { state: 'attached' });
+  await page.reload(); await page.waitForSelector('#jahrBox', { state: 'attached' }); await nav(page, 'uebersicht');
   await page.selectOption('#jahrSel', '2025'); await page.waitForTimeout(100);
   const j = (await page.textContent('#jahrBox')).replace(/\s+/g, ' ');
   assert(/Rechnungen 2025 \(4\)\s*27\.000,00/.test(j), 'Umsatz 2025: 10.000 + 16.000 + 500 − 500 + 1.000 = 27.000,00 € (4 Rechnungen ohne Storno): ' + j.slice(0, 60));
@@ -29,7 +34,7 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   assert(/Einkauf 16, Baustellen 40\)\s*56 km/.test(j) && /14:30 Std/.test(j), 'km 16 + 40 = 56, Stunden 14:30');
   assert(/über 25\.000 €/.test(j), 'Hinweis: Umsatz über 25.000 € (Kleinunternehmergrenze)');
   // E-Rechnung UBL
-  await page.click('[data-act="tab"][data-tab="belege"]'); await page.click('#fab'); await page.waitForSelector('#photoFile');
+  await nav(page, 'belege'); await page.click('#fab'); await page.waitForSelector('#photoFile');
   await page.setInputFiles('#photoFile', path.join(__dirname, 'daten/xrechnung-ubl.xml')); await page.waitForFunction(() => /E-Rechnung gelesen|keine lesbare/.test(document.querySelector('#photoBox').textContent));
   const f = () => page.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 'f-vaddr', 'f-place', 'f-note'].map(i => document.getElementById(i).value).join(' | '));
   assert(await f() === 'Baustoffe Nord GmbH | 238,00 | 2026-10-05 | 19 | Werftstraße 10, 18439 Stralsund | Stralsund | Rechnung RE-4711', 'XRechnung (UBL): ' + await f());

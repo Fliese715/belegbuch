@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // Abschlagsrechnungen, Schlussrechnung mit Abzug, echte Stornorechnung, Zahlungserinnerung und Mahnungen.
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 const Y = String(new Date().getFullYear());
@@ -17,12 +22,12 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   const card = () => page.textContent('#auftraegeList article:has-text("Bad EG")');
   const issue = async () => { await page.click('[data-act="re-issue"]'); await page.click('[data-act="re-issue"]'); await page.waitForFunction(() => /gestellt|Gestellt/.test(document.querySelector('#sheetTitle').textContent)); };
   async function abschlag(price) {
-    await page.click('[data-act="tab"][data-tab="auftraege"]'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="abschlag"]'); await page.waitForSelector('#angBody');
+    await nav(page, 'auftraege'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="abschlag"]'); await page.waitForSelector('#angBody');
     await page.fill('#angBody tbody.pos input[data-pf="price"]', price); await page.press('#angBody tbody.pos input[data-pf="price"]', 'Tab');
     await issue(); const t = (await page.textContent('#sheetTitle')).replace(/\s+/g, ' '); await page.click('#sheet [data-act="cancel"]'); return t;
   }
   // 1. Abschlag ohne Betrag wird abgelehnt
-  await page.click('[data-act="tab"][data-tab="auftraege"]'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="abschlag"]'); await page.waitForSelector('#angBody');
+  await nav(page, 'auftraege'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="abschlag"]'); await page.waitForSelector('#angBody');
   await page.click('[data-act="re-issue"]'); assert(/Betrag des Abschlags/.test(await page.textContent('#formErr')), 'Abschlag ohne Betrag wird abgelehnt');
   await page.click('#sheet [data-act="cancel"]');
   const t1 = await abschlag('1000'); assert(new RegExp('Abschlagsrechnung R-' + Y + '-001').test(t1), 'erste Abschlagsrechnung: ' + t1);
@@ -37,10 +42,10 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   assert(/über 595,00\s€/.test(await page.inputValue('#mailBody')), 'E-Mail-Text nennt den Restbetrag');
   await page.click('#sheet [data-act="cancel"]');
   assert(!/data-act="abschlag"/.test(await page.innerHTML('#auftraegeList article:has-text("Bad EG")')), 'nach der Schlussrechnung kein Abschlag-Knopf mehr');
-  await page.click('[data-act="tab"][data-tab="uebersicht"]');
+  await nav(page, 'uebersicht');
   assert(/2\.380,00/.test(await page.textContent('#tiles .tile[data-go="inv"]')), 'Übersicht: offen 1.190 + 595 + 595 = 2.380,00 €');
   // Storno des zweiten Abschlags
-  await page.click('[data-act="tab"][data-tab="rechnungen"]');
+  await nav(page, 'rechnungen');
   await page.click('#rechnungenList article:has-text("-002") [data-act="re-storno-list"]'); await page.waitForTimeout(300);
   await page.click('[data-act="re-storno"]'); await page.waitForFunction(() => /Stornorechnung/.test(document.querySelector('#sheetTitle').textContent));
   const st = (await page.textContent('#sheetTitle')).replace(/\s+/g, ' ');
@@ -53,7 +58,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   // Mahnwesen an der Schlussrechnung (Firmenkunde)
   const setRe = fn => page.evaluate(([fn]) => { const r = JSON.parse(localStorage.getItem('belegbuch:rechnungen')); const x = r.find(y => y.type === 'schluss'); new Function('x', fn)(x); localStorage.setItem('belegbuch:rechnungen', JSON.stringify(r)); }, [fn]);
   await setRe(`x.due = '${days(-5)}'`); await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.click('[data-act="tab"][data-tab="uebersicht"]');
+  await nav(page, 'erledigen');
   assert(/R-\d{4}-003 · Bau GmbH: Zahlungserinnerung fällig/.test(await page.textContent('#todo')), 'Zu erledigen: Zahlungserinnerung fällig');
   await page.click('#todo [data-act="re-open"]'); await page.waitForSelector('#mahnBox');
   let mb = (await page.textContent('#mahnBox')).replace(/\s+/g, ' ');
@@ -65,14 +70,14 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   assert(/Die nächste Stufe ist ab dem/.test(await page.textContent('#mahnBox')), 'nächste Stufe erst nach Ablauf der neuen Frist');
   await page.click('#sheet [data-act="cancel"]');
   await setRe(`x.mahn[0].due = '${days(-1)}'`); await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.click('[data-act="tab"][data-tab="rechnungen"]'); await page.click('#rechnungenList article:has-text("-003") .vendor'); await page.waitForSelector('#mahnBox');
+  await nav(page, 'rechnungen'); await page.click('#rechnungenList article:has-text("-003") .vendor'); await page.waitForSelector('#mahnBox');
   mb = (await page.textContent('#mahnBox')).replace(/\s+/g, ' ');
   assert(/1\. Mahnung fällig/.test(mb) && /Mahngebühr\s*2,50/.test(mb) && /597,50/.test(mb), '1. Mahnung: 2,50 € Gebühr, 597,50 €');
   await page.check('#mahnPausch'); await page.waitForTimeout(100);
   assert(/Verzugspauschale.*40,00.*637,50/.test((await page.textContent('#mahnBox')).replace(/\s+/g, ' ')), 'mit 40 € Pauschale: 637,50 €');
   await page.click('[data-act="mahn-new"]'); await page.waitForTimeout(300); await page.click('#sheet [data-act="cancel"]');
   await setRe(`x.mahn[1].date = '${days(-30)}'; x.mahn[1].due = '${days(-20)}'`); await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.click('[data-act="tab"][data-tab="rechnungen"]'); await page.click('#rechnungenList article:has-text("-003") .vendor'); await page.waitForSelector('#mahnBox');
+  await nav(page, 'rechnungen'); await page.click('#rechnungenList article:has-text("-003") .vendor'); await page.waitForSelector('#mahnBox');
   mb = (await page.textContent('#mahnBox')).replace(/\s+/g, ' ');
   assert(/2\. Mahnung fällig/.test(mb) && /Kosten aus früheren Mahnungen\s*42,50/.test(mb) && /Verzugszinsen 10,52 % p\. a\. für 30 Tage\s*5,14/.test(mb) && /645,14/.test(mb) && !/Verzugspauschale verlangen/.test(mb), '2. Mahnung: frühere Kosten 42,50 €, 10,52 % für 30 Tage = 5,14 €, gesamt 645,14 €, Pauschale nicht doppelt: ' + mb.slice(-260));
   assert(/gerichtliche Mahnverfahren/.test(await page.inputValue('#mahnTextIn')), 'Text der 2. Mahnung kündigt das Mahnverfahren an');
@@ -81,7 +86,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   await page.click('#sheet [data-act="cancel"]');
   assert(/2\. Mahnung/.test(await page.textContent('#rechnungenList article:has-text("-003")')), 'Liste zeigt die letzte Mahnstufe');
   // Nachkalkulation nimmt die Schlussrechnung (Gesamtleistung netto 2.000 €)
-  await page.click('[data-act="tab"][data-tab="auftraege"]'); await page.click('#auftraegeList article:has-text("Bad EG") .vendor'); await page.waitForSelector('#nkBox');
+  await nav(page, 'auftraege'); await page.click('#auftraegeList article:has-text("Bad EG") .vendor'); await page.waitForSelector('#nkBox');
   assert(/Schlussrechnung R-\d{4}-003\)\s*2\.000,00/.test(await page.textContent('#nkBox')), 'Nachkalkulation: Erlös aus der Schlussrechnung 2.000,00 €');
   console.log('Fehler: ' + (errs.join('|') || 'keine')); await b.close();
 })();

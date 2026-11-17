@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 (async()=>{
  const b=await chromium.launch(); const page=await (await b.newContext({viewport:{width:400,height:900},deviceScaleFactor:2})).newPage();
  const errs=[]; page.on('pageerror',e=>errs.push(e.message));
@@ -11,7 +16,7 @@ const { chromium } = require('playwright');
  await page.goto(APP);
  await page.addStyleTag({content:'[hidden]{display:none!important} body{margin:0}'});
  await page.waitForFunction(()=>document.querySelector('#mode').textContent.includes('Gerät'));
- await page.click('[data-act="tab"][data-tab="auftraege"]');
+ await nav(page, 'auftraege');
  console.log('Kunden:', (await page.textContent('#auftraegeSum')).replace(/\s+/g,' '));
  await page.click('[data-act="fa-kind"][data-kind="lieferant"]');
  console.log('Lieferant:', (await page.textContent('#auftraegeSum')).replace(/\s+/g,' '));

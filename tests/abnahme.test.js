@@ -3,6 +3,11 @@ const { chromium } = require('playwright'); const fs = require('fs');
 // Fotodokumentation je Baustelle, Abnahmeprotokoll mit Unterschrift, Mängel und Gewährleistung.
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 const TMP = require('os').tmpdir();
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 (async () => {
@@ -20,10 +25,10 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
       { id: 'b3', kind: 'kunde', title: 'Anfrage Flur', party: 'Neu', amount: 0, status: 'Anfrage', date: '2026-03-01', due: '2099-12-31', terms: 14 }]));
   }, [(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 5); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); })()]);
   await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.click('[data-act="tab"][data-tab="uebersicht"]');
+  await nav(page, 'uebersicht');
   assert(/Gewährleistung endet am .*Altbau Küche/.test(await page.textContent('#todo')), 'Zu erledigen: Gewährleistung Altbau Küche endet in 30 Tagen');
   // Fotos
-  await page.click('[data-act="tab"][data-tab="auftraege"]');
+  await nav(page, 'auftraege');
   assert(!/data-act="abnahme"/.test(await page.innerHTML('#auftraegeList article:has-text("Anfrage Flur")')), 'bei einer Anfrage noch kein Abnahme-Knopf');
   await page.click('#auftraegeList article:has-text("Bad EG") .vendor'); await page.waitForSelector('#photosBox');
   await page.selectOption('#ph-kind', 'vorher'); await page.setInputFiles('#ph-file', TMP + '/foto.png'); await page.waitForSelector('#photosBox img');
@@ -44,7 +49,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   assert(ab === 'Abgenommen|maengel|data:image/png;base64,||2', 'Abnahme gespeichert: Status Abgenommen, Unterschrift Kunde, Fotos bleiben: ' + ab);
   const card = await page.textContent('#auftraegeList article:has-text("Bad EG")');
   assert(/Abnahme ✓/.test(card) && /Mängel offen · Frist/.test(card) && /Gewährleistung bis/.test(card), 'Karte: Abnahme ✓, Mängel offen, Gewährleistung');
-  await page.click('[data-act="tab"][data-tab="uebersicht"]'); assert(/Mängel offen: Bad EG/.test(await page.textContent('#todo')), 'Zu erledigen: Mängel offen');
+  await nav(page, 'erledigen'); assert(/Mängel offen: Bad EG/.test(await page.textContent('#todo')), 'Zu erledigen: Mängel offen');
   // PDF
   await page.click('#todo [data-act="abnahme"]:has-text("Mängel offen")'); await page.waitForSelector('[data-act="ab-pdf"]');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="ab-pdf"]')]);
@@ -54,7 +59,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   await page.fill('#ab-mdone', days(0)); await page.click('[data-act="ab-save"]'); await page.waitForTimeout(300);
   assert(!/Mängel offen/.test(await page.textContent('#todo')), 'nach „Mängel beseitigt“ kein Hinweis mehr');
   // Sicherung enthält Baustellenfotos
-  await page.click('[data-act="tab"][data-tab="sicherung"]'); const [d2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="sync-save"]')]); await d2.saveAs(TMP + '/ab.json');
+  await nav(page, 'sicherung'); const [d2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="sync-save"]')]); await d2.saveAs(TMP + '/ab.json');
   assert(Object.keys(JSON.parse(fs.readFileSync(TMP + '/ab.json', 'utf8')).files).length === 2, 'Abgleich-Datei enthält beide Baustellenfotos');
   console.log('Fehler: ' + (errs.join('|') || 'keine')); await b.close();
 })();

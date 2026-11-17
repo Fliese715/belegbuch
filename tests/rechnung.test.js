@@ -3,6 +3,11 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
   const doc = JSON.parse(fs.readFileSync(require('path').join(__dirname, 'richtwerte.json'), 'utf8'));
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
   const b = await chromium.launch();
   const page = await (await b.newContext({ viewport: { width: 400, height: 860 } })).newPage();
   const errs = [];
@@ -18,13 +23,13 @@ const fs = require('fs');
   const closed = () => page.waitForSelector('#sheet', { state: 'hidden' });
 
   // Firma und Preise
-  await page.click('[data-act="settings"]');
+  await nav(page, 'settings');
   for (const [k, v] of [['name', 'Mustermann Fliesen'], ['owner', 'Max Mustermann'], ['street', 'Hafenstr. 1'], ['city', '18439 Stralsund'], ['taxid', '079/123/45678'], ['iban', 'DE02 1203 0000 0000 2020 51']]) await page.fill('#s-' + k, v);
   await page.fill('#p-verl-std', '50'); await page.fill('#pp-verl-std', '65');
   await page.click('[data-act="set-save"]'); await closed();
 
   // Baustelle A (Firma)
-  await page.click('[data-act="tab"][data-tab="auftraege"]'); await page.click('#fab');
+  await nav(page, 'auftraege'); await page.click('#fab');
   await page.fill('#f-title', 'Bad EG'); await page.fill('#f-party', 'Hotel Strandblick'); await page.fill('#f-site', 'Strandpromenade 3, Binz');
   await page.fill('#f-addr', 'Strandpromenade 3, 18609 Binz'); await page.fill('#f-email', 'info@hotel.example');
   await page.click('[data-act="save"]'); await closed();
@@ -54,16 +59,16 @@ const fs = require('fs');
   await page.click('[data-act="re-paid"]'); await page.waitForTimeout(300);
   console.log('Status nach bezahlt:', (await page.textContent('#sheetTitle')).replace(/\s+/g, ' '));
   await page.click('[data-act="cancel"]'); await closed();
-  await page.click('[data-act="tab"][data-tab="rechnungen"]');
+  await nav(page, 'rechnungen');
   await page.click('[data-act="re-storno-list"]'); await page.waitForTimeout(300);
   console.log('Storno armed:', (await page.textContent('[data-act="re-storno"]')).trim());
   await page.click('[data-act="re-storno"]'); await page.waitForTimeout(300);
   console.log('Nach Storno:', (await page.textContent('#sheetTitle')).replace(/\s+/g,' '), '| Storno-Button noch da:', await page.$('[data-act="re-storno"]') !== null);
   await page.click('[data-act="re-pdf"]'); await page.waitForTimeout(200);
   await page.click('[data-act="cancel"]'); await closed();
-  await page.click('[data-act="tab"][data-tab="auftraege"]');
+  await nav(page, 'auftraege');
   console.log('DBG tab:', await page.evaluate(() => [...document.querySelectorAll('section')].filter(s => !s.hidden).map(s => s.id).join(',')), '| list:', (await page.textContent('#auftraegeList')).replace(/\s+/g,' ').slice(0,200));
-  await page.click('[data-act="tab"][data-tab="auftraege"]');
+  await nav(page, 'auftraege');
   if (await page.isChecked('#fa-open')) await page.uncheck('#fa-open');
   console.log('Baustelle A:', (await card('Bad EG').textContent()).replace(/\s+/g, ' ').slice(0, 110));
 
@@ -83,9 +88,9 @@ const fs = require('fs');
   await page.selectOption('#a-ckind', 'privat');
   await page.click('[data-act="cancel"]'); await closed();
 
-  await page.click('[data-act="tab"][data-tab="rechnungen"]');
+  await nav(page, 'rechnungen');
   console.log('Rechnungen:', (await page.textContent('#rechnungenSum')).replace(/\s+/g, ' '), '|', (await page.textContent('#rechnungenList')).replace(/\s+/g, ' ').slice(0, 140));
-  await page.click('[data-act="tab"][data-tab="uebersicht"]');
+  await nav(page, 'uebersicht');
   console.log('Kacheln:', (await page.textContent('#tiles')).replace(/\s+/g, ' ').slice(0, 260));
   console.log('Overflow:', await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth));
   console.log('Fehler:', errs.length ? errs.join('\n') : 'keine');

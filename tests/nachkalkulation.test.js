@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // Arbeitszeit (Formular und Zeitmessung) und Nachkalkulation je Baustelle; Kleinunternehmer rechnet brutto.
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 const Y = String(new Date().getFullYear());
@@ -23,8 +28,8 @@ async function device(b, klein) {
   const K = await device(b, true);
   const tiles = await K.$$eval('#tiles .tile', t => t.map(x => x.innerText.replace(/\n/g, ' ')));
   assert(tiles.some(t => /Verdient je Stunde/i.test(t)) && !tiles.some(t => /Vorsteuer/i.test(t)), 'Kleinunternehmer: Kachel „Verdient je Stunde“ statt Vorsteuer');
-  await K.click('[data-act="tab"][data-tab="belege"]'); assert(!/Vorsteuer/.test(await K.textContent('#belegeSum')), 'Belegsumme ohne Vorsteuer');
-  await K.click('[data-act="tab"][data-tab="auftraege"]');
+  await nav(K, 'belege'); assert(!/Vorsteuer/.test(await K.textContent('#belegeSum')), 'Belegsumme ohne Vorsteuer');
+  await nav(K, 'auftraege');
   const card = () => K.textContent('#auftraegeList article:has-text("Bad EG")');
   assert(/Rohertrag\s*1\.057,00\s*€/.test(await card()) && /noch keine Stunden/.test(await card()), 'Karte: Rohertrag 1.057,00 €, noch keine Stunden');
   assert(!/netto/.test(await card()), 'Karte ohne „netto“');
@@ -43,9 +48,9 @@ async function device(b, klein) {
   await K.click('#auftraegeList article:has-text("Bad EG") [data-act="timer"]'); await K.waitForTimeout(200);
   assert(/Stopp \(seit/.test(await card()), 'Zeitmessung läuft auf der Karte');
   await K.evaluate(() => { const a = JSON.parse(localStorage.getItem('belegbuch:auftraege')); a.find(x => x.id === 'b1').timer = Date.now() - 100 * 60000; localStorage.setItem('belegbuch:auftraege', JSON.stringify(a)); });
-  await K.reload(); await K.waitForSelector('#backupInfo', { state: 'attached' }); await K.click('[data-act="tab"][data-tab="uebersicht"]');
+  await K.reload(); await K.waitForSelector('#backupInfo', { state: 'attached' }); await nav(K, 'uebersicht');
   assert(/Zeit läuft: Bad EG/.test(await K.textContent('#todo')), 'Übersicht zeigt laufende Zeit');
-  await K.click('[data-act="tab"][data-tab="auftraege"]');
+  await nav(K, 'auftraege');
   await K.click('#auftraegeList article:has-text("Küche") [data-act="timer"]'); await K.waitForTimeout(400);
   const st = await K.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:auftraege')).map(a => [a.id, !!a.timer, (a.hours || []).map(h => h.h).join('+')].join(':')).join(' '));
   assert(st === 'b1:false:7.5+8+1.75 b2:true:', 'Start auf Küche stoppt Bad EG (100 Min → 1,75 Std): ' + st);
@@ -56,11 +61,11 @@ async function device(b, klein) {
   await K.click('#auftraegeList article:has-text("Bad EG") .vendor'); await K.click('[data-act="save"]'); await K.waitForTimeout(300);
   assert(await K.evaluate(() => { const a = JSON.parse(localStorage.getItem('belegbuch:auftraege')).find(x => x.id === 'b1'); return a.timer > 0 && a.hours.length === 3; }), 'Speichern im Formular verliert weder Zeitmessung noch Stunden');
   // km-Satz in den Einstellungen
-  await K.click('[data-act="settings"]'); await K.fill('#s-kmrate', '0,50'); await K.click('[data-act="set-save"]'); await K.waitForTimeout(300);
+  await nav(K, 'settings'); await K.fill('#s-kmrate', '0,50'); await K.click('[data-act="set-save"]'); await K.waitForTimeout(300);
   assert(/Rohertrag\s*1\.041,00/.test(await card()), 'km-Satz 0,50 € wirkt: Rohertrag 1.041,00 €');
   // Regelbesteuert: Erlös netto 1200, Material netto 100, Fahrt 24 → 1076; Vorsteuer-Kachel bleibt
   const R = await device(b, false);
   assert((await R.$$eval('#tiles .tile', t => t.map(x => x.innerText))).some(t => /Vorsteuer/i.test(t)), 'Regelbesteuert: Vorsteuer-Kachel bleibt');
-  await R.click('[data-act="tab"][data-tab="auftraege"]'); assert(/Rohertrag\s*1\.076,00/.test(await R.textContent('#auftraegeList article:has-text("Bad EG")')), 'Regelbesteuert: netto gerechnet, Rohertrag 1.076,00 €');
+  await nav(R, 'auftraege'); assert(/Rohertrag\s*1\.076,00/.test(await R.textContent('#auftraegeList article:has-text("Bad EG")')), 'Regelbesteuert: netto gerechnet, Rohertrag 1.076,00 €');
   console.log('Fehler: ' + ([K, R].map(p => p.errs.join('|')).filter(Boolean).join(' || ') || 'keine')); await b.close();
 })();

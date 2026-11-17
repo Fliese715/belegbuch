@@ -22,8 +22,12 @@ App öffnen: https://fliese715.github.io/belegbuch/
 
 - **Eine Datei, kein Framework, kein Bundler.** Das JavaScript ist eine einzige IIFE in ES5-Stil.
   Der Kopfkommentar in `src/belegbuch.html` beschreibt Abschnitte, Datenmodell und Betriebsarten.
-- **Zustand:** ein Objekt `state`. `render()` baut alle Reiter daraus neu (`innerHTML`);
+- **Zustand:** ein Objekt `state`. `render()` baut alle Ansichten daraus neu (`innerHTML`);
   Eingaben laufen immer durch `esc()`.
+- **Navigation:** Startseite ist ein Menü mit 9 Kacheln (`renderMenu()`, rote Zähler für Offenes).
+  Jede Kachel öffnet eine Ansicht (`setTab()`, Adresse `#name`); „‹ Menü“ oben links und die
+  Zurück-Taste des Geräts führen zurück (`pushState`/`popstate`). Rechnungen und Angebote teilen
+  sich eine Kachel mit Umschalter.
 - **Ereignisse:** eine delegierte Klick-Behandlung; Knöpfe tragen `data-act="…"`.
 - **Zwei Betriebsarten:**
   - `local` – Web-App/PWA: Daten in `localStorage` unter `belegbuch:<sammlung>`.
@@ -36,7 +40,7 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Sicherung:** dieselbe Datei als datierte Kopie (`belegbuch-sicherung-JJJJ-MM-TT.json`).
   Wiederherstellen ersetzt den ganzen Bestand (`restoreApply()`), der Stand davor bleibt einmal
   rückholbar. In „Zu erledigen“ erscheint ein Hinweis, wenn die Sicherung fehlt oder älter als
-  drei Tage ist und es seitdem Änderungen gab. Sicherung und Abgleich liegen im violetten Reiter „Datensicherung“.
+  drei Tage ist und es seitdem Änderungen gab. Sicherung und Abgleich liegen hinter der violetten Menükachel „Datensicherung“.
 - **Arbeitszeit und Nachkalkulation:** Stunden je Baustelle (Formular oder Zeitmessung „▶ Zeit“,
   gerundet auf ¼ Std). `nachkalk()` rechnet Erlös (gestellte Rechnung, sonst Auftragswert) minus
   Material (zugeordnete Belege) minus Fahrtkosten (km × Satz aus „Firma und Preise“) = Rohertrag,

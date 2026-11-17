@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 // Kundenkartei (anlegen, übernehmen, Daten in Aufträge vorschlagen) und Materialrechner im Aufmaß.
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
 (async () => {
@@ -17,7 +22,7 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   });
   await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
   // Kunden
-  await page.click('[data-act="tab"][data-tab="kunden"]');
+  await nav(page, 'kunden');
   assert(/2 Kunden aus Aufträgen übernehmen/.test(await page.textContent('#kImport')) && /Noch keine Kunden/.test(await page.textContent('#kundenList')), 'leere Kartei, Angebot zum Übernehmen');
   await page.click('#kImport'); await page.waitForTimeout(300);
   const meier = () => page.textContent('#kundenList article:has-text("Meier")');
@@ -32,7 +37,7 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   await page.click('#kundenList article:has-text("Meier") .vendor'); await page.waitForSelector('#k-name');
   assert(/Bad EG/.test(await page.textContent('#sheet')), 'Kundenblatt zeigt die Aufträge'); await page.click('[data-act="cancel"]');
   // Auftrag: Kundendaten vorschlagen, neuer Kunde wird angelegt
-  await page.click('[data-act="tab"][data-tab="auftraege"]'); await page.click('#fab'); await page.fill('#f-title', 'Küche'); await page.fill('#f-party', 'Schulz'); await page.press('#f-party', 'Tab');
+  await nav(page, 'auftraege'); await page.click('#fab'); await page.fill('#f-title', 'Küche'); await page.fill('#f-party', 'Schulz'); await page.press('#f-party', 'Tab');
   assert(await page.inputValue('#f-addr') === 'Hafenstraße 3, 18439 Stralsund' && await page.inputValue('#f-ckind') === 'privat', 'Auftrag übernimmt Adresse und Kundenart von Schulz');
   await page.click('[data-act="save"]'); await page.waitForTimeout(300);
   await page.click('#fab'); await page.fill('#f-title', 'Terrasse'); await page.fill('#f-party', 'Neumann'); await page.click('[data-act="save"]'); await page.waitForTimeout(300);
@@ -51,8 +56,8 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   await page.click('[data-act="am-save"]'); await page.waitForTimeout(300);
   assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:auftraege')).find(a => a.id === 'b1').aufmass.abd) === 6, 'Abdichtungsfläche wird mit dem Aufmaß gespeichert');
   // Verbrauchswert ändern
-  await page.click('[data-act="settings"]'); await page.fill('#s-mkleber', '4'); await page.click('[data-act="set-save"]'); await page.waitForTimeout(300);
-  await page.click('#auftraegeList article:has-text("Bad EG") [data-act="aufmass"]'); await page.waitForSelector('#matBox');
+  await nav(page, 'settings'); await page.fill('#s-mkleber', '4'); await page.click('[data-act="set-save"]'); await page.waitForTimeout(300);
+  await nav(page, 'auftraege'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="aufmass"]'); await page.waitForSelector('#matBox');
   assert(/Fliesenkleber \(4 kg\/m²\)\s*5 × 25 kg Sack\s*120 kg/.test((await page.textContent('#matBox')).replace(/\s+/g, ' ')), 'eigener Kleberverbrauch 4 kg/m² wirkt');
   console.log('Fehler: ' + (errs.join('|') || 'keine')); await b.close();
 })();

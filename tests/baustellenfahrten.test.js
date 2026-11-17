@@ -1,5 +1,10 @@
 const APP = 'file://' + require('path').resolve(__dirname, '../index.html');
 const { chromium } = require('playwright');
+// Navigation über das Startmenü: erst zurück ins Menü, dann die Kachel antippen.
+async function nav(p, t) {
+  if (await p.isVisible('#backBtn')) { await p.click('#backBtn'); }
+  await p.click(t === 'settings' ? '.mtile[data-act="settings"]' : '.mtile[data-tab="' + t + '"]');
+}
 (async()=>{
  const b=await chromium.launch(); const page=await (await b.newContext({viewport:{width:400,height:900}})).newPage();
  const errs=[]; page.on('pageerror',e=>errs.push(e.message));
@@ -16,9 +21,9 @@ const { chromium } = require('playwright');
  },[y,m]);
  await page.goto(APP);
  await page.addStyleTag({content:'[hidden]{display:none!important} body{margin:0}'});
- await page.waitForSelector('#tiles .tile');
+ await page.waitForSelector('.mtile'); await nav(page, 'uebersicht'); await page.waitForSelector('#tiles .tile');
  console.log((await page.$$eval('#tiles .tile',t=>t.map(x=>x.innerText.replace(/\n/g,' | ')))).slice(4).join('\n'));
- await page.click('[data-act="tab"][data-tab="auftraege"]');
+ await nav(page, 'auftraege');
  await page.click('#auftraegeList article.row .vendor');
  await page.waitForSelector('#f-skm');
  await page.click('[data-act="site-calc"]'); await page.waitForFunction(()=>/Mapbox:/.test(document.querySelector('#siteMsg').textContent));
@@ -26,7 +31,7 @@ const { chromium } = require('playwright');
  await page.fill('#f-svis','3'); console.log(await page.textContent('#siteTotal'));
  await page.click('[data-act="save"]'); await page.waitForTimeout(400);
  console.log('stored',await page.evaluate(()=>JSON.parse(localStorage.getItem('belegbuch:auftraege')).map(a=>[a.id,a.siteKm,a.visits].join(':')).join(' ')));
- await page.click('[data-act="tab"][data-tab="uebersicht"]');
+ await nav(page, 'uebersicht');
  console.log((await page.$$eval('#tiles .tile',t=>t.map(x=>x.innerText.replace(/\n/g,' | ')))).slice(4).join('\n'));
  await page.click('#tiles .tile[data-go="sitekm"]'); console.log('rows',(await page.$$('#auftraegeList article')).length,'|',await page.textContent('#fa-note'),'|',(await page.textContent('#auftraegeList')).match(/Fahrten[^·]*/)?.[0]);
  console.log('Fehler:',errs.join('|')||'keine'); await b.close();})();

@@ -57,7 +57,8 @@ App öffnen: https://fliese715.github.io/belegbuch/
   eingebettete XML-Anhang über pdf.js (`pdfXml()`), sonst Texterkennung.
 - **Jahresübersicht:** `jahrData()` in der Übersicht und als PDF, mit Kleinunternehmer-Grenzen.
 - **Bauverzögerungen und Ausfallzeiten:** `auftraege.delays`, `endPlan`, `vob`; neuer Termin = geplanter
-  Termin + Arbeitstage (Mo–Fr, ohne Feiertage) der Verzögerungen (`endNow()`), Behinderungsanzeige
+  Termin + Arbeitstage (Mo–Fr ohne gesetzliche Feiertage des Bundeslands, `holidays()`) der
+  Verzögerungen (`endNow()`), Behinderungsanzeige
   als PDF (`pdfBehinderung()`). Sammlung `abwesenheit` für Urlaub/Krankheit; beim Anlegen optional
   ein Vermerk bei laufenden Baustellen (`src` verweist darauf, Löschen entfernt ihn wieder).
 - **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der

@@ -1700,23 +1700,55 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return doc.output('blob');
   }
 
+  /* ---------- Gesetzliche Feiertage ----------
+   * Bundesweite und landesweite Feiertage je Bundesland (firma.land, Standard MV). Nur in Teilen eines
+   * Landes geltende Tage (Fronleichnam in Teilen von Sachsen und Thüringen, Mariä Himmelfahrt in Teilen
+   * Bayerns, Augsburger Friedensfest) sind nicht enthalten. Ostern nach der Gaußschen Osterformel. */
+  var LAENDER = { BW: 'Baden-Württemberg', BY: 'Bayern', BE: 'Berlin', BB: 'Brandenburg', HB: 'Bremen', HH: 'Hamburg', HE: 'Hessen', MV: 'Mecklenburg-Vorpommern', NI: 'Niedersachsen', NW: 'Nordrhein-Westfalen', RP: 'Rheinland-Pfalz', SL: 'Saarland', SN: 'Sachsen', ST: 'Sachsen-Anhalt', SH: 'Schleswig-Holstein', TH: 'Thüringen' };
+  function land() { var l = setting('firma').land; return LAENDER[l] ? l : 'MV'; }
+  function easter(y) {
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3),
+      h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      mon = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, mon - 1, day, 12);
+  }
+  var HOL_CACHE = {};
+  /** Feiertage eines Jahres für das eingestellte Bundesland: {'JJJJ-MM-TT': 'Name'}. */
+  function holidays(y) {
+    var L = land(), key = L + y; if (HOL_CACHE[key]) return HOL_CACHE[key];
+    var H = {}, E = easter(y), add = function (iso, n, only) { if (!only || only.indexOf(L) >= 0) H[iso] = n; };
+    var rel = function (n) { var d = new Date(E); d.setDate(d.getDate() + n); return isoD(d); };
+    add(y + '-01-01', 'Neujahr'); add(y + '-01-06', 'Heilige Drei Könige', ['BW', 'BY', 'ST']);
+    if (y >= 2019) add(y + '-03-08', 'Internationaler Frauentag', y >= 2023 ? ['BE', 'MV'] : ['BE']);
+    add(rel(-2), 'Karfreitag'); add(rel(1), 'Ostermontag'); add(y + '-05-01', 'Tag der Arbeit');
+    add(rel(39), 'Christi Himmelfahrt'); add(rel(50), 'Pfingstmontag'); add(rel(60), 'Fronleichnam', ['BW', 'BY', 'HE', 'NW', 'RP', 'SL']);
+    add(y + '-08-15', 'Mariä Himmelfahrt', ['SL']); if (y >= 2019) add(y + '-09-20', 'Weltkindertag', ['TH']);
+    add(y + '-10-03', 'Tag der Deutschen Einheit'); add(y + '-10-31', 'Reformationstag', ['BB', 'HB', 'HH', 'MV', 'NI', 'SN', 'ST', 'SH', 'TH']);
+    add(y + '-11-01', 'Allerheiligen', ['BW', 'BY', 'NW', 'RP', 'SL']);
+    var bb = new Date(y, 10, 22, 12); while (bb.getDay() !== 3) bb.setDate(bb.getDate() - 1); add(isoD(bb), 'Buß- und Bettag', ['SN']);
+    add(y + '-12-25', '1. Weihnachtstag'); add(y + '-12-26', '2. Weihnachtstag');
+    return (HOL_CACHE[key] = H);
+  }
+  function holidayName(iso) { return holidays(Number(iso.slice(0, 4)))[iso] || ''; }
+  function isWorkday(d) { var w = d.getDay(); return w > 0 && w < 6 && !holidayName(isoD(d)); }
+
   /* ---------- Bauverzögerungen, Fertigstellungstermin, Urlaub und Krankheit ----------
    * auftraege.endPlan = geplante Fertigstellung, auftraege.vob = VOB/B vereinbart,
    * auftraege.delays = [{id, from, to, reason, note, notified, src}] (src = id einer Abwesenheit).
-   * Neuer Termin = endPlan + Arbeitstage (Mo–Fr, ohne Feiertage) aller Verzögerungen.
+   * Neuer Termin = endPlan + Arbeitstage (Mo–Fr ohne gesetzliche Feiertage, siehe holidays()) aller Verzögerungen.
    * abwesenheit = [{type 'urlaub'|'krank'|'sonstiges', from, to, note}]; beim Anlegen kann die App
    * bei laufenden Baustellen (Beauftragt / In Arbeit) automatisch eine Verzögerung vermerken. */
   var DELAY_REASONS = ['Wetter', 'Material fehlt / Lieferverzug', 'Vorgewerk nicht fertig', 'Wunsch oder Änderung des Kunden', 'Baustelle nicht zugänglich', 'Krankheit', 'Urlaub', 'Sonstiges'];
   var ABS_LABEL = { urlaub: 'Urlaub', krank: 'Krankheit', sonstiges: 'Sonstiger Ausfall' };
   function isoD(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
-  /** Arbeitstage (Mo–Fr) von a bis b einschließlich. */
+  /** Arbeitstage (Mo–Fr ohne Feiertage des Bundeslands) von a bis b einschließlich. */
   function workdays(a, b) {
     if (!a) return 0; b = b || a; if (b < a) return 0;
     var d = new Date(a + 'T12:00:00'), e = new Date(b + 'T12:00:00'), n = 0;
-    while (d <= e && n < 4000) { var w = d.getDay(); if (w > 0 && w < 6) n++; d.setDate(d.getDate() + 1); }
+    while (d <= e && n < 4000) { if (isWorkday(d)) n++; d.setDate(d.getDate() + 1); }
     return n;
   }
-  function addWorkdays(iso, n) { var d = new Date(iso + 'T12:00:00'); while (n > 0) { d.setDate(d.getDate() + 1); var w = d.getDay(); if (w > 0 && w < 6) n--; } return isoD(d); }
+  function addWorkdays(iso, n) { var d = new Date(iso + 'T12:00:00'); while (n > 0) { d.setDate(d.getDate() + 1); if (isWorkday(d)) n--; } return isoD(d); }
   function delayDays(a) { return sum(a.delays || [], function (x) { return workdays(x.from, x.to); }); }
   /** Fertigstellungstermin mit allen Verzögerungen oder ''. */
   function endNow(a) { return a.endPlan ? addWorkdays(a.endPlan, delayDays(a)) : ''; }
@@ -1729,7 +1761,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         (x.notified ? '<div class="hint" style="margin:0">angezeigt am ' + fdate(x.notified) + '</div>' : '') + '</td><td class="num">' + workdays(x.from, x.to) + ' AT</td>' +
         '<td style="width:96px;padding-left:8px;text-align:right;white-space:nowrap">' + (draft.id ? '<button type="button" class="btn small" data-act="dl-pdf" data-i="' + i + '" title="Behinderungsanzeige als PDF">PDF</button> ' : '') + '<button type="button" class="btn small" data-act="dl-del" data-i="' + i + '" aria-label="Verzögerung löschen">×</button></td></tr>';
     }).join('') + '<tr class="sum"><td>Summe</td><td class="num">' + sum(list, function (x) { return workdays(x.from, x.to); }) + ' AT</td><td></td></tr></tbody></table>' : '<p class="hint" style="margin:0">Keine Verzögerungen eingetragen.</p>';
-    if (plan) { var neu = addWorkdays(plan, sum(list, function (x) { return workdays(x.from, x.to); })); h += '<p style="margin:8px 0 0">Fertigstellung: geplant ' + fdate(plan) + (neu !== plan ? ' → <b>neu ' + fdate(neu) + '</b>' : '') + '</p>'; }
+    if (plan) { var neu = addWorkdays(plan, sum(list, function (x) { return workdays(x.from, x.to); })), hn = holidayName(plan); h += '<p style="margin:8px 0 0">Fertigstellung: geplant ' + fdate(plan) + (hn ? ' (' + esc(hn) + '!)' : '') + (neu !== plan ? ' → <b>neu ' + fdate(neu) + '</b>' : '') + '</p><p class="hint" style="margin:2px 0 0">Gezählt werden Arbeitstage ohne Wochenenden und Feiertage in ' + esc(LAENDER[land()]) + '.</p>'; }
     else if (list.length) h += '<p class="hint" style="margin:8px 0 0">Trag oben die geplante Fertigstellung ein, dann rechnet die App den neuen Termin aus.</p>';
     box.innerHTML = h;
   }
@@ -1775,7 +1807,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var box = $('#absBox'); if (!box) return;
     var y = state.jahr || today().slice(0, 4), list = state.data.abwesenheit.filter(function (x) { return String(x.from || '').indexOf(y) === 0 || String(x.to || '').indexOf(y) === 0; }).sort(function (a, b) { return (b.from || '').localeCompare(a.from || ''); });
     var by = function (t) { return sum(list.filter(function (x) { return x.type === t; }), absDays); };
-    box.innerHTML = '<p style="margin:0 0 8px">' + y + ': <b>' + by('urlaub') + '</b> Urlaubstage · <b>' + by('krank') + '</b> Krankheitstage' + (by('sonstiges') ? ' · <b>' + by('sonstiges') + '</b> sonstige Ausfalltage' : '') + ' <span class="hint">(Arbeitstage Mo–Fr)</span></p>' +
+    box.innerHTML = '<p style="margin:0 0 8px">' + y + ': <b>' + by('urlaub') + '</b> Urlaubstage · <b>' + by('krank') + '</b> Krankheitstage' + (by('sonstiges') ? ' · <b>' + by('sonstiges') + '</b> sonstige Ausfalltage' : '') + ' <span class="hint">(Arbeitstage Mo–Fr ohne Feiertage in ' + esc(LAENDER[land()]) + ')</span></p>' +
       (list.length ? '<table class="nk"><tbody>' + list.map(function (x) { return '<tr><td>' + esc(ABS_LABEL[x.type] || x.type) + ' · ' + fdate(x.from) + (x.to && x.to !== x.from ? ' – ' + fdate(x.to) : '') + (x.note ? ' · ' + esc(x.note) : '') + '</td><td class="num">' + absDays(x) + ' AT</td><td style="width:40px;padding-left:8px;text-align:right"><button type="button" class="btn small" data-act="abs-del" data-id="' + esc(x.id) + '" aria-label="Eintrag löschen">×</button></td></tr>'; }).join('') + '</tbody></table>' : '');
   }
   async function absAdd() {
@@ -2440,7 +2472,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     FIRMA_FIELDS.forEach(function (x) {
       h += '<div class="field"><label for="s-' + x[0] + '">' + x[1] + '</label><input id="s-' + x[0] + '" type="text" autocomplete="off" value="' + esc(f[x[0]] || '') + '"></div>';
     });
-    h += '</div><label class="check"><input type="checkbox" id="s-klein"' + (f.kleinunt ? ' checked' : '') + '> Kleinunternehmer (§ 19 UStG, keine Umsatzsteuer)</label>' +
+    h += '</div><div class="field"><label for="s-land">Bundesland (für Feiertage)</label><select id="s-land">' + Object.keys(LAENDER).map(function (k) { return '<option value="' + k + '"' + (k === land() ? ' selected' : '') + '>' + LAENDER[k] + '</option>'; }).join('') + '</select></div>' +
+      '<label class="check"><input type="checkbox" id="s-klein"' + (f.kleinunt ? ' checked' : '') + '> Kleinunternehmer (§ 19 UStG, keine Umsatzsteuer)</label>' +
       '<h3 class="section-h">Meine Strecken</h3>' +
       '<p class="hint" style="margin-bottom:6px">Deine echten Entfernungen, einfache Fahrt ab Zuhause. Eine Zeile je Ort, zum Beispiel „Stralsund = 11“. Diese Werte gehen allen Schätzungen vor. Hin und zurück rechnet die App selbst.</p>' +
       '<div class="field"><textarea id="s-strecken" rows="5" aria-label="Meine Strecken" placeholder="Stralsund = 11&#10;Prohn = 25">' + esc(setting('strecken').text || '') + '</textarea></div>' +
@@ -2471,7 +2504,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function saveSettings() {
     var firma = {};
     FIRMA_FIELDS.forEach(function (x) { firma[x[0]] = val('s-' + x[0]); });
-    firma.kleinunt = $('#s-klein').checked;
+    firma.kleinunt = $('#s-klein').checked; firma.land = val('s-land') || 'MV'; HOL_CACHE = {};
     var region = parseNum(val('s-region')); if (isNaN(region)) region = 0;
     var own = {}, ownP = {};
     CATALOG.forEach(function (c) { var n = parseNum(val('p-' + c.id)), m = parseNum(val('pp-' + c.id)); if (n > 0) own[c.id] = r2(n); if (m > 0) ownP[c.id] = r2(m); });

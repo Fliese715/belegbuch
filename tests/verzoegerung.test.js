@@ -52,5 +52,20 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   await page.click('[data-act="tab"][data-tab="uebersicht"]'); await page.click('#absBox tr:has-text("Urlaub") [data-act="abs-del"]'); await page.waitForTimeout(400);
   await page.click('[data-act="tab"][data-tab="auftraege"]');
   assert(/Fertig bis 07\.12\.2026 \(\+6 AT\)/.test(await card()) && !/Verzögerung/.test(await page.textContent('#auftraegeList article:has-text("Küche")')), 'nach Löschen des Urlaubs sind die Vermerke wieder weg');
+  // Feiertage: geplant Di 22.12.2026 + 3 AT → 23., 24., (25. Feiertag, 26. Sa) → Mo 28.12.
+  await page.click('#auftraegeList article:has-text("Küche") .vendor'); await page.waitForSelector('#delaysBox');
+  await page.fill('#f-endplan', '2026-12-22'); await page.fill('#dl-from', '2026-11-25'); await page.fill('#dl-to', '2026-11-27'); await page.click('[data-act="dl-add"]');
+  assert(/neu 28\.12\.2026/.test(await page.textContent('#delaysBox')), 'Weihnachten wird übersprungen: 22.12. + 3 AT = 28.12.2026');
+  await page.fill('#f-endplan', '2026-05-14'); await page.dispatchEvent('#f-endplan', 'input');
+  assert(/geplant 14\.05\.2026 \(Christi Himmelfahrt!\)/.test(await page.textContent('#delaysBox')), 'Hinweis, wenn der geplante Termin auf einen Feiertag fällt');
+  await page.click('[data-act="cancel"]');
+  // Ganzes Jahr 2026: 261 Werktage Mo–Fr, in MV 7 Feiertage an Werktagen → 254; in Bayern 9 → 252
+  await page.click('[data-act="tab"][data-tab="uebersicht"]'); await page.selectOption('#jahrSel', '2026');
+  await page.selectOption('#abs-type', 'sonstiges'); await page.fill('#abs-from', '2026-01-01'); await page.fill('#abs-to', '2026-12-31'); await page.uncheck('#abs-link'); await page.click('[data-act="abs-add"]'); await page.waitForTimeout(300);
+  assert(/254 sonstige Ausfalltage/.test(await page.textContent('#absBox')) && /Feiertage in Mecklenburg-Vorpommern/.test(await page.textContent('#absBox')), 'Mecklenburg-Vorpommern 2026: 254 Arbeitstage');
+  await page.click('[data-act="settings"]'); await page.selectOption('#s-land', 'BY'); await page.click('[data-act="set-save"]'); await page.waitForTimeout(300);
+  assert(/252 sonstige Ausfalltage/.test(await page.textContent('#absBox')), 'Bayern 2026: 252 Arbeitstage (zusätzlich Heilige Drei Könige und Fronleichnam)');
+  await page.click('[data-act="settings"]'); await page.selectOption('#s-land', 'SN'); await page.click('[data-act="set-save"]'); await page.waitForTimeout(300);
+  assert(/253 sonstige Ausfalltage/.test(await page.textContent('#absBox')), 'Sachsen 2026: 253 (Buß- und Bettag Mi 18.11.)');
   console.log('Fehler: ' + (errs.join('|') || 'keine')); await b.close();
 })();

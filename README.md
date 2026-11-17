@@ -42,6 +42,12 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Material (zugeordnete Belege) minus Fahrtkosten (km × Satz aus „Firma und Preise“) = Rohertrag,
   geteilt durch die Stunden = verdient je Stunde, verglichen mit dem Stundensatz der Preisliste.
   Kleinunternehmer (`isKlein()`) rechnen durchgehend brutto, ohne Vorsteuer.
+- **Rechnungsarten:** `rechnungen.type` = `rechnung` | `abschlag` | `schluss` | `storno`, eine gemeinsame
+  Nummernfolge R-JJJJ-NNN. Die Schlussrechnung zieht gestellte Abschläge ab (`deduct`, `payable()`).
+  Stornieren erzeugt eine eigene Stornorechnung mit negativen Mengen; das Original wird „Storniert“.
+- **Mahnwesen:** Zahlungserinnerung, 1. und 2. Mahnung (`rechnungen.mahn`, `nextMahn()`, `mahnCalc()`,
+  `pdfMahn()`): Gebühr ab der 1. Mahnung, Verzugszinsen ab der 1. Mahnung (Basiszins + 5 bzw. + 9
+  Punkte), 40-€-Pauschale nur bei Firmen und nur einmal; Einstellungen in `settings/mahnung`.
 - **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der
   Claude-Fassung in deren Datei-Ablage. Sicherungs- und Abgleich-Dateien enthalten alle Dateien,
   auf die ein Dokument verweist (Base64, `filesForExport()` / `importFiles()`).
@@ -77,5 +83,4 @@ einzelnen Rechenergebnisse; PDF-Inhalte und die echte Texterkennung sind nicht a
 - Bei gleichzeitiger Änderung desselben Dokuments auf zwei Geräten gewinnt die spätere Uhrzeit
   (ganzes Dokument, kein Zusammenführen einzelner Felder).
 - `render()` baut immer alles neu; für sehr große Datenmengen wäre das zu langsam.
-- Stornieren markiert eine Rechnung nur als storniert; eine Stornorechnung wird nicht erzeugt.
 - E-Rechnung (XRechnung/ZUGFeRD) ist nicht umgesetzt.

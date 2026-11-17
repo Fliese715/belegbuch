@@ -1163,7 +1163,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var year = B.filter(function (b) { return (b.date || '').indexOf(y) === 0; });
     var open = A.filter(function (a) { return a.status !== 'Bezahlt'; });
     var late = A.filter(isOverdue);
-    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt'; });
+    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno'; });
     var lateInv = openInv.filter(function (x) { return x.due && x.due < today(); });
     var billed = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Berechnet'; });
     var running = A.filter(function (a) { return a.kind === 'kunde' && (a.status === 'Beauftragt' || a.status === 'In Arbeit'); });
@@ -1180,7 +1180,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         return tile('Verdient je Stunde ' + y, hrs ? money(r2(roh / hrs)) : '–', hrs ? plural(done.length, 'Baustelle', 'Baustellen') + ' · ' + hm(hrs) + ' Std · Ziel ' + money(targetRate()) : 'Noch keine Arbeitszeit erfasst', 'run');
       })() : tile('Vorsteuer ' + y, money(sum(year, function (b) { return vatPart(b.gross, b.vat); })), 'aus ' + year.length + ' Belegen', 'year')) +
       tile('Laufende Baustellen', String(running.length), offers.length + (offers.length === 1 ? ' Angebot offen' : ' Angebote offen'), 'run') +
-      tile('Offene Rechnungen', money(sum(openInv, function (x) { return calcAng(x).gross; })), openInv.length + ' offen' + (lateInv.length ? ', ' + lateInv.length + ' überfällig' : ''), 'inv') +
+      tile('Offene Rechnungen', money(sum(openInv, payable)), openInv.length + ' offen' + (lateInv.length ? ', ' + lateInv.length + ' überfällig' : ''), 'inv') +
       tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', plural(year.filter(function (b) { return Number(b.km) > 0; }).length, 'Fahrt', 'Fahrten') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
       tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', plural(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length, 'Baustelle', 'Baustellen') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
 
@@ -1192,6 +1192,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (toBill.length) todo += '<button type="button" data-act="goto-kunden"><span>' + toBill.length + (toBill.length === 1 ? ' Baustelle ist abgenommen, die Rechnung fehlt noch' : ' Baustellen sind abgenommen, die Rechnungen fehlen noch') + '</span><span class="badge warn">Ansehen</span></button>';
     var chase = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Angebot' && a.date && a.date <= addDays(today(), -14); });
     if (chase.length) todo += '<button type="button" data-act="goto-kunden"><span>' + chase.length + (chase.length === 1 ? ' Angebot wartet seit über 14 Tagen auf Antwort' : ' Angebote warten seit über 14 Tagen auf Antwort') + '</span><span class="badge">Nachfassen</span></button>';
+    openInv.map(function (x) { return [x, nextMahn(x)]; }).filter(function (p) { return p[1]; }).slice(0, 3).forEach(function (p) {
+      todo += '<button type="button" data-act="re-open" data-id="' + esc(p[0].id) + '"><span>' + esc(p[0].nr) + ' · ' + esc(p[0].name) + ': ' + p[1].label + ' fällig</span><span class="badge bad">Öffnen</span></button>';
+    });
     if (lateInv.length) todo += '<button type="button" data-act="goto-rechnungen"><span>' + lateInv.length + (lateInv.length === 1 ? ' Rechnung ist überfällig' : ' Rechnungen sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
     var drafts = state.data.angebote.filter(function (x) { return x.status === 'Entwurf'; });
     if (drafts.length) todo += '<button type="button" data-act="goto-angebote"><span>' + drafts.length + (drafts.length === 1 ? ' Angebot ist noch nicht versendet' : ' Angebote sind noch nicht versendet') + '</span><span class="badge warn">Ansehen</span></button>';
@@ -1294,7 +1297,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       return '<button type="button" data-act="fa-kind" data-kind="' + k[0] + '" aria-pressed="' + (state.fa.kind === k[0]) + '"><b>' + k[1] + ' · ' + k[3] + '</b>' + (k[2] ? '<span>' + k[2] + '</span>' : '') + '</button>';
     }).join('');
     var rk = rows.filter(function (a) { return a.kind === 'kunde'; }), rl = rows.filter(function (a) { return a.kind === 'lieferant'; });
-    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt' && rk.some(function (a) { return a.id === x.auftragId; }); });
+    var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno' && rk.some(function (a) { return a.id === x.auftragId; }); });
     var sumK = rk.length + (rk.length === 1 ? ' Baustelle' : ' Baustellen') + ' · Auftragswert <span class="num">' + money(sum(rk, function (a) { return a.amount; })) + '</span>' + NET() + (openInv.length ? ' · offene Rechnungen <span class="num">' + money(sum(openInv, function (x) { return calcAng(x).gross; })) + '</span>' : '');
     var sumL = rl.length + (rl.length === 1 ? ' Bestellung' : ' Bestellungen') + ' · Summe <span class="num">' + money(sum(rl, function (a) { return a.amount; })) + '</span>' + NET() + (rl.some(function (a) { return a.status !== 'Bezahlt'; }) ? ' · noch zu zahlen <span class="num">' + money(sum(rl.filter(function (a) { return a.status !== 'Bezahlt'; }), function (a) { return a.amount; })) + '</span> netto' : '');
     $('#auftraegeSum').innerHTML = state.fa.kind === 'kunde' ? sumK : state.fa.kind === 'lieferant' ? sumL : rows.length + ' Einträge';
@@ -1316,11 +1319,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         '<div class="meta">' + esc(a.party) + (a.site ? ' · ' + esc(a.site) : '') + (a.kind === 'lieferant' ? ' · Materialbestellung' : '') + (area ? ' · ' + String(area).replace('.', ',') + ' m² · ' + money(a.amount / area) + '/m²' : '') + '</div>' +
         (a.kind === 'kunde' ? nkLine(a) : '') +
         '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' +
-          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : 'Rechnung') + '</button>' : '') +
+          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : abschlaege(a.id).length ? 'Schlussrechnung' : 'Rechnung') + '</button>' + (!latestRechnung(a.id) || latestRechnung(a.id).status === 'Entwurf' ? '<button type="button" class="btn small" data-act="abschlag" data-id="' + esc(a.id) + '">Abschlag</button>' : '') : '') +
         (a.due ? '<span class="badge ' + (late ? 'bad' : '') + '">' + 'Fällig ' + fdate(a.due) + (late ? ' · überfällig' : '') + '</span>' : '') +
         (a.status === 'Bezahlt' ? '<span class="badge good">bezahlt</span>' : '') + (siteKmTotal(a) > 0 ? '<span class="badge">Fahrten ' + fmtQ(siteKmTotal(a)) + ' km (' + Math.max(1, Math.round(Number(a.visits) || 1)) + '×)</span>' : '') +
         (lb.length ? '<span class="badge">' + lb.length + (lb.length === 1 ? ' Beleg' : ' Belege') + '</span>' : '') +
         (a.ckind === 'privat' ? '<span class="badge">Privatkunde</span>' : '') +
+        (a.kind === 'kunde' && abschlaege(a.id).length ? '<span class="badge">' + plural(abschlaege(a.id).length, 'Abschlag', 'Abschläge') + ' · ' + money(sum(abschlaege(a.id), function (x) { return calcAng(x).gross; })) + '</span>' : '') +
         (inv ? '<span class="badge ' + (inv.status === 'Bezahlt' ? 'good' : inv.status === 'Gestellt' && inv.due && inv.due < today() ? 'bad' : '') + '">Rechnung ' + esc(inv.nr || 'Entwurf') + ' · ' + esc(inv.status) + '</span>' : (a.kind === 'kunde' && a.status === 'Abgenommen' ? '<span class="badge warn">Rechnung fehlt</span>' : '')) +
         (a.aufmass && a.aufmass.rows && a.aufmass.rows.length ? '<span class="badge">Aufmaß ' + fmtQ(amTot(a.aufmass.rows).flaeche) + ' m²</span>' : '') +
         '</div></article>';
@@ -1352,7 +1356,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function nachkalk(a) {
     var inv = latestRechnung(a.id), klein = isKlein();
     var erloes, src;
-    if (inv && (inv.status === 'Gestellt' || inv.status === 'Bezahlt')) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = 'Rechnung ' + (inv.nr || ''); }
+    var abs = abschlaege(a.id);
+    if (inv && issued(inv)) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = RE_LABEL[reType(inv)] + ' ' + (inv.nr || ''); }
+    else if (abs.length) { erloes = sum(abs, function (x) { var cc = calcAng(x); return klein ? cc.gross : cc.net2; }); src = plural(abs.length, 'Abschlag', 'Abschläge') + ', noch keine Schlussrechnung'; }
     else { erloes = Number(a.amount) || 0; src = 'Auftragswert, noch keine Rechnung'; }
     var lb = state.data.belege.filter(function (b) { return b.orderId === a.id; });
     var material = sum(lb, function (b) { return klein ? b.gross : b.gross - vatPart(b.gross, b.vat); });
@@ -1984,6 +1990,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<p class="hint" style="margin-bottom:6px">Deine echten Entfernungen, einfache Fahrt ab Zuhause. Eine Zeile je Ort, zum Beispiel „Stralsund = 11“. Diese Werte gehen allen Schätzungen vor. Hin und zurück rechnet die App selbst.</p>' +
       '<div class="field"><textarea id="s-strecken" rows="5" aria-label="Meine Strecken" placeholder="Stralsund = 11&#10;Prohn = 25">' + esc(setting('strecken').text || '') + '</textarea></div>' +
       '<div class="field"><label for="s-kmrate">Fahrtkosten je km für die Nachkalkulation (€)</label><input id="s-kmrate" type="text" inputmode="decimal" autocomplete="off" value="' + de(kmRate()) + '"></div>' +
+      '<h3 class="section-h">Mahnungen</h3>' +
+      '<div class="grid2 stack"><div class="field"><label for="s-mfee">Mahngebühr je Mahnung (€)</label><input id="s-mfee" type="text" inputmode="decimal" autocomplete="off" value="' + de(mahnSet().fee) + '"></div>' +
+      '<div class="field"><label for="s-mdays">Neue Zahlungsfrist (Tage)</label><input id="s-mdays" type="text" inputmode="numeric" autocomplete="off" value="' + mahnSet().days + '"></div></div>' +
+      '<div class="field"><label for="s-mbase">Basiszinssatz (%)</label><input id="s-mbase" type="text" inputmode="decimal" autocomplete="off" value="' + fmtQ(mahnSet().base) + '"></div>' +
+      '<p class="hint" style="margin:-4px 0 10px">Der Basiszinssatz ändert sich am 1. Januar und 1. Juli; seit 1. Juli 2026 beträgt er 1,52 % (<a href="https://www.bundesbank.de/de/bundesbank/basiszinssatz-nach---247-bgb-607820" target="_blank" rel="noopener">Bundesbank</a>). Für die Zahlungserinnerung fällt keine Gebühr an.</p>' +
       '<h3 class="section-h">Ortsübliche Preise</h3>' +
       '<p class="hint">Die Richtwerte sind bundesweite Netto-Durchschnittswerte aus Ratgebern (Stand 2024 bis 2026), keine Preise für deinen Ort. Mit dem Regionalfaktor und eigenen Preisen passt du sie an. Dein eigener Preis hat immer Vorrang. Quellen: ' +
       '<a href="https://www.aroundhome.de/fliesenlegen/preise-kosten" target="_blank" rel="noopener">aroundhome</a>, ' +
@@ -2010,7 +2021,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try {
       await persist('settings', 'firma', firma);
       await persist('settings', 'strecken', { text: String($('#s-strecken').value || '') });
-      var kr = parseNum(val('s-kmrate'));
+      var kr = parseNum(val('s-kmrate')), mf = parseNum(val('s-mfee')), md = parseNum(val('s-mdays')), mb = parseNum(val('s-mbase'));
+      await persist('settings', 'mahnung', { fee: mf >= 0 ? r2(mf) : 2.5, days: md > 0 ? Math.round(md) : 10, base: isNaN(mb) ? 1.52 : r2(mb) });
       await persist('settings', 'preise', { region: region, own: own, ownPrivat: ownP, kmRate: kr > 0 ? r2(kr) : KM_RATE });
       await closeSheet(false);
       toast('Gespeichert');
@@ -2165,6 +2177,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else {
       h += row('Gesamt netto', money(c.net2), true) + (v ? row('Umsatzsteuer ' + A.vat + ' %', money(c.vat)) + row('Gesamt brutto', money(c.gross)) : '');
     }
+    if ((A.deduct || []).length) {
+      A.deduct.forEach(function (x) { h += row('abzüglich Abschlag ' + esc(x.nr) + ' vom ' + fdate(x.date), '-' + money(x.gross)); });
+      h += row('Noch zu zahlen', money(payable(A)), true);
+    }
     h += '</table>';
     if (!priv && A.rc) h += '<p class="hint" style="text-align:right">Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)</p>';
     return h;
@@ -2219,6 +2235,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (!draft.mailEdited) { var m = mailParts(A, c); $('#mailSubj').value = m.sub; $('#mailBody').value = m.body; }
   }
   function onSheetInput(t) {
+    if (t.id === 'mahnTextIn') { draft.mahnText = t.value; return; }
+    if (t.id === 'mahnPausch') { draft.mahnPausch = t.checked; var mb = $('#mahnBox'); if (mb) mb.innerHTML = mahnHtml(draft.a); return; }
     if (draft.coll === 'aufmass') {
       if (t.id === 'am-waste') { draft.waste = t.value; updAm(); return; }
       var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
@@ -2320,13 +2338,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     d.setFontSize(11); d.setTextColor(20); y = 56;
     [A.name].concat(String(A.address || '').split(',')).forEach(function (s) { s = String(s || '').trim(); if (s) { d.text(s, 20, y); y += 5; } });
     y = 92;
-    d.setFont('helvetica', 'bold'); d.setFontSize(16); d.text(inv ? 'Rechnung ' + (A.nr || '(Entwurf)') : 'Angebot ' + A.nr, 20, y); y += 7;
+    d.setFont('helvetica', 'bold'); d.setFontSize(16); d.text(inv ? RE_LABEL[reType(A)] + ' ' + (A.nr || '(Entwurf)') : 'Angebot ' + A.nr, 20, y); y += 7;
     if (inv && A.status === 'Storniert') { d.setFont('helvetica', 'bold'); d.setFontSize(11); d.setTextColor(179, 55, 45); d.text('STORNIERT' + (A.stornoAt ? ' am ' + fdate(A.stornoAt) : ''), 190, y - 7, { align: 'right' }); }
     d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(80);
     if (inv) {
-      d.text('Rechnungsdatum: ' + fdate(A.date) + '   ·   Zahlbar bis: ' + fdate(A.due), 20, y); y += 4.5;
+      d.text('Rechnungsdatum: ' + fdate(A.date) + (reType(A) === 'storno' ? '' : '   ·   Zahlbar bis: ' + fdate(A.due)), 20, y); y += 4.5;
       d.text('Leistungszeitraum: ' + (A.servFrom === A.servTo ? fdate(A.servTo) : fdate(A.servFrom) + ' bis ' + fdate(A.servTo)), 20, y); y += 4.5;
     } else { d.text('Datum: ' + fdate(A.date) + '   ·   Gültig bis: ' + fdate(A.valid), 20, y); y += 4.5; }
+    if (inv && reType(A) === 'storno') { d.text('Storno zur ' + RE_LABEL[A.stornoOfType || 'rechnung'] + ' ' + (A.stornoOfNr || '') + ' vom ' + fdate(A.stornoOfDate), 20, y); y += 4.5; }
     if (A.site) { d.text('Baustelle: ' + A.site, 20, y); y += 4.5; }
     y += 4; d.setTextColor(20); d.setFont('helvetica', 'bold'); d.setFontSize(11);
     d.splitTextToSize(A.title || '', 170).forEach(function (s) { d.text(s, 20, y); y += 5; });
@@ -2368,6 +2387,11 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       d.setDrawColor(150); d.line(130, y - 3.5, 190, y - 3.5);
       tot('Gesamt netto', de(c.net2) + ' €', true);
       if (vv) { tot('Umsatzsteuer ' + A.vat + ' %', de(c.vat) + ' €'); tot('Gesamt brutto', de(c.gross) + ' €'); }
+    }
+    if ((A.deduct || []).length) {
+      A.deduct.forEach(function (x) { need(6); tot('abzgl. ' + x.nr + ' vom ' + fdate(x.date), '-' + de(x.gross) + ' €'); });
+      d.setDrawColor(150); d.line(130, y - 3.5, 190, y - 3.5);
+      tot('Noch zu zahlen', de(payable(A)) + ' €', true);
     }
     y += 4; d.setFont('helvetica', 'normal'); d.setFontSize(10);
     if (Number(A.vat) === 0 && f.kleinunt) { need(6); d.text('Kein Ausweis der Umsatzsteuer gemäß § 19 UStG (Kleinunternehmerregelung).', 20, y); y += 7; }
@@ -2462,9 +2486,115 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       .sort(function (a, b) { return ((rank[a.status] || 0) - (rank[b.status] || 0)) || (b.date || '').localeCompare(a.date || ''); })[0];
   }
   function latestRechnung(aid) {
-    return state.data.rechnungen.filter(function (x) { return x.auftragId === aid && x.status !== 'Storniert'; })
+    return state.data.rechnungen.filter(function (x) { return x.auftragId === aid && x.status !== 'Storniert' && reType(x) !== 'storno' && reType(x) !== 'abschlag'; })
       .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
   }
+  /* ---------- Rechnungsarten, Stornorechnung, Abschläge, Mahnwesen ----------
+   * rechnungen.type: 'rechnung' (Standard), 'abschlag', 'schluss', 'storno'.
+   * Abschlag: abNr = laufende Nummer je Baustelle. Schluss: deduct = [{id, nr, date, net, vat, gross}]
+   * = gestellte Abschläge, die abgezogen werden. Storno: eigene Rechnung mit eigener Nummer und
+   * negativen Mengen; stornoOf/stornoOfNr verweisen auf das Original, das den Status 'Storniert' und
+   * stornoBy/stornoNr bekommt. Alle Arten teilen sich die Nummernfolge R-JJJJ-NNN.
+   * Mahnwesen: rechnungen.mahn = [{lvl 0|1|2, date, due, open, fee, rate, days, interest, pausch, total, text}].
+   * Verzugszinsen erst ab dem Tag nach der 1. Mahnung (§ 286 BGB: Verzug sicher erst durch Mahnung),
+   * Zinssatz Basiszins + 5 (Privatkunde) bzw. + 9 Prozentpunkte (Firma), 40-€-Pauschale nur bei Firmen. */
+  function reType(x) { return (x && x.type) || 'rechnung'; }
+  var RE_LABEL = { rechnung: 'Rechnung', abschlag: 'Abschlagsrechnung', schluss: 'Schlussrechnung', storno: 'Stornorechnung' };
+  function issued(x) { return x.status === 'Gestellt' || x.status === 'Bezahlt'; }
+  /** Gestellte (nicht stornierte) Abschlagsrechnungen einer Baustelle, älteste zuerst. */
+  function abschlaege(aid) { return state.data.rechnungen.filter(function (x) { return x.auftragId === aid && reType(x) === 'abschlag' && issued(x); }).sort(function (a, b) { return (a.nr || '').localeCompare(b.nr || ''); }); }
+  function deductOf(aid) { return abschlaege(aid).map(function (x) { var c = calcAng(x); return { id: x.id, nr: x.nr, date: x.date, net: c.net2, vat: c.vat, gross: c.gross }; }); }
+  /** Zahlbetrag: brutto minus abgezogene Abschläge (Schlussrechnung). */
+  function payable(A) { return r2(calcAng(A).gross - sum(A.deduct || [], function (d) { return d.gross; })); }
+  function mahnSet() { var m = setting('mahnung'); return { fee: m.fee != null ? Number(m.fee) : 2.5, base: m.base != null ? Number(m.base) : 1.52, days: Number(m.days) > 0 ? Number(m.days) : 10 }; }
+  var MAHN_LABEL = ['Zahlungserinnerung', '1. Mahnung', '2. Mahnung'];
+  /** Nächste fällige Mahnstufe einer Rechnung oder null. */
+  function nextMahn(x) {
+    if (x.status !== 'Gestellt' || reType(x) === 'storno') return null;
+    var list = x.mahn || [], lvl = list.length; if (lvl >= 3) return null;
+    var lastDue = lvl ? list[lvl - 1].due : x.due;
+    return lastDue && lastDue < today() ? { lvl: lvl, label: MAHN_LABEL[lvl], since: lastDue } : null;
+  }
+  function daysBetween(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+  /** Berechnet den Entwurf der nächsten Mahnstufe. */
+  function mahnCalc(A, lvl, withPausch) {
+    var ms = mahnSet(), open = payable(A), priv = A.ckind === 'privat', fee = lvl >= 1 ? ms.fee : 0;
+    var first = (A.mahn || []).find(function (m) { return m.lvl === 1; });
+    var rate = r2(ms.base + (priv ? 5 : 9)), days = lvl >= 2 && first ? Math.max(0, daysBetween(first.date, today())) : 0;
+    var hadPausch = (A.mahn || []).some(function (m) { return m.pausch > 0; });
+    var prior = r2(sum(A.mahn || [], function (m) { return (Number(m.fee) || 0) + (Number(m.pausch) || 0) + (Number(m.interest) || 0); }));
+    var interest = r2(open * rate / 100 * days / 365), pausch = !priv && lvl >= 1 && withPausch && !hadPausch ? 40 : 0;
+    return { lvl: lvl, date: today(), due: addDays(today(), ms.days), open: open, prior: prior, fee: fee, rate: rate, days: days, interest: interest, pausch: pausch, total: r2(open + prior + fee + interest + pausch) };
+  }
+  function mahnText(A, m) {
+    var prev = A.mahn || [], r0 = prev.find(function (x) { return x.lvl === 0; }), r1 = prev.find(function (x) { return x.lvl === 1; });
+    var anrede = 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\n';
+    if (m.lvl === 0) return anrede + 'sicher ist es Ihrer Aufmerksamkeit entgangen: Meine Rechnung ' + A.nr + ' vom ' + fdate(A.date) + ' über ' + money(m.open) + ' war am ' + fdate(A.due) + ' fällig. Bitte überweisen Sie den offenen Betrag bis zum ' + fdate(m.due) + '.\n\nSollten Sie inzwischen gezahlt haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.';
+    if (m.lvl === 1) return anrede + 'leider konnte ich zu meiner Rechnung ' + A.nr + ' vom ' + fdate(A.date) + (r0 ? ' auch nach meiner Zahlungserinnerung vom ' + fdate(r0.date) : '') + ' keinen Zahlungseingang feststellen. Bitte überweisen Sie den unten aufgeführten Betrag bis spätestens ' + fdate(m.due) + '.';
+    return anrede + 'trotz ' + (r0 ? 'Zahlungserinnerung und ' : '') + 'Mahnung' + (r1 ? ' vom ' + fdate(r1.date) : '') + ' ist meine Rechnung ' + A.nr + ' vom ' + fdate(A.date) + ' weiterhin offen. Ich fordere Sie letztmalig auf, den unten aufgeführten Betrag bis zum ' + fdate(m.due) + ' zu überweisen. Nach Ablauf der Frist werde ich ohne weitere Ankündigung das gerichtliche Mahnverfahren einleiten.';
+  }
+  function mahnHtml(A) {
+    var list = A.mahn || [], h = '';
+    if (list.length) h += '<table class="nk"><tbody>' + list.map(function (m, i) { return '<tr><td>' + esc(MAHN_LABEL[m.lvl]) + ' vom ' + fdate(m.date) + ', Frist ' + fdate(m.due) + '</td><td class="num">' + money(m.total) + '</td><td style="width:60px;padding-left:8px;text-align:right"><button type="button" class="btn small" data-act="mahn-pdf" data-i="' + i + '">PDF</button></td></tr>'; }).join('') + '</tbody></table>';
+    var nx = nextMahn(A);
+    if (!nx) {
+      if (A.status === 'Gestellt' && list.length >= 3) h += '<p class="hint" style="margin:8px 0 0">Alle Mahnstufen sind verschickt. Als Nächstes käme das gerichtliche Mahnverfahren (online-mahnantrag.de).</p>';
+      else if (A.status === 'Gestellt' && !list.length) h += '<p class="hint" style="margin:0">Die Rechnung ist noch nicht überfällig (fällig am ' + fdate(A.due) + ').</p>';
+      else if (A.status === 'Gestellt') h += '<p class="hint" style="margin:8px 0 0">Die nächste Stufe ist ab dem ' + fdate(addDays(list[list.length - 1].due, 1)) + ' möglich.</p>';
+      return h;
+    }
+    var withP = !!(draft && draft.mahnPausch), m = mahnCalc(A, nx.lvl, withP);
+    if (!draft.mahnText || draft.mahnLvl !== nx.lvl) { draft.mahnText = mahnText(A, m); draft.mahnLvl = nx.lvl; }
+    h += '<p style="margin:10px 0 6px"><span class="badge bad">' + esc(nx.label) + ' fällig</span> Frist abgelaufen am ' + fdate(nx.since) + '.</p>' +
+      '<table class="nk"><tbody><tr><td>Offener Betrag</td><td class="num">' + money(m.open) + '</td></tr>' +
+      (m.prior ? '<tr><td>Kosten aus früheren Mahnungen</td><td class="num">' + money(m.prior) + '</td></tr>' : '') +
+      (m.fee ? '<tr><td>Mahngebühr</td><td class="num">' + money(m.fee) + '</td></tr>' : '') +
+      (m.interest ? '<tr><td>Verzugszinsen ' + fmtQ(m.rate) + ' % p. a. für ' + m.days + ' Tage</td><td class="num">' + money(m.interest) + '</td></tr>' : '') +
+      (m.pausch ? '<tr><td>Verzugspauschale (§ 288 Abs. 5 BGB)</td><td class="num">' + money(m.pausch) + '</td></tr>' : '') +
+      '<tr class="sum"><td>Zu zahlen bis ' + fdate(m.due) + '</td><td class="num">' + money(m.total) + '</td></tr></tbody></table>' +
+      (A.ckind !== 'privat' && nx.lvl >= 1 && !(A.mahn || []).some(function (x) { return x.pausch > 0; }) ? '<label class="check" style="margin-top:6px"><input type="checkbox" id="mahnPausch"' + (withP ? ' checked' : '') + '> 40 € Verzugspauschale verlangen (nur bei Firmenkunden)</label>' : '') +
+      '<div class="field" style="margin-top:8px"><label for="mahnTextIn">Text</label><textarea id="mahnTextIn" rows="7">' + esc(draft.mahnText) + '</textarea></div>' +
+      '<button type="button" class="btn primary" data-act="mahn-new">' + esc(nx.label) + ' erstellen und als PDF speichern</button>' +
+      '<p class="hint" style="margin:6px 0 0">Gebühr, Zinssatz und Frist stellst du unter „Firma und Preise“ ein. Kein Rechtsrat: Im Zweifel vorher fachlich beraten lassen.</p>';
+    return h;
+  }
+  async function mahnNew() {
+    var A = draft.a, nx = nextMahn(A); if (!nx) return;
+    var m = mahnCalc(A, nx.lvl, !!draft.mahnPausch); m.text = String(($('#mahnTextIn') || {}).value || draft.mahnText || '');
+    A.mahn = (A.mahn || []).concat([m]);
+    if (!(await saveRe(false))) { A.mahn.pop(); return; }
+    draft.mahnText = null; renderRe(); toast(MAHN_LABEL[m.lvl] + ' erstellt');
+    mahnPdf(A.mahn.length - 1);
+  }
+  function mahnPdf(i) {
+    var A = draft.a, m = (A.mahn || [])[i]; if (!m) return;
+    saveBlob(MAHN_LABEL[m.lvl].replace(/\. /, '-').replace(/ /g, '-') + '-' + safeName(A.nr) + '.pdf', pdfMahn(A, m, setting('firma')));
+  }
+  function pdfMahn(A, m, f) {
+    var d = newPdf(); if (!d) return null;
+    var y; pdfHead(d, f, true);
+    d.setFontSize(11); d.setTextColor(20); y = 56;
+    [A.name].concat(String(A.address || '').split(',')).forEach(function (s) { s = String(s || '').trim(); if (s) { d.text(s, 20, y); y += 5; } });
+    y = 92; d.setFont('helvetica', 'bold'); d.setFontSize(16); d.text(MAHN_LABEL[m.lvl] + ' zur Rechnung ' + A.nr, 20, y); y += 7;
+    d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(80); d.text('Datum: ' + fdate(m.date), 20, y); y += 9;
+    d.setFontSize(10); d.setTextColor(20);
+    d.splitTextToSize(m.text || '', 170).forEach(function (s) { d.text(s, 20, y); y += 4.6; });
+    y += 6;
+    function row(l, v, bold) { d.setFont('helvetica', bold ? 'bold' : 'normal'); d.text(l, 20, y); d.text(v, 190, y, { align: 'right' }); y += 6; }
+    row('Rechnung ' + A.nr + ' vom ' + fdate(A.date) + ', fällig am ' + fdate(A.due), de(m.open) + ' €');
+    if (m.prior) row('Kosten aus früheren Mahnungen', de(m.prior) + ' €');
+    if (m.fee) row('Mahngebühr', de(m.fee) + ' €');
+    if (m.interest) row('Verzugszinsen ' + fmtQ(m.rate) + ' % p. a. für ' + m.days + ' Tage', de(m.interest) + ' €');
+    if (m.pausch) row('Verzugspauschale nach § 288 Abs. 5 BGB', de(m.pausch) + ' €');
+    d.setDrawColor(150); d.line(20, y - 4, 190, y - 4);
+    row('Zu zahlen bis ' + fdate(m.due), de(m.total) + ' €', true);
+    y += 4; d.setFont('helvetica', 'normal'); d.setFontSize(10);
+    d.splitTextToSize('Bitte geben Sie bei der Überweisung die Rechnungsnummer ' + A.nr + ' an.' + (f.iban ? ' Bankverbindung: IBAN ' + f.iban + (f.bank ? ', ' + f.bank : '') + '.' : ''), 170).forEach(function (s) { d.text(s, 20, y); y += 4.6; });
+    if (f.owner) { y += 10; d.text('Mit freundlichen Grüßen', 20, y); y += 8; d.text(f.owner, 20, y); }
+    pdfFooter(d, f);
+    return d.output('blob');
+  }
+
   /** Nächste Rechnungsnummer R-JJJJ-NNN (höchste Nummer des Jahres + 1). Wird erst bei
    * „Rechnung stellen“ vergeben, damit Entwürfe keine Nummern verbrauchen. */
   function nextReNr() {
@@ -2487,7 +2617,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     });
     return n;
   }
-  function openRechnung(id, aid) {
+  function openRechnung(id, aid, type) {
     var ex = id ? state.data.rechnungen.find(function (x) { return x.id === id; }) : null;
     if (!ex && !aid) return;
     var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma'), R;
@@ -2505,10 +2635,16 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
         intro: DEF_RE_INTRO, outro: DEF_RE_OUTRO, annex: false, status: 'Entwurf'
       };
       R.positions.forEach(function (p) { p.angQty = Number(p.qty) || 0; });
+      if (type === 'abschlag') {
+        var ab = state.data.rechnungen.filter(function (x) { return x.auftragId === aid && reType(x) === 'abschlag' && x.status !== 'Storniert'; }).length + 1;
+        R.type = 'abschlag'; R.abNr = ab; R.title = ab + '. Abschlagsrechnung – ' + (a ? a.title : '');
+        R.positions = [{ text: ab + '. Abschlag für ' + (a ? a.title : 'die Arbeiten') + ' gemäß Leistungsstand', qty: 1, unit: 'psch', price: 0, art: 'lohn' }];
+        R.intro = 'Guten Tag,\n\nfür die bisher ausgeführten Leistungen stelle ich Ihnen vereinbarungsgemäß folgende Abschlagszahlung in Rechnung:';
+      } else if (abschlaege(aid).length) { R.type = 'schluss'; R.title = 'Schlussrechnung – ' + (a ? a.title : ''); }
     }
     if (!R.positions) R.positions = [];
     draft = { coll: 'rechnung', sticky: true, id: id || null, a: R, confirm: false, confirmIssue: false, mailEdited: false };
-    if (!ex) {
+    if (!ex && R.type !== 'abschlag') {
       applyAufmass(R);
       if (!R.positions.length) suggest();
       R.annex = !!R.amSnap;
@@ -2519,8 +2655,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
   function reMailParts(A, c) {
     var f = setting('firma');
     return {
-      sub: 'Rechnung ' + (A.nr || '') + (A.title ? ' – ' + A.title : ''),
-      body: 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\nvielen Dank für Ihren Auftrag. Im Anhang finden Sie meine Rechnung ' + (A.nr || '') + (A.title ? ' für „' + A.title + '“' : '') + ' über ' + money(c.gross) + (Number(A.vat) > 0 ? ' brutto' : '') + '.\n\nBitte überweisen Sie den Betrag bis zum ' + fdate(A.due) + ' unter Angabe der Rechnungsnummer.\n\nMit freundlichen Grüßen\n' + [f.owner || f.name, f.owner && f.name ? f.name : '', f.phone].filter(Boolean).join('\n')
+      sub: RE_LABEL[reType(A)] + ' ' + (A.nr || '') + (A.title ? ' – ' + A.title : ''),
+      body: 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\nvielen Dank für Ihren Auftrag. Im Anhang finden Sie meine Rechnung ' + (A.nr || '') + (A.title ? ' für „' + A.title + '“' : '') + ' über ' + money(payable(A)) + (Number(A.vat) > 0 ? ' brutto' : '') + '.\n\nBitte überweisen Sie den Betrag bis zum ' + fdate(A.due) + ' unter Angabe der Rechnungsnummer.\n\nMit freundlichen Grüßen\n' + [f.owner || f.name, f.owner && f.name ? f.name : '', f.phone].filter(Boolean).join('\n')
     };
   }
   function reRows(A) {
@@ -2542,7 +2678,9 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       (priv ? '<p class="hint" style="margin-bottom:8px">Art: Arbeit/Fahrt wird als Arbeitskosten für § 35a EStG ausgewiesen.</p>' : '');
   }
   function renderRe() {
-    var A = draft.a, c = calcAng(A), m = reMailParts(A, c), locked = reLocked(A), a = auftrag(A.auftragId);
+    var A = draft.a, locked = reLocked(A), a = auftrag(A.auftragId);
+    if (!locked && reType(A) === 'schluss') A.deduct = deductOf(A.auftragId);
+    var c = calcAng(A), m = reMailParts(A, c), T = RE_LABEL[reType(A)];
     var overdue = A.status === 'Gestellt' && A.due && A.due < today();
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
     var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + '</option>'; }).join('') + '<option value="__free">Freie Position</option>';
@@ -2555,8 +2693,12 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       '<button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
     else if (A.status === 'Bezahlt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
     else actions = '<button type="button" class="btn" data-act="cancel">Schließen</button>';
-    $('#angBody').innerHTML = '<h2 id="sheetTitle">' + (A.nr ? 'Rechnung ' + esc(A.nr) : 'Neue Rechnung') + ' <span class="badge ' + badge + '">' + esc(A.status) + '</span>' + (overdue ? ' <span class="badge bad">überfällig</span>' : '') + '</h2>' +
-      (locked ? '<p class="hint" style="margin-bottom:10px">Gestellte Rechnungen lassen sich nicht mehr ändern. Für eine Korrektur stornierst du sie und stellst eine neue.</p>' :
+    if (reType(A) === 'storno') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button>';
+    var info = reType(A) === 'storno' ? '<p class="hint" style="margin-bottom:10px">Stornorechnung zur Rechnung ' + esc(A.stornoOfNr || '') + ' vom ' + fdate(A.stornoOfDate) + '. Sie hebt die ursprüngliche Rechnung vollständig auf.</p>' :
+      A.status === 'Storniert' ? '<p class="hint" style="margin-bottom:10px">Storniert am ' + fdate(A.stornoAt) + (A.stornoNr ? ' durch Stornorechnung ' + esc(A.stornoNr) + ' <button type="button" class="btn small" data-act="re-open" data-id="' + esc(A.stornoBy) + '">Stornorechnung öffnen</button>' : '') + '</p>' : '';
+    $('#angBody').innerHTML = '<h2 id="sheetTitle">' + (A.nr ? T + ' ' + esc(A.nr) : 'Neue ' + T) + ' <span class="badge ' + badge + '">' + esc(A.status) + '</span>' + (overdue ? ' <span class="badge bad">überfällig</span>' : '') + '</h2>' + info +
+      (reType(A) === 'schluss' && (A.deduct || []).length ? '<p class="hint" style="margin-bottom:10px">Schlussrechnung: Trage die gesamte Leistung ein. Die ' + plural(A.deduct.length, 'gestellte Abschlagsrechnung wird', 'gestellten Abschlagsrechnungen werden') + ' unten abgezogen.</p>' : '') +
+      (locked ? '<p class="hint" style="margin-bottom:10px">Gestellte Rechnungen lassen sich nicht mehr ändern. Für eine Korrektur stornierst du sie: Die App erstellt dazu eine Stornorechnung mit eigener Nummer.</p>' :
         '<p class="hint" style="margin-bottom:10px">Die Rechnungsnummer wird erst beim Stellen vergeben. Mengen kommen aus dem Aufmaß, Preise aus dem Angebot.</p>') +
       '<div class="grid2 stack">' + inp('r-date', 'date', 'Rechnungsdatum', 'date') + '<div class="field"><label for="r-terms">Zahlungsziel</label><select id="r-terms" data-h="terms">' + options([0, 7, 14, 30, 60, 'custom'], A.terms, termLabel) + '</select></div></div>' +
       '<div class="grid2 stack">' + inp('r-due', 'due', 'Fällig am', 'date') + inp('r-name', 'name', 'Kunde') + '</div>' +
@@ -2581,9 +2723,10 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       '<div class="field"><label for="mailBody">Text</label><textarea id="mailBody" rows="9">' + esc(m.body) + '</textarea></div>' +
       '<div class="actions" style="justify-content:flex-start;margin-bottom:12px"><button type="button" class="btn" data-act="re-pdf">1. PDF speichern</button>' +
       '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
+      (A.status === 'Gestellt' && reType(A) !== 'storno' ? '<h3 class="section-h">Zahlungserinnerung und Mahnungen</h3><div id="mahnBox">' + mahnHtml(A) + '</div>' : (A.mahn && A.mahn.length ? '<h3 class="section-h">Mahnungen</h3><div id="mahnBox">' + mahnHtml(A) + '</div>' : '')) +
       '<p class="err" id="formErr" role="alert"></p><div class="actions">' + actions + '</div>';
     $('#angBody').classList.toggle('locked', locked);
-    if (locked) document.querySelectorAll('#angBody input, #angBody select, #angBody textarea').forEach(function (el) { if (el.id !== 'mailSubj' && el.id !== 'mailBody') el.disabled = true; });
+    if (locked) document.querySelectorAll('#angBody input, #angBody select, #angBody textarea').forEach(function (el) { if (el.id !== 'mailSubj' && el.id !== 'mailBody' && el.id !== 'mahnTextIn' && el.id !== 'mahnPausch') el.disabled = true; });
   }
   function reDates(A, k, v) {
     if (k === 'terms') A.terms = v === 'custom' ? 'custom' : Number(v); else A[k] = v;
@@ -2600,6 +2743,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       if (!String(p.text || '').trim()) return 'Bei Position ' + (i + 1) + ' fehlt die Leistung.';
       if (!(Number(p.qty) > 0)) return 'Bei Position ' + (i + 1) + ' fehlt die Menge.';
     }
+    if (reType(A) === 'abschlag' && !(calcAng(A).net2 > 0)) return 'Bitte den Betrag des Abschlags eintragen.';
     if (!strict) return '';
     var f = setting('firma');
     if (!f.name || !f.street || !f.city || !f.taxid) return 'Für eine Rechnung fehlen deine Firmendaten (Name, Straße, PLZ und Ort, Steuernummer). Trage sie unter „Firma und Preise“ ein.';
@@ -2622,7 +2766,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (!draft.confirmIssue) { draft.confirmIssue = true; btn.textContent = 'Wirklich stellen? Danach nicht mehr änderbar'; btn.classList.add('armed'); return; }
     A.nr = nextReNr(); A.status = 'Gestellt'; A.issuedAt = today();
     if (!(await saveRe(true))) { A.nr = ''; A.status = 'Entwurf'; return; }
-    try { var a = auftrag(A.auftragId); if (a && a.status !== 'Bezahlt') await patch('auftraege', a.id, { status: 'Berechnet', amount: calcAng(A).net2 }); } catch (e) { /* Status der Baustelle bleibt */ }
+    try { var a = auftrag(A.auftragId); if (a && a.status !== 'Bezahlt' && reType(A) !== 'abschlag') await patch('auftraege', a.id, { status: 'Berechnet', amount: calcAng(A).net2 }); } catch (e) { /* Status der Baustelle bleibt */ }
     draft.confirmIssue = false;
     renderRe();
     toast('Rechnung ' + A.nr + ' gestellt');
@@ -2630,15 +2774,24 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
   async function payRe() {
     var A = draft.a; A.status = 'Bezahlt'; A.paidAt = today();
     if (!(await saveRe(false))) { A.status = 'Gestellt'; return; }
-    try { var a = auftrag(A.auftragId); if (a) await patch('auftraege', a.id, { status: 'Bezahlt' }); } catch (e) { /* Status der Baustelle bleibt */ }
+    try { var a = auftrag(A.auftragId); if (a && reType(A) !== 'abschlag') await patch('auftraege', a.id, { status: 'Bezahlt' }); } catch (e) { /* Status der Baustelle bleibt */ }
     renderRe(); toast('Als bezahlt markiert');
   }
   async function stornoRe(btn) {
     if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich stornieren?'; btn.classList.add('armed'); return; }
-    var A = draft.a, prev = A.status; A.status = 'Storniert'; A.stornoAt = today();
+    var A = draft.a, prev = A.status, neg = function (p) { return Object.assign({}, p, { qty: -(Number(p.qty) || 0) }); };
+    var S = JSON.parse(JSON.stringify(A)); delete S.id; delete S.mahn; delete S.paidAt; delete S.issuedAt;
+    S.type = 'storno'; S.nr = nextReNr(); S.date = today(); S.status = 'Storno'; S.stornoOf = draft.id; S.stornoOfNr = A.nr; S.stornoOfDate = A.date; S.stornoOfType = reType(A);
+    S.positions = (A.positions || []).map(neg); S.deduct = (A.deduct || []).map(function (x) { return Object.assign({}, x, { net: -x.net, vat: -x.vat, gross: -x.gross }); });
+    S.annex = false; S.due = today(); S.title = 'Storno zu ' + RE_LABEL[reType(A)] + ' ' + A.nr + (A.title ? ' – ' + A.title : '');
+    S.intro = 'Guten Tag,\n\nhiermit storniere ich meine ' + RE_LABEL[reType(A)] + ' ' + A.nr + ' vom ' + fdate(A.date) + ' vollständig.';
+    S.outro = prev === 'Bezahlt' ? 'Den bereits gezahlten Betrag erstatte ich Ihnen auf Ihr Konto.\n\nMit freundlichen Grüßen' : 'Die ursprüngliche Rechnung ist damit gegenstandslos. Bitte zahlen Sie sie nicht.\n\nMit freundlichen Grüßen';
+    var sid;
+    try { sid = await persist('rechnungen', null, S); } catch (e) { return formErr('Die Stornorechnung ließ sich nicht anlegen.'); }
+    A.status = 'Storniert'; A.stornoAt = today(); A.stornoBy = sid; A.stornoNr = S.nr;
     if (!(await saveRe(false))) { A.status = prev; return; }
     try { var a = auftrag(A.auftragId); if (a && (a.status === 'Berechnet' || (prev === 'Bezahlt' && a.status === 'Bezahlt'))) await patch('auftraege', a.id, { status: 'Abgenommen' }); } catch (e) { /* Status der Baustelle bleibt */ }
-    draft.confirm = false; renderRe(); toast('Rechnung storniert');
+    draft.confirm = false; toast('Stornorechnung ' + S.nr + ' erstellt'); openRechnung(sid);
   }
   async function delRe(btn) {
     if (!draft.id || draft.a.status !== 'Entwurf') return;
@@ -2647,24 +2800,25 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
   }
   function pdfReFile() {
     var A = draft.a;
-    saveBlob('Rechnung-' + safeName(A.nr || 'Entwurf') + '.pdf', pdfAng(A, setting('firma'), true, A.annex && A.amSnap ? A.amSnap : null));
+    saveBlob(RE_LABEL[reType(A)] + '-' + safeName(A.nr || 'Entwurf') + '.pdf', pdfAng(A, setting('firma'), true, A.annex && A.amSnap ? A.amSnap : null));
   }
   function renderRechnungen() {
     var el = $('#rechnungenList'), note = stateNote();
     if (note) { el.innerHTML = note; $('#rechnungenSum').textContent = ''; return; }
     var rows = state.data.rechnungen.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); });
-    var open = rows.filter(function (x) { return x.status === 'Gestellt'; });
+    var open = rows.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno'; });
     var late = open.filter(function (x) { return x.due && x.due < today(); });
-    $('#rechnungenSum').innerHTML = rows.length + (rows.length === 1 ? ' Rechnung' : ' Rechnungen') + ' · offen: <span class="num">' + money(sum(open, function (x) { return calcAng(x).gross; })) + '</span>' + (late.length ? ' · ' + late.length + ' überfällig' : '');
+    $('#rechnungenSum').innerHTML = rows.length + (rows.length === 1 ? ' Rechnung' : ' Rechnungen') + ' · offen: <span class="num">' + money(sum(open, payable)) + '</span>' + (late.length ? ' · ' + late.length + ' überfällig' : '');
     if (!rows.length) { el.innerHTML = '<div class="empty">Noch keine Rechnungen. Öffne unter „Baustellen & Materialeinkauf“ eine Baustelle und tippe auf „Rechnung“. Die Mengen kommen aus dem Aufmaß.</div>'; return; }
     el.innerHTML = rows.map(function (x) {
-      var cls = x.status === 'Bezahlt' ? 'good' : x.status === 'Storniert' ? 'bad' : x.status === 'Entwurf' ? 'warn' : '';
-      var c = calcAng(x), od = x.status === 'Gestellt' && x.due && x.due < today();
+      var cls = x.status === 'Bezahlt' ? 'good' : x.status === 'Storniert' || x.status === 'Storno' ? 'bad' : x.status === 'Entwurf' ? 'warn' : '';
+      var od = x.status === 'Gestellt' && x.due && x.due < today(), t = reType(x), nm = nextMahn(x), lm = (x.mahn || []).slice(-1)[0];
       return '<article class="row order" tabindex="0" role="button" data-edit="rechnungen:' + esc(x.id) + '">' +
-        '<div class="top1"><span class="vendor">' + esc(x.nr || 'Entwurf') + ' · ' + esc(x.name) + '</span><span class="num">' + money(c.gross) + '</span></div>' +
-        '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + (x.due ? ' · fällig ' + fdate(x.due) : '') + '</div>' +
-        '<div class="tools"><span class="badge ' + cls + '">' + esc(x.status) + '</span>' + (od ? '<span class="badge bad">überfällig</span>' : '') +
-        (x.status === 'Gestellt' || x.status === 'Bezahlt' ? '<button type="button" class="btn small danger" data-act="re-storno-list" data-id="' + esc(x.id) + '">Stornieren</button>' : '') + '</div></article>';
+        '<div class="top1"><span class="vendor">' + esc(x.nr || 'Entwurf') + ' · ' + esc(x.name) + '</span><span class="num">' + money(payable(x)) + '</span></div>' +
+        '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + (x.due && t !== 'storno' ? ' · fällig ' + fdate(x.due) : '') + '</div>' +
+        '<div class="tools"><span class="badge ' + cls + '">' + esc(x.status) + '</span>' + (t !== 'rechnung' ? '<span class="badge">' + RE_LABEL[t] + '</span>' : '') + (od ? '<span class="badge bad">überfällig</span>' : '') +
+        (lm ? '<span class="badge warn">' + MAHN_LABEL[lm.lvl] + ' ' + fdate(lm.date) + '</span>' : '') + (nm ? '<span class="badge bad">' + nm.label + ' fällig</span>' : '') +
+        ((x.status === 'Gestellt' || x.status === 'Bezahlt') && t !== 'storno' ? '<button type="button" class="btn small danger" data-act="re-storno-list" data-id="' + esc(x.id) + '">Stornieren</button>' : '') + '</div></article>';
     }).join('');
   }
 
@@ -2688,6 +2842,10 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'trip-calc') fillTrip(false);
       else if (act === 'site-calc') siteCalc();
       else if (act === 'timer') toggleTimer(a.dataset.id);
+      else if (act === 'abschlag') openRechnung(null, a.dataset.id, 'abschlag');
+      else if (act === 're-open') openRechnung(a.dataset.id);
+      else if (act === 'mahn-new') mahnNew();
+      else if (act === 'mahn-pdf') mahnPdf(Number(a.dataset.i));
       else if (act === 'hrs-add') hoursAdd();
       else if (act === 'hrs-del') { draft.hours.splice(Number(a.dataset.i), 1); renderHours(); }
       else if (act === 'sync-save') syncSave();

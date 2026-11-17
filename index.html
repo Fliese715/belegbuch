@@ -127,6 +127,11 @@ button, input, select { font: inherit; color: inherit; }
 .btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 .badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.nk { width: 100%; border-collapse: collapse; font-size: 14px; }
+.nk td { padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.nk td.num { text-align: right; white-space: nowrap; padding-left: 12px; }
+.nk tr.sum td { font-weight: 600; }
+.timer-on { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
 .badge.good { background: var(--good-soft); color: var(--good); border-color: transparent; }
 .badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .badge.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
@@ -1169,13 +1174,18 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     $('#remindBox').innerHTML = remind;
     $('#tiles').innerHTML =
       tile('Ausgaben ' + monthName(ym), money(sum(month, function (b) { return b.gross; })), month.length + ' Belege', 'month') +
-      tile('Vorsteuer ' + y, money(sum(year, function (b) { return vatPart(b.gross, b.vat); })), 'aus ' + year.length + ' Belegen', 'year') +
+      (isKlein() ? (function () {
+        var done = A.filter(function (a) { return a.kind === 'kunde' && hoursOf(a) > 0 && (a.date || '').indexOf(y) === 0; });
+        var hrs = sum(done, hoursOf), roh = sum(done, function (a) { return nachkalk(a).roh; });
+        return tile('Verdient je Stunde ' + y, hrs ? money(r2(roh / hrs)) : '–', hrs ? plural(done.length, 'Baustelle', 'Baustellen') + ' · ' + hm(hrs) + ' Std · Ziel ' + money(targetRate()) : 'Noch keine Arbeitszeit erfasst', 'run');
+      })() : tile('Vorsteuer ' + y, money(sum(year, function (b) { return vatPart(b.gross, b.vat); })), 'aus ' + year.length + ' Belegen', 'year')) +
       tile('Laufende Baustellen', String(running.length), offers.length + (offers.length === 1 ? ' Angebot offen' : ' Angebote offen'), 'run') +
       tile('Offene Rechnungen', money(sum(openInv, function (x) { return calcAng(x).gross; })), openInv.length + ' offen' + (lateInv.length ? ', ' + lateInv.length + ' überfällig' : ''), 'inv') +
       tile('Material-Fahrten ' + y, fmtQ(sum(year, function (b) { return Number(b.km) || 0; })) + ' km', plural(year.filter(function (b) { return Number(b.km) > 0; }).length, 'Fahrt', 'Fahrten') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(month, function (b) { return Number(b.km) || 0; })) + ' km', 'kmyear') +
       tile('Baustellen-Fahrten ' + y, fmtQ(sum(sitesY, siteKmTotal)) + ' km', plural(sitesY.filter(function (a) { return siteKmTotal(a) > 0; }).length, 'Baustelle', 'Baustellen') + ' · ' + monthName(ym).split(' ')[0] + ' ' + fmtQ(sum(sitesY.filter(function (a) { return (a.date || '').indexOf(ym) === 0; }), siteKmTotal)) + ' km', 'sitekm');
 
-    var todo = '', bd = backupDue();
+    var todo = '', bd = backupDue(), rt = runningTimer();
+    if (rt) todo += '<button type="button" data-act="timer" data-id="' + esc(rt.id) + '"><span>Zeit läuft: ' + esc(rt.title) + ' seit ' + clock(Number(rt.timer)) + '</span><span class="badge warn">■ Stoppen</span></button>';
     if (bd) todo += '<button type="button" data-act="goto-backup"><span>' + esc(bd) + '</span><span class="badge warn">Sichern</span></button>';
     if (late.length) todo += '<button type="button" data-act="goto-late"><span>' + late.length + (late.length === 1 ? ' Auftrag ist überfällig' : ' Aufträge sind überfällig') + '</span><span class="badge bad">Ansehen</span></button>';
     var toBill = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Abgenommen'; });
@@ -1234,7 +1244,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var note = stateNote();
     if (note) { $('#belegeList').innerHTML = note; $('#belegeSum').textContent = ''; return; }
     var rows = filteredBelege();
-    $('#belegeSum').innerHTML = rows.length + (rows.length === 1 ? ' Beleg' : ' Belege') + ' · brutto <span class="num">' + money(sum(rows, function (b) { return b.gross; })) + '</span> · Vorsteuer <span class="num">' + money(sum(rows, function (b) { return vatPart(b.gross, b.vat); })) + '</span>' + (function () { var km = sum(rows, function (b) { return Number(b.km) || 0; }); return km > 0 ? ' · Fahrten <span class="num">' + fmtQ(km) + ' km</span> (≈ ' + money(km * KM_RATE) + ' bei 0,30 €/km)' : ''; })();
+    $('#belegeSum').innerHTML = rows.length + (rows.length === 1 ? ' Beleg' : ' Belege') + (isKlein() ? ' · Summe <span class="num">' + money(sum(rows, function (b) { return b.gross; })) + '</span>' : ' · brutto <span class="num">' + money(sum(rows, function (b) { return b.gross; })) + '</span> · Vorsteuer <span class="num">' + money(sum(rows, function (b) { return vatPart(b.gross, b.vat); })) + '</span>') + (function () { var km = sum(rows, function (b) { return Number(b.km) || 0; }); return km > 0 ? ' · Fahrten <span class="num">' + fmtQ(km) + ' km</span> (≈ ' + money(km * KM_RATE) + ' bei 0,30 €/km)' : ''; })();
     if (!rows.length) {
       $('#belegeList').innerHTML = '<div class="empty">' + (state.data.belege.length ? 'Kein Beleg passt zu diesem Filter.' : 'Noch keine Belege. Tippe auf „+ Beleg“, gib Betrag und Lieferant ein und hänge das Foto an.') + '</div>';
       return;
@@ -1285,8 +1295,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }).join('');
     var rk = rows.filter(function (a) { return a.kind === 'kunde'; }), rl = rows.filter(function (a) { return a.kind === 'lieferant'; });
     var openInv = state.data.rechnungen.filter(function (x) { return x.status === 'Gestellt' && rk.some(function (a) { return a.id === x.auftragId; }); });
-    var sumK = rk.length + (rk.length === 1 ? ' Baustelle' : ' Baustellen') + ' · Auftragswert <span class="num">' + money(sum(rk, function (a) { return a.amount; })) + '</span> netto' + (openInv.length ? ' · offene Rechnungen <span class="num">' + money(sum(openInv, function (x) { return calcAng(x).gross; })) + '</span>' : '');
-    var sumL = rl.length + (rl.length === 1 ? ' Bestellung' : ' Bestellungen') + ' · Summe <span class="num">' + money(sum(rl, function (a) { return a.amount; })) + '</span> netto' + (rl.some(function (a) { return a.status !== 'Bezahlt'; }) ? ' · noch zu zahlen <span class="num">' + money(sum(rl.filter(function (a) { return a.status !== 'Bezahlt'; }), function (a) { return a.amount; })) + '</span> netto' : '');
+    var sumK = rk.length + (rk.length === 1 ? ' Baustelle' : ' Baustellen') + ' · Auftragswert <span class="num">' + money(sum(rk, function (a) { return a.amount; })) + '</span>' + NET() + (openInv.length ? ' · offene Rechnungen <span class="num">' + money(sum(openInv, function (x) { return calcAng(x).gross; })) + '</span>' : '');
+    var sumL = rl.length + (rl.length === 1 ? ' Bestellung' : ' Bestellungen') + ' · Summe <span class="num">' + money(sum(rl, function (a) { return a.amount; })) + '</span>' + NET() + (rl.some(function (a) { return a.status !== 'Bezahlt'; }) ? ' · noch zu zahlen <span class="num">' + money(sum(rl.filter(function (a) { return a.status !== 'Bezahlt'; }), function (a) { return a.amount; })) + '</span> netto' : '');
     $('#auftraegeSum').innerHTML = state.fa.kind === 'kunde' ? sumK : state.fa.kind === 'lieferant' ? sumL : rows.length + ' Einträge';
     if (!rows.length) {
       $('#auftraegeList').innerHTML = '<div class="empty">' + (state.data.auftraege.length ? (state.fa.kind === 'lieferant' ? 'Keine Bestellungen in dieser Ansicht.' : state.fa.kind === 'kunde' ? 'Keine Baustellen in dieser Ansicht.' : 'Kein Auftrag passt zu diesem Filter.') : 'Noch keine Aufträge. Tippe auf „+ Auftrag“, um den ersten anzulegen.') + '</div>';
@@ -1298,15 +1308,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var late = isOverdue(a);
       var opts = withCur(STAT[a.kind] || STAT.kunde, a.status).map(function (s) { return '<option' + (s === a.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
       var lb = links[a.id] || [];
-      var cost = sum(lb, function (b) { return b.gross - vatPart(b.gross, b.vat); });
       var area = Number(a.area) > 0 ? Number(a.area) : 0;
       var inv = a.kind === 'kunde' ? latestRechnung(a.id) : null;
       return '<article class="row order k-' + (a.kind === 'lieferant' ? 'lieferant' : 'kunde') + '" tabindex="0" role="button" data-edit="auftraege:' + esc(a.id) + '">' +
         '<div class="kindtag">' + (a.kind === 'lieferant' ? 'Bestellung bei Lieferant' : 'Baustelle · Kunde') + '</div>' +
-        '<div class="top1"><span class="vendor">' + esc(a.title) + '</span><span><span class="num">' + money(a.amount) + '</span> <span class="muted" style="font-size:12px">netto</span></span></div>' +
+        '<div class="top1"><span class="vendor">' + esc(a.title) + '</span><span><span class="num">' + money(a.amount) + '</span> <span class="muted" style="font-size:12px">' + NET() + '</span></span></div>' +
         '<div class="meta">' + esc(a.party) + (a.site ? ' · ' + esc(a.site) : '') + (a.kind === 'lieferant' ? ' · Materialbestellung' : '') + (area ? ' · ' + String(area).replace('.', ',') + ' m² · ' + money(a.amount / area) + '/m²' : '') + '</div>' +
-        (a.kind === 'kunde' && lb.length ? '<div class="meta">Kosten ' + money(cost) + ' netto · Rohertrag <span class="num">' + money(a.amount - cost) + '</span></div>' : '') +
-        '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : 'Rechnung') + '</button>' : '') +
+        (a.kind === 'kunde' ? nkLine(a) : '') +
+        '<div class="tools"><select data-status="' + esc(a.id) + '" aria-label="Status von ' + esc(a.title) + '">' + opts + '</select>' +
+          (a.kind === 'kunde' ? '<button type="button" class="btn small' + (Number(a.timer) > 0 ? ' timer-on' : '') + '" data-act="timer" data-id="' + esc(a.id) + '">' + (Number(a.timer) > 0 ? '■ Stopp (seit ' + clock(Number(a.timer)) + ')' : '▶ Zeit') + '</button>' : '') + (a.kind === 'kunde' ? '<button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Aufmaß</button><button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot öffnen' : 'Angebot') + '</button><button type="button" class="btn small" data-act="rechnung" data-id="' + esc(a.id) + '">' + (latestRechnung(a.id) ? 'Rechnung öffnen' : 'Rechnung') + '</button>' : '') +
         (a.due ? '<span class="badge ' + (late ? 'bad' : '') + '">' + 'Fällig ' + fdate(a.due) + (late ? ' · überfällig' : '') + '</span>' : '') +
         (a.status === 'Bezahlt' ? '<span class="badge good">bezahlt</span>' : '') + (siteKmTotal(a) > 0 ? '<span class="badge">Fahrten ' + fmtQ(siteKmTotal(a)) + ' km (' + Math.max(1, Math.round(Number(a.visits) || 1)) + '×)</span>' : '') +
         (lb.length ? '<span class="badge">' + lb.length + (lb.length === 1 ? ' Beleg' : ' Belege') + '</span>' : '') +
@@ -1319,6 +1329,86 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       $('#auftraegeList').innerHTML = (rk.length ? '<div class="grp-h"><span>Baustellen für Kunden</span><span>' + sumK.split(' · ')[0] + '</span></div>' + rk.map(card).join('') : '') +
         (rl.length ? '<div class="grp-h"><span>Meine Bestellungen bei Lieferanten</span><span>' + sumL.split(' · ')[0] + '</span></div>' + rl.map(card).join('') : '');
     } else $('#auftraegeList').innerHTML = rows.map(card).join('');
+  }
+
+  /* ---------- Arbeitszeit und Nachkalkulation je Baustelle ----------
+   * Arbeitszeit: auftraege.hours = [{d:'JJJJ-MM-TT', h:Stunden, note}], laufende Zeitmessung in
+   * auftraege.timer (Startzeit in ms, 0 = keine). Es läuft höchstens eine Zeitmessung gleichzeitig.
+   * Nachkalkulation: Erlös (Rechnung, sonst Auftragswert) minus Material (zugeordnete Belege) minus
+   * Fahrtkosten (Baustellen- und Einkaufsfahrten × km-Satz) = Rohertrag; geteilt durch die Stunden
+   * = verdient je Stunde, verglichen mit dem Stundensatz aus der Preisliste.
+   * Kleinunternehmer rechnen brutto: keine Umsatzsteuer auf Erlöse, keine Vorsteuer aus Belegen. */
+  function isKlein() { return !!setting('firma').kleinunt; }
+  /** ' netto' für Regelbesteuerte, '' für Kleinunternehmer (dort gibt es kein netto/brutto). */
+  function NET() { return isKlein() ? '' : ' netto'; }
+  function kmRate() { var r = Number(setting('preise').kmRate); return r > 0 ? r : KM_RATE; }
+  function targetRate() { var c = CATALOG.find(function (x) { return x.id === 'stunde'; }); return c ? priceFor(c) : 0; }
+  function hoursOf(a) { return r2(sum(a.hours || [], function (x) { return Number(x.h) || 0; })); }
+  function runningTimer() { return state.data.auftraege.find(function (a) { return Number(a.timer) > 0; }) || null; }
+  function hm(h) { var m = Math.round(h * 60); return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2); }
+  function clock(ms) { return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+  /** Rechnet eine Baustelle nach. @returns {{erloes:number, src:string, material:number, nBelege:number,
+   *  km:number, fahrt:number, roh:number, hours:number, perHour:?number, target:number}} */
+  function nachkalk(a) {
+    var inv = latestRechnung(a.id), klein = isKlein();
+    var erloes, src;
+    if (inv && (inv.status === 'Gestellt' || inv.status === 'Bezahlt')) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = 'Rechnung ' + (inv.nr || ''); }
+    else { erloes = Number(a.amount) || 0; src = 'Auftragswert (noch keine Rechnung)'; }
+    var lb = state.data.belege.filter(function (b) { return b.orderId === a.id; });
+    var material = sum(lb, function (b) { return klein ? b.gross : b.gross - vatPart(b.gross, b.vat); });
+    var km = siteKmTotal(a) + sum(lb, function (b) { return Number(b.km) || 0; });
+    var fahrt = r2(km * kmRate()), roh = r2(erloes - material - fahrt), hours = hoursOf(a);
+    return { erloes: r2(erloes), src: src, material: r2(material), nBelege: lb.length, km: r2(km), fahrt: fahrt, roh: roh, hours: hours, perHour: hours > 0 ? r2(roh / hours) : null, target: targetRate() };
+  }
+  /** Kurzzeile für die Baustellen-Karte. */
+  function nkLine(a) {
+    var n = nachkalk(a); if (!n.erloes && !n.material && !n.hours) return '';
+    var cls = n.perHour == null ? '' : n.perHour >= n.target ? 'good' : n.perHour >= n.target * 0.8 ? 'warn' : 'bad';
+    return '<div class="meta">Rohertrag <span class="num">' + money(n.roh) + '</span>' + (n.hours ? ' · ' + hm(n.hours) + ' Std · <span class="badge ' + cls + '">' + money(n.perHour) + ' je Std</span>' : ' · noch keine Stunden') + '</div>';
+  }
+  /** Ausführliche Nachkalkulation im Auftrags-Formular. */
+  function nkHtml(a) {
+    var n = nachkalk(a), rows = [
+      ['Erlös' + NET() + ' (' + n.src + ')', n.erloes],
+      ['− Material' + NET() + ' (' + plural(n.nBelege, 'Beleg', 'Belege') + ')', -n.material],
+      ['− Fahrtkosten (' + fmtQ(n.km) + ' km × ' + money(kmRate()) + ')', -n.fahrt]];
+    var h = '<table class="nk"><tbody>' + rows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td class="num">' + money(r[1]) + '</td></tr>'; }).join('') +
+      '<tr class="sum"><td>Rohertrag</td><td class="num">' + money(n.roh) + '</td></tr>' +
+      '<tr><td>Arbeitszeit</td><td class="num">' + (n.hours ? hm(n.hours) + ' Std' : '–') + '</td></tr>' +
+      '<tr class="sum"><td>Verdient je Stunde</td><td class="num">' + (n.perHour == null ? '–' : money(n.perHour)) + '</td></tr></tbody></table>';
+    if (n.perHour != null) {
+      var ok = n.perHour >= n.target;
+      h += '<p class="hint" style="margin:6px 0 0"><span class="badge ' + (ok ? 'good' : n.perHour >= n.target * 0.8 ? 'warn' : 'bad') + '">' + (ok ? 'über' : 'unter') + ' deinem Stundensatz von ' + money(n.target) + '</span> Der Stundensatz kommt aus der Preisliste („Stundenlohn Fliesenleger“).</p>';
+    } else h += '<p class="hint" style="margin:6px 0 0">Trage Arbeitszeit ein, dann zeigt die App, was du je Stunde verdient hast.</p>';
+    return h;
+  }
+  function renderHours() {
+    var box = $('#hoursBox'); if (!box || !draft) return;
+    var list = (draft.hours || []).slice().map(function (x, i) { return { x: x, i: i }; }).sort(function (p, q) { return (q.x.d || '').localeCompare(p.x.d || ''); });
+    box.innerHTML = (list.length ? '<table class="nk"><tbody>' + list.map(function (r) {
+      return '<tr><td>' + fdate(r.x.d) + (r.x.note ? ' · ' + esc(r.x.note) : '') + '</td><td class="num">' + hm(Number(r.x.h) || 0) + ' Std</td><td style="width:40px"><button type="button" class="btn small" data-act="hrs-del" data-i="' + r.i + '" aria-label="Eintrag vom ' + fdate(r.x.d) + ' löschen">×</button></td></tr>';
+    }).join('') + '<tr class="sum"><td>Summe</td><td class="num">' + hm(hoursOf(draft)) + ' Std</td><td></td></tr></tbody></table>' : '<p class="hint" style="margin:0">Noch keine Arbeitszeit eingetragen.</p>');
+    var nk = $('#nkBox'); if (nk && draft.id) { var a = auftrag(draft.id); if (a) nk.innerHTML = nkHtml(Object.assign({}, a, { hours: draft.hours })); }
+  }
+  function hoursAdd() {
+    var d = val('f-hd') || today(), h = parseNum(val('f-hh'));
+    if (!(h > 0 && h <= 24)) { formErr('Bitte Stunden zwischen 0 und 24 eintragen, zum Beispiel 7,5.'); return; }
+    draft.hours = (draft.hours || []).concat([{ d: d, h: Math.round(h * 100) / 100, note: val('f-hn') }]);
+    $('#f-hh').value = ''; $('#f-hn').value = ''; formErr(''); renderHours();
+  }
+  /** Startet oder stoppt die Zeitmessung einer Baustelle. Stoppen rundet auf die Viertelstunde (mind. ¼ Std). */
+  async function toggleTimer(id) {
+    var a = auftrag(id); if (!a) return;
+    try {
+      if (Number(a.timer) > 0) {
+        var h = Math.max(0.25, Math.round((Date.now() - Number(a.timer)) / 900000) / 4);
+        await patch('auftraege', id, { timer: 0, hours: (a.hours || []).concat([{ d: today(), h: h, note: clock(Number(a.timer)) + '–' + clock(Date.now()) }]) });
+        toast(hm(h) + ' Std eingetragen');
+      } else {
+        var run = runningTimer(); if (run && run.id !== id) await toggleTimer(run.id);
+        await patch('auftraege', id, { timer: Date.now() }); toast('Zeitmessung läuft');
+      }
+    } catch (e) { toast('Das ließ sich nicht speichern'); }
   }
 
   /* ---------- Ordner für PDF-Dateien ---------- */
@@ -1623,7 +1713,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Öffnet das Formular für Baustelle bzw. Materialbestellung. */
   function openAuftrag(id) {
     var a = id ? state.data.auftraege.find(function (x) { return x.id === id; }) : null;
-    draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [] };
+    draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [], hours: (a && a.hours || []).slice() };
     var v = a || { kind: state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde', party: '', title: '', site: '', area: '', amount: '', date: today(), due: addDays(today(), 14), terms: 14, status: STAT[state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde'][0], note: '' };
     var k = v.kind === 'lieferant' ? 'lieferant' : 'kunde';
     var terms = (v.terms !== undefined && v.terms !== null) ? v.terms : (v.due ? 'custom' : 14);
@@ -1638,17 +1728,23 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="field" id="siteWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-site">Baustelle / Adresse</label><input id="f-site" type="text" autocomplete="off" placeholder="z. B. Lindenweg 12, Bad EG" value="' + esc(v.site || '') + '"></div>' +
       '<div class="field trip" id="siteTripWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Fahrten zur Baustelle (optional)</span><div class="grid2 stack"><div class="field"><label for="f-skm">Strecke einfach (km)</label><input id="f-skm" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 12,5" value="' + (Number(v.siteKm) > 0 ? String(v.siteKm).replace('.', ',') : '') + '"></div><div class="field"><label for="f-svis">Anzahl Fahrten (hin und zurück)</label><input id="f-svis" type="text" inputmode="numeric" autocomplete="off" value="' + (Number(v.visits) > 0 ? Number(v.visits) : 1) + '"></div></div><p class="hint" id="siteTotal" style="margin:6px 0 0"></p><button type="button" class="btn small" data-act="site-calc" style="margin-top:8px">Strecke zur Baustelle ermitteln</button><p class="hint" id="siteMsg" style="margin-top:6px"></p></div>' +
       '<div id="kundeWrap"' + (k === 'kunde' ? '' : ' hidden') + '><div class="field"><label for="f-ckind">Kundenart</label><select id="f-ckind"><option value="firma"' + (v.ckind !== 'privat' ? ' selected' : '') + '>Firma</option><option value="privat"' + (v.ckind === 'privat' ? ' selected' : '') + '>Privatkunde</option></select></div><div class="field"><label for="f-email">E-Mail des Kunden</label><input id="f-email" type="text" inputmode="email" autocomplete="off" value="' + esc(v.email || '') + '"></div><div class="field"><label for="f-addr">Rechnungsadresse</label><input id="f-addr" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.address || '') + '"></div></div>' +
-      '<div class="grid2 stack"><div class="field"><label for="f-amount" id="amountLbl">' + (k === 'kunde' ? 'Auftragswert netto (€)' : 'Betrag netto (€)') + '</label><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="' + (a ? de(v.amount) : '') + '"></div>' +
+      '<div class="grid2 stack"><div class="field"><label for="f-amount" id="amountLbl">' + (k === 'kunde' ? 'Auftragswert' + NET() + ' (€)' : 'Betrag' + NET() + ' (€)') + '</label><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="' + (a ? de(v.amount) : '') + '"></div>' +
       '<div class="field" id="areaWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-area">Fläche (m²)</label><input id="f-area" type="text" inputmode="decimal" placeholder="optional" autocomplete="off" value="' + (Number(v.area) > 0 ? String(v.area).replace('.', ',') : '') + '"></div></div>' +
       '<div class="grid2 stack"><div class="field"><label for="f-date">Datum</label><input id="f-date" type="date" value="' + esc(v.date) + '"></div>' +
       '<div class="field"><label for="f-terms">Zahlungsziel</label><select id="f-terms">' + options([0, 7, 14, 30, 60, 'custom'], terms, termLabel) + '</select></div></div>' +
       '<div class="grid2 stack"><div class="field"><label for="f-status">Status</label><select id="f-status">' + options(withCur(STAT[k], v.status), v.status) + '</select></div>' +
       '<div class="field"><label for="f-due">Fällig am</label><input id="f-due" type="date" value="' + esc(v.due) + '"></div></div>' +
       '<div class="field"><label for="f-note">Notiz</label><input id="f-note" type="text" autocomplete="off" value="' + esc(v.note) + '"></div>' +
+      '<div class="field trip" id="hoursWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Arbeitszeit</span><div id="hoursBox"></div>' +
+      '<div class="grid2 stack" style="margin-top:8px"><div class="field"><label for="f-hd">Tag</label><input id="f-hd" type="date" value="' + today() + '"></div><div class="field"><label for="f-hh">Stunden</label><input id="f-hh" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 7,5"></div></div>' +
+      '<div class="field"><label for="f-hn">Notiz zur Zeit (optional)</label><input id="f-hn" type="text" autocomplete="off" placeholder="z. B. Abdichtung"></div>' +
+      '<button type="button" class="btn small" data-act="hrs-add">+ Zeit eintragen</button></div>' +
+      (a && k === 'kunde' ? '<div class="field trip"><span class="lbl">Nachkalkulation</span><div id="nkBox"></div></div>' : '') +
       '<p class="err" id="formErr" role="alert"></p>' +
       '<div class="actions">' + (a ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>'
     );
+    renderHours();
   }
 
   function formErr(msg) { var e = $('#formErr'); if (e) e.textContent = msg; return false; }
@@ -1678,6 +1774,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       obj = { kind: val('f-kind'), title: val('f-title'), party: val('f-party'), amount: Math.round(amount * 100) / 100, status: val('f-status'), site: val('f-kind') === 'kunde' ? val('f-site') : '', email: val('f-kind') === 'kunde' ? val('f-email') : '', ckind: val('f-kind') === 'kunde' ? val('f-ckind') : '', address: val('f-kind') === 'kunde' ? val('f-addr') : '', area: val('f-kind') === 'kunde' && parseNum(val('f-area')) > 0 ? parseNum(val('f-area')) : '', date: val('f-date'), terms: val('f-terms') === 'custom' ? 'custom' : Number(val('f-terms')), due: val('f-due'), note: val('f-note') };
       if (val('f-kind') === 'kunde' && parseNum(val('f-skm')) > 0) { obj.siteKm = Math.round(parseNum(val('f-skm')) * 10) / 10; obj.visits = Math.max(1, Math.round(parseNum(val('f-svis')) || 1)); }
       var prevA = draft.id ? auftrag(draft.id) : null; if (prevA && prevA.aufmass) obj.aufmass = prevA.aufmass;
+      if (obj.kind === 'kunde' && draft.hours && draft.hours.length) obj.hours = draft.hours;
+      if (prevA && Number(prevA.timer) > 0) obj.timer = prevA.timer;
     }
     var btn = $('#form [data-act="save"]'); if (btn) btn.disabled = true;
     try {
@@ -1885,6 +1983,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<h3 class="section-h">Meine Strecken</h3>' +
       '<p class="hint" style="margin-bottom:6px">Deine echten Entfernungen, einfache Fahrt ab Zuhause. Eine Zeile je Ort, zum Beispiel „Stralsund = 11“. Diese Werte gehen allen Schätzungen vor. Hin und zurück rechnet die App selbst.</p>' +
       '<div class="field"><textarea id="s-strecken" rows="5" aria-label="Meine Strecken" placeholder="Stralsund = 11&#10;Prohn = 25">' + esc(setting('strecken').text || '') + '</textarea></div>' +
+      '<div class="field"><label for="s-kmrate">Fahrtkosten je km für die Nachkalkulation (€)</label><input id="s-kmrate" type="text" inputmode="decimal" autocomplete="off" value="' + de(kmRate()) + '"></div>' +
       '<h3 class="section-h">Ortsübliche Preise</h3>' +
       '<p class="hint">Die Richtwerte sind bundesweite Netto-Durchschnittswerte aus Ratgebern (Stand 2024 bis 2026), keine Preise für deinen Ort. Mit dem Regionalfaktor und eigenen Preisen passt du sie an. Dein eigener Preis hat immer Vorrang. Quellen: ' +
       '<a href="https://www.aroundhome.de/fliesenlegen/preise-kosten" target="_blank" rel="noopener">aroundhome</a>, ' +
@@ -1911,7 +2010,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try {
       await persist('settings', 'firma', firma);
       await persist('settings', 'strecken', { text: String($('#s-strecken').value || '') });
-      await persist('settings', 'preise', { region: region, own: own, ownPrivat: ownP });
+      var kr = parseNum(val('s-kmrate'));
+      await persist('settings', 'preise', { region: region, own: own, ownPrivat: ownP, kmRate: kr > 0 ? r2(kr) : KM_RATE });
       await closeSheet(false);
       toast('Gespeichert');
     } catch (e) { formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
@@ -2587,6 +2687,9 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'delete') del(a);
       else if (act === 'trip-calc') fillTrip(false);
       else if (act === 'site-calc') siteCalc();
+      else if (act === 'timer') toggleTimer(a.dataset.id);
+      else if (act === 'hrs-add') hoursAdd();
+      else if (act === 'hrs-del') { draft.hours.splice(Number(a.dataset.i), 1); renderHours(); }
       else if (act === 'sync-save') syncSave();
       else if (act === 'backup-save') backupSave();
       else if (act === 'ocr-again') { if (draft && draft.photoId) idbGet('files', draft.photoId).then(function (rec) { if (rec) ocrBeleg(rec.blob, draft.photoKind === 'pdf'); }); }
@@ -2724,7 +2827,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       var kd = t.value === 'kunde';
       $('#partyLbl').textContent = kd ? 'Kunde' : 'Händler / Lieferant';
       $('#amountLbl').textContent = kd ? 'Auftragswert netto (€)' : 'Betrag netto (€)';
-      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
+      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#hoursWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
     }
     else if (draft && draft.coll === 'auftraege' && (t.id === 'f-date' || t.id === 'f-terms')) {
       var tm = $('#f-terms').value;

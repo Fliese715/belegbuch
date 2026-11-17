@@ -37,6 +37,11 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Wiederherstellen ersetzt den ganzen Bestand (`restoreApply()`), der Stand davor bleibt einmal
   rückholbar. In „Zu erledigen“ erscheint ein Hinweis, wenn die Sicherung fehlt oder älter als
   drei Tage ist und es seitdem Änderungen gab.
+- **Arbeitszeit und Nachkalkulation:** Stunden je Baustelle (Formular oder Zeitmessung „▶ Zeit“,
+  gerundet auf ¼ Std). `nachkalk()` rechnet Erlös (gestellte Rechnung, sonst Auftragswert) minus
+  Material (zugeordnete Belege) minus Fahrtkosten (km × Satz aus „Firma und Preise“) = Rohertrag,
+  geteilt durch die Stunden = verdient je Stunde, verglichen mit dem Stundensatz der Preisliste.
+  Kleinunternehmer (`isKlein()`) rechnen durchgehend brutto, ohne Vorsteuer.
 - **Dateien (Fotos, PDFs):** in der Web-App als Blob in IndexedDB (`addFile()`, `fileSrc()`), in der
   Claude-Fassung in deren Datei-Ablage. Sicherungs- und Abgleich-Dateien enthalten alle Dateien,
   auf die ein Dokument verweist (Base64, `filesForExport()` / `importFiles()`).

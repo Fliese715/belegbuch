@@ -60,6 +60,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **E-Rechnungen lesen:** `parseEInvoice()` für XRechnung (UBL) und CII/ZUGFeRD, bei PDFs zuerst der
   eingebettete XML-Anhang über pdf.js (`pdfXml()`), sonst Texterkennung.
 - **Jahresübersicht:** `jahrData()` in der Übersicht und als PDF, mit Kleinunternehmer-Grenzen.
+- **Termine:** Sammlung `termine` (Datum, Uhrzeit, Ort, Baustelle, Erinnerung). Liste in „Termine & Erledigen“
+  neben der Belege-Erinnerung; Export als ICS-Datei (mit Alarmen) oder Google-Kalender-Link. Push-Erinnerungen
+  kommen von zwei geplanten Aufgaben bei Claude, die die Artifact-Datenbank lesen: 21 Uhr (Belege + Termine
+  von morgen) und 6:40 Uhr (Termine von heute).
 - **Bauverzögerungen und Ausfallzeiten:** `auftraege.delays`, `endPlan`, `vob`; neuer Termin = geplanter
   Termin + Arbeitstage (Mo–Fr ohne gesetzliche Feiertage des Bundeslands, `holidays()`) der
   Verzögerungen (`endNow()`), Behinderungsanzeige

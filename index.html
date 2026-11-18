@@ -195,6 +195,16 @@ canvas.sig { display: block; width: 100%; max-width: 420px; height: 130px; backg
 .tile .sub { font-size: 13px; color: var(--muted); }
 .section-h { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin: 22px 0 10px; }
 .todo { display: flex; flex-direction: column; gap: 8px; }
+.row.term { border-left: 5px solid var(--fab); }
+.row.term.today { background: var(--accent-soft, var(--surface)); }
+.row.term .when { font-weight: 600; color: var(--fab); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tile.termtile { cursor: default; padding: 8px 12px; margin-top: 8px; border-left: 5px solid var(--line); }
+.tile.termtile.on { border-left-color: var(--fab); }
+.past { margin-top: 10px; }
+.past summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; }
+.past .list { opacity: .75; }
+.calrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.calrow a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .todo button { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; min-height: 48px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
 .todo .ok { padding: 12px 14px; background: var(--good-soft); color: var(--good); border-radius: 10px; }
 .bars { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
@@ -341,7 +351,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     </section>
 
     <section id="v-erledigen" hidden>
-      <div class="tiles" id="remindBox" style="margin-bottom:12px"></div>
+      <div class="tiles" id="remindBox" style="margin-bottom:4px"></div>
+      <h2 class="section-h">Termine</h2>
+      <div id="termBox"></div>
+      <h2 class="section-h">Aufgaben</h2>
       <div class="todo" id="todo"></div>
     </section>
 
@@ -502,6 +515,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    *   angebote    Kopf + positions[] (text, qty, unit, price, art) – siehe calcAng()
    *   rechnungen  wie angebote, dazu nr (erst bei „Rechnung stellen“), status, amSnap
    *   dokumente   name, date, note, fileId (PDF-Ordner)
+   *   termine     title, date, time ('HH:MM' oder leer = ganztägig), place, auftragId, note,
+   *               remind ('beides'|'abend'|'morgen'|'keine') – siehe Abschnitt „Termine“
    *   settings    Einzeldokumente: firma, preise, richtwerte, strecken, erinnerung, ordner,
    *               geloescht {map: {'<sammlung>/<id>': zeit}} = Löschmarken für den Abgleich
    *
@@ -525,8 +540,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   var TABS = ['menu', 'erledigen', 'uebersicht', 'belege', 'auftraege', 'rechnungen', 'kunden', 'ordner', 'angebote', 'sicherung'];
   var state = {
     tab: 'menu',
-    data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [], kunden: [], abwesenheit: [] },
-    loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false, kunden: false, abwesenheit: false },
+    data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [], kunden: [], abwesenheit: [], termine: [] },
+    loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false, kunden: false, abwesenheit: false, termine: false },
     fb: { month: 'all', cat: 'all', q: '', nophoto: false },
     fa: { kind: 'kunde', open: true },
     slow: false, err: false
@@ -583,7 +598,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- 2 Speicher: Konto-Datenbank, sonst nur dieser Browser ---------- */
-  var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente', 'kunden', 'abwesenheit'];
+  var COLS = ['belege', 'auftraege', 'angebote', 'rechnungen', 'settings', 'dokumente', 'kunden', 'abwesenheit', 'termine'];
   /** Schreibt alle Sammlungen in localStorage (nur Betriebsart 'local'). */
   function saveLocal() {
     try { COLS.forEach(function (c) { localStorage.setItem('belegbuch:' + c, JSON.stringify(state.data[c])); }); } catch (e) { /* ohne Speicher gehen Daten beim Schließen verloren */ }
@@ -1274,11 +1289,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     TABS.forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
-    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : state.tab === 'kunden' ? '+ Kunde' : '+ Beleg';
-    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : 'beleg';
-    $('#fab').hidden = ['belege', 'auftraege', 'kunden'].indexOf(state.tab) < 0;
+    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : state.tab === 'kunden' ? '+ Kunde' : state.tab === 'erledigen' ? '+ Termin' : '+ Beleg';
+    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : state.tab === 'erledigen' ? 'termin' : 'beleg';
+    $('#fab').hidden = ['belege', 'auftraege', 'kunden', 'erledigen'].indexOf(state.tab) < 0;
     $('#backBtn').hidden = state.tab === 'menu';
-    var T = { menu: 'FFH Bau und Büro', erledigen: 'Zu erledigen', uebersicht: 'Zahlen & Auswertung', belege: 'Kosten & Fahrten', auftraege: 'Baustellen & Material', rechnungen: 'Rechnungen & Angebote', angebote: 'Rechnungen & Angebote', kunden: 'Kunden', ordner: ordnerTitle(), sicherung: 'Datensicherung' };
+    var T = { menu: 'FFH Bau und Büro', erledigen: 'Termine & Erledigen', uebersicht: 'Zahlen & Auswertung', belege: 'Kosten & Fahrten', auftraege: 'Baustellen & Material', rechnungen: 'Rechnungen & Angebote', angebote: 'Rechnungen & Angebote', kunden: 'Kunden', ordner: ordnerTitle(), sicherung: 'Datensicherung' };
     $('#pageTitle').textContent = T[state.tab] || 'FFH Bau und Büro';
     document.querySelectorAll('#v-rechnungen .seg button, #v-angebote .seg button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.tab === state.tab)); });
   }
@@ -1308,6 +1323,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var sitesY = A.filter(function (a) { return a.kind === 'kunde' && (a.date || '').indexOf(y) === 0; });
     var doneToday = setting('erinnerung').done === today(), nToday = B.filter(function (b) { return b.date === today(); }).length;
     var remind = '<button type="button" class="tile go wide remind' + (doneToday ? ' done' : '') + '" data-act="ov" data-go="remind" aria-pressed="' + doneToday + '"><div class="t1">' + (doneToday ? '✓ Belege-Erinnerung erledigt' : 'Belege eingeben – noch offen') + '</div><div class="t2">' + (nToday ? nToday + (nToday === 1 ? ' Beleg' : ' Belege') + ' heute' : 'Noch kein Beleg heute') + ' · ' + (doneToday ? 'Tippen: zurücknehmen' : 'Tippen: abhaken') + '</div></button>';
+    var tmw = termineOn(addDays(today(), 1)), tdy = termineOn(today()).filter(function (t) { return !t.time || t.time >= nowHM(); });
+    remind += '<div class="tile wide termtile' + (tdy.length ? ' on' : '') + '"><div class="t1" style="font-size:14px;font-weight:600">' + (tdy.length ? 'Heute noch: ' + tdy.map(termShort).join(', ') : 'Heute keine Termine mehr') + '</div><div class="t2" style="font-size:12px;color:var(--muted)">' + (tmw.length ? 'Morgen: ' + tmw.map(termShort).join(', ') : 'Morgen keine Termine') + ' · kommt auch in der Abend-Erinnerung um 21 Uhr</div></div>';
     $('#remindBox').innerHTML = remind;
     $('#tiles').innerHTML =
       tile('Ausgaben ' + monthName(ym), money(sum(month, function (b) { return b.gross; })), month.length + ' Belege', 'month') +
@@ -1913,6 +1930,102 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     catch (e) { toast('Das ließ sich nicht speichern'); }
   }
 
+  /* ---------- Termine ----------
+   * termine: title, date, time ('HH:MM', leer = ganztägig), place, auftragId (Baustelle), note,
+   * remind: 'beides' (Vorabend 21 Uhr + Morgen 6:40) | 'abend' | 'morgen' | 'keine'.
+   * Die Push-Erinnerung kommt von zwei geplanten Aufgaben bei Claude, die die Datenbank des
+   * Artifacts lesen: abends um 21 Uhr zusammen mit der Belege-Erinnerung (Termine von morgen),
+   * morgens um 6:40 (Termine von heute). In der installierten App ohne Claude-Datenbank
+   * übernimmt der Handy-Kalender die Erinnerung (ICS-Datei oder Google-Kalender-Link). */
+  var WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  var REMIND = { beides: 'Vorabend 21 Uhr und am Morgen', abend: 'Nur am Vorabend um 21 Uhr', morgen: 'Nur am Morgen um 6:40', keine: 'Keine Erinnerung' };
+  function wdOf(iso) { var p = iso.split('-'); return WD[new Date(+p[0], p[1] - 1, +p[2], 12).getDay()]; }
+  function nowHM() { var d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function termSort(a, b) { return (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')); }
+  function termineOn(iso) { return state.data.termine.filter(function (t) { return t.date === iso; }).sort(termSort); }
+  function upcomingTermine() { var t0 = today(), hm = nowHM(); return state.data.termine.filter(function (t) { return t.date > t0 || (t.date === t0 && (!t.time || t.time >= hm)); }).sort(termSort); }
+  /** „Heute · 8:00 Uhr“, „Morgen“, „Do 19.11.2026 · 7:30 Uhr“; kurz = ohne Jahr und „Uhr“. */
+  function termWhen(t, short) {
+    var d = t.date === today() ? 'Heute' : t.date === addDays(today(), 1) ? 'Morgen' : wdOf(t.date) + ' ' + (short ? fdate(t.date).slice(0, 6) : fdate(t.date));
+    return d + (t.time ? (short ? ' ' : ' · ') + t.time.replace(/^0/, '') + (short ? '' : ' Uhr') : '');
+  }
+  function termShort(t) { return (t.time ? t.time.replace(/^0/, '') + ' ' : '') + t.title; }
+  function termRow(t) {
+    var a = t.auftragId ? auftrag(t.auftragId) : null;
+    return '<article class="row order term' + (t.date === today() ? ' today' : '') + '" tabindex="0" role="button" data-edit="termine:' + esc(t.id) + '"><div class="top1"><span class="vendor">' + esc(t.title) + '</span><span class="when">' + esc(termWhen(t, true)) + '</span></div>' +
+      '<div class="meta">' + [t.place, a ? 'Baustelle ' + a.title : '', t.note].filter(Boolean).map(esc).join(' · ') + (t.remind === 'keine' ? (t.place || a || t.note ? ' · ' : '') + 'ohne Erinnerung' : '') + '</div></article>';
+  }
+  function renderTermine() {
+    var box = $('#termBox'); if (!box) return;
+    var up = upcomingTermine(), t0 = today();
+    var past = state.data.termine.filter(function (t) { return up.indexOf(t) < 0; }).sort(termSort).reverse().slice(0, 30);
+    box.innerHTML = (up.length ? '<div class="list">' + up.map(termRow).join('') + '</div>' : '<div class="empty">Keine anstehenden Termine. Tippe oben auf „+ Termin“.</div>') +
+      (past.length ? '<details class="past"><summary>Vergangene Termine (' + past.length + ')</summary><div class="list">' + past.map(termRow).join('') + '</div></details>' : '') +
+      (mode === 'local' ? '<p class="hint" style="margin:8px 0 0">Die Push-Erinnerung von Claude kennt nur Termine aus der Claude-App. Hier eingetragene Termine übernimmst du im Termin mit „In den Kalender“ in deinen Handy-Kalender, der erinnert dich dann auch ohne Internet.</p>' : '');
+  }
+  /** Hinweis im Formular: Wochenende, Feiertag, eingetragener Urlaub oder Krankheit. */
+  function termWarn() {
+    var el = $('#t-warn'), d = val('t-date'); if (!el) return;
+    if (!d) { el.textContent = ''; return; }
+    var p = d.split('-'), w = new Date(+p[0], p[1] - 1, +p[2], 12).getDay(), msg = [];
+    var h = holidayName(d); if (h) msg.push('Feiertag: ' + h);
+    if (w === 0 || w === 6) msg.push(w === 0 ? 'Sonntag' : 'Samstag');
+    state.data.abwesenheit.forEach(function (x) { if (x.from <= d && d <= (x.to || x.from)) msg.push((ABS_LABEL[x.type] || 'Ausfall') + ' eingetragen'); });
+    if (d < today()) msg.push('liegt in der Vergangenheit');
+    var same = state.data.termine.filter(function (t) { return t.date === d && (!draft || t.id !== draft.id); });
+    if (same.length) msg.push('an dem Tag schon: ' + same.map(termShort).join(', '));
+    el.textContent = msg.length ? 'Achtung: ' + msg.join(' · ') : '';
+  }
+  function openTermin(id) {
+    var t = id ? state.data.termine.find(function (x) { return x.id === id; }) : null;
+    var v = t || { title: '', date: addDays(today(), 1), time: '', place: '', auftragId: '', remind: 'beides', note: '' };
+    draft = { coll: 'termine', id: id || null, confirm: false, uploaded: [] };
+    var sites = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && (a.status !== 'Bezahlt' || a.id === v.auftragId); }).sort(function (a, b) { return String(a.title).localeCompare(String(b.title), 'de'); });
+    showSheet('<h2 id="sheetTitle">' + (t ? 'Termin bearbeiten' : 'Neuer Termin') + '</h2><form id="form" novalidate>' +
+      '<div class="field"><label for="t-title">Was</label><input id="t-title" type="text" autocomplete="off" placeholder="z. B. Aufmaß, Besichtigung, Material abholen" value="' + esc(v.title) + '"></div>' +
+      '<div class="grid2"><div class="field"><label for="t-date">Datum</label><input id="t-date" type="date" value="' + esc(v.date) + '"></div><div class="field"><label for="t-time">Uhrzeit (leer = ganztägig)</label><input id="t-time" type="time" value="' + esc(v.time || '') + '"></div></div>' +
+      '<p class="hint" id="t-warn" style="margin:-4px 0 10px;color:var(--warn)"></p>' +
+      '<div class="field"><label for="t-auf">Baustelle (optional)</label><select id="t-auf"><option value="">– keine –</option>' + sites.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === v.auftragId ? ' selected' : '') + '>' + esc(a.title + (a.party ? ' · ' + a.party : '')) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="t-place">Ort</label><input id="t-place" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.place || '') + '"></div>' +
+      '<div class="field"><label for="t-remind">Erinnerung aufs Handy</label><select id="t-remind">' + Object.keys(REMIND).map(function (k) { return '<option value="' + k + '"' + ((v.remind || 'beides') === k ? ' selected' : '') + '>' + REMIND[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="t-note">Notiz</label><input id="t-note" type="text" autocomplete="off" value="' + esc(v.note || '') + '"></div>' +
+      (t ? '<div class="field"><span class="lbl">In den Kalender</span><div class="calrow"><button type="button" class="btn small" data-act="term-ics" data-id="' + esc(t.id) + '">Kalender-Datei (.ics)</button><a class="btn small" href="' + esc(termGoogle(t)) + '" target="_blank" rel="noopener">Google Kalender</a></div><p class="hint" style="margin:6px 0 0">Damit erinnert dich auch der Kalender deines Handys oder Laptops.</p></div>' : '') +
+      '<p class="err" id="formErr" role="alert"></p><div class="actions">' + (t ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
+      '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>');
+    termWarn();
+  }
+  /* Kalender-Export. Zeiten als UTC (das Gerät läuft in deutscher Zeit), damit jeder Kalender sie gleich liest. */
+  function termStart(t) { var p = t.date.split('-'), h = (t.time || '00:00').split(':'); return new Date(+p[0], p[1] - 1, +p[2], +h[0], +h[1]); }
+  function utcStamp(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  function icsText(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+  function termIcsText(t) {
+    var st = termStart(t), a = t.auftragId ? auftrag(t.auftragId) : null, desc = [a ? 'Baustelle: ' + a.title : '', t.note].filter(Boolean).join('\n');
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FFH Bau und Buero//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', 'UID:' + t.id + '@ffh-bau-buero', 'DTSTAMP:' + utcStamp(new Date())];
+    if (t.time) L.push('DTSTART:' + utcStamp(st), 'DTEND:' + utcStamp(new Date(st.getTime() + 3600000)));
+    else L.push('DTSTART;VALUE=DATE:' + t.date.replace(/-/g, ''), 'DTEND;VALUE=DATE:' + addDays(t.date, 1).replace(/-/g, ''));
+    L.push('SUMMARY:' + icsText(t.title)); if (t.place) L.push('LOCATION:' + icsText(t.place)); if (desc) L.push('DESCRIPTION:' + icsText(desc));
+    var p = t.date.split('-'), alarm = function (d, txt) { L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(txt), 'TRIGGER;VALUE=DATE-TIME:' + utcStamp(d), 'END:VALARM'); };
+    if (t.remind !== 'keine') {
+      if (t.remind !== 'morgen') alarm(new Date(+p[0], p[1] - 1, +p[2] - 1, 21, 0), 'Morgen: ' + t.title);
+      if (t.remind !== 'abend') alarm(new Date(+p[0], p[1] - 1, +p[2], 6, 40), 'Heute: ' + t.title);
+      if (t.time) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(t.title), 'TRIGGER:-PT1H', 'END:VALARM');
+    }
+    L.push('END:VEVENT', 'END:VCALENDAR');
+    return L.join('\r\n') + '\r\n';
+  }
+  function termGoogle(t) {
+    var st = termStart(t), a = t.auftragId ? auftrag(t.auftragId) : null;
+    var dates = t.time ? utcStamp(st) + '/' + utcStamp(new Date(st.getTime() + 3600000)) : t.date.replace(/-/g, '') + '/' + addDays(t.date, 1).replace(/-/g, '');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(t.title) + '&dates=' + dates + '&ctz=Europe/Berlin' +
+      (t.place ? '&location=' + encodeURIComponent(t.place) : '') + '&details=' + encodeURIComponent([a ? 'Baustelle: ' + a.title : '', t.note].filter(Boolean).join('\n'));
+  }
+  async function termIcs(id) {
+    var t = state.data.termine.find(function (x) { return x.id === id; }); if (!t) return;
+    var name = 'termin-' + t.date + '-' + String(t.title).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '.ics';
+    try { await saveFile(name, termIcsText(t), 'text/calendar'); toast('Kalender-Datei gespeichert – öffne sie, um den Termin zu übernehmen'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('Speichern ging nicht'); }
+  }
+
   /* ---------- Ordner für PDF-Dateien ---------- */
   function ordnerTitle() { return String(setting('ordner').name || '').trim() || 'Verträge / PDF'; }
   function renderOrdner() {
@@ -1937,7 +2050,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    * Neun Kacheln, je eine Kurzinfo darunter; die rote Zahl zeigt offene Punkte. Jede Kachel öffnet
    * einen Bereich; „‹ Menü“ oben links und die Zurück-Geste führen zurück. */
   var ICONS = {
-    erledigen: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.5 1.5L8 4.5M3.5 12l1.5 1.5L8 10.5M3.5 18l1.5 1.5L8 16.5"/>',
+    erledigen: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M8.5 14.5l2.2 2.2 4.8-4.8"/>',
     belege: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
     auftraege: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
     rechnungen: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>',
@@ -1954,9 +2067,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var monthB = B.filter(function (b) { return (b.date || '').indexOf(ym) === 0; });
     var run = A.filter(function (a) { return a.kind === 'kunde' && (a.status === 'Beauftragt' || a.status === 'In Arbeit'); }).length;
     var open = R.filter(function (x) { return x.status === 'Gestellt' && reType(x) !== 'storno'; }), late = open.filter(function (x) { return x.due && x.due < today(); }).length;
-    var lb = lastBackup();
+    var lb = lastBackup(), nextT = upcomingTermine()[0];
     var items = [
-      ['erledigen', 'Zu erledigen', nTodo ? plural(nTodo, 'Punkt offen', 'Punkte offen') : 'alles erledigt', nTodo],
+      ['erledigen', 'Termine & Erledigen', (nextT ? 'nächster: ' + termWhen(nextT, true) : 'keine Termine') + (nTodo ? ' · ' + nTodo + ' offen' : ''), nTodo],
       ['belege', 'Kosten & Fahrten', plural(monthB.length, 'Beleg', 'Belege') + ' im ' + monthName(ym).split(' ')[0]],
       ['auftraege', 'Baustellen & Material', run + ' laufend'],
       ['rechnungen', 'Rechnungen & Angebote', open.length ? open.length + ' offen' + (late ? ', ' + late + ' überfällig' : '') : 'nichts offen', late],
@@ -1975,7 +2088,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
   function render() {
     renderMode(); renderBanner(); renderTabs();
-    renderOverview(); renderJahr(); renderAbsenz(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderKunden(); renderOrdner(); renderSync(); renderMenu();
+    renderOverview(); renderJahr(); renderAbsenz(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderKunden(); renderTermine(); renderOrdner(); renderSync(); renderMenu();
   }
 
   /* ---------- 5 Formulare ---------- */
@@ -2310,6 +2423,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (!val('k-name')) return formErr('Bitte den Namen eintragen.');
       var dup = kundeByName(val('k-name')); if (dup && dup.id !== draft.id) return formErr('Diesen Kunden gibt es schon.');
       obj = { name: val('k-name'), ckind: val('k-ckind'), address: val('k-addr'), phone: val('k-phone'), email: val('k-email'), note: val('k-note') };
+    } else if (draft.coll === 'termine') {
+      if (!val('t-title')) return formErr('Bitte eintragen, worum es geht.');
+      if (!val('t-date')) return formErr('Bitte ein Datum angeben.');
+      obj = { title: val('t-title'), date: val('t-date'), time: val('t-time'), place: val('t-place'), auftragId: val('t-auf'), remind: val('t-remind') || 'beides', note: val('t-note') };
     } else if (draft.coll === 'belege') {
       var gross = parseNum(val('f-gross'));
       if (!val('f-date')) return formErr('Bitte ein Datum angeben.');
@@ -2523,7 +2640,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       .sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); })[0];
   }
   function openEdit(kind, id) {
-    if (kind === 'belege') openBeleg(id); else if (kind === 'angebote') openAngebot(id); else if (kind === 'rechnungen') openRechnung(id); else if (kind === 'kunden') openKunde(id); else openAuftrag(id);
+    if (kind === 'belege') openBeleg(id); else if (kind === 'angebote') openAngebot(id); else if (kind === 'rechnungen') openRechnung(id); else if (kind === 'kunden') openKunde(id); else if (kind === 'termine') openTermin(id); else openAuftrag(id);
   }
   function posBadge(p, rid) {
     var c = p.katId && catItem(p.katId); if (!c) return '';
@@ -3448,7 +3565,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (a) {
       var act = a.dataset.act;
       if (act === 'tab') setTab(a.dataset.tab);
-      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : openBeleg(); }
+      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : a.dataset.kind === 'termin' ? openTermin() : openBeleg(); }
+      else if (act === 'term-ics') termIcs(a.dataset.id);
       else if (act === 'cancel') closeSheet(true);
       else if (act === 'delete') del(a);
       else if (act === 'trip-calc') fillTrip(false);
@@ -3578,6 +3696,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (draft && draft.sticky) { onSheetInput(e.target); return; }
     if (e.target.id === 'f-km' || e.target.id === 'f-place' || e.target.id === 'f-vaddr') renderTrip();
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
+    if (e.target.id === 't-date') termWarn();
+    if (e.target.id === 't-auf' && !val('t-place')) { var ta = auftrag(e.target.value); if (ta && ta.site) $('#t-place').value = ta.site; }
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
     if (e.target.id === 'kq') { state.kq = e.target.value; renderKunden(); }
     if (e.target.id === 'f-endplan') renderDelays();

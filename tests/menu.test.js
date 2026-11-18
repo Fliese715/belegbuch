@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
   const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
   await page.goto(APP); await page.waitForSelector('.mtile');
   const tiles = await page.$$eval('#menuGrid .mtile b', t => t.map(x => x.textContent.replace(/­/g, '')));
-  assert(tiles.length === 9 && tiles[0] === 'Zu erledigen' && tiles[8] === 'Datensicherung', 'Menü mit 9 Kacheln, „Zu erledigen“ zuerst, „Datensicherung“ zuletzt');
+  assert(tiles.length === 9 && tiles[0] === 'Termine & Erledigen' && tiles[8] === 'Datensicherung', 'Menü mit 9 Kacheln, „Termine & Erledigen“ zuerst, „Datensicherung“ zuletzt');
   assert(await page.isHidden('#backBtn') && await page.isHidden('#fab'), 'im Menü kein Zurück-Knopf und kein +');
   await page.click('.mtile[data-tab="belege"]');
   assert(await page.textContent('#pageTitle') === 'Kosten & Fahrten' && await page.isVisible('#backBtn') && await page.isVisible('#fab'), 'Kachel öffnet „Kosten & Fahrten“ mit Zurück-Knopf und +');

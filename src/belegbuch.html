@@ -515,7 +515,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    *   angebote    Kopf + positions[] (text, qty, unit, price, art) – siehe calcAng()
    *   rechnungen  wie angebote, dazu nr (erst bei „Rechnung stellen“), status, amSnap
    *   dokumente   name, date, note, fileId (PDF-Ordner)
-   *   termine     title, date, time ('HH:MM' oder leer = ganztägig), place, auftragId, note,
+   *   termine     title, date, time ('HH:MM' oder leer = ganztägig), place, auftragId oder
+   *               baustelle (frei eingetragener Name, wenn es keine passende Baustelle gibt), note,
    *               remind ('beides'|'abend'|'morgen'|'keine') – siehe Abschnitt „Termine“
    *   settings    Einzeldokumente: firma, preise, richtwerte, strecken, erinnerung, ordner,
    *               geloescht {map: {'<sammlung>/<id>': zeit}} = Löschmarken für den Abgleich
@@ -1931,7 +1932,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- Termine ----------
-   * termine: title, date, time ('HH:MM', leer = ganztägig), place, auftragId (Baustelle), note,
+   * termine: title, date, time ('HH:MM', leer = ganztägig), place, auftragId (verknüpfte Baustelle)
+   * oder baustelle (frei eingetragener Name), note,
    * remind: 'beides' (Vorabend 21 Uhr + Morgen 6:40) | 'abend' | 'morgen' | 'keine'.
    * Die Push-Erinnerung kommt von zwei geplanten Aufgaben bei Claude, die die Datenbank des
    * Artifacts lesen: abends um 21 Uhr zusammen mit der Belege-Erinnerung (Termine von morgen),
@@ -1949,11 +1951,17 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var d = t.date === today() ? 'Heute' : t.date === addDays(today(), 1) ? 'Morgen' : wdOf(t.date) + ' ' + (short ? fdate(t.date).slice(0, 6) : fdate(t.date));
     return d + (t.time ? (short ? ' ' : ' · ') + t.time.replace(/^0/, '') + (short ? '' : ' Uhr') : '');
   }
+  /** Baustellen, die man einem Termin zuordnen kann (Kundenaufträge, nicht bezahlt). */
+  function termSites(keepId) { return state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && (a.status !== 'Bezahlt' || a.id === keepId); }).sort(function (a, b) { return String(a.title).localeCompare(String(b.title), 'de'); }); }
+  /** Findet eine Baustelle über ihren Namen (Groß-/Kleinschreibung egal). */
+  function siteByName(name) { var k = String(name || '').trim().toLowerCase(); if (!k) return null; return termSites().find(function (a) { return String(a.title).trim().toLowerCase() === k; }) || state.data.auftraege.find(function (a) { return a.kind === 'kunde' && String(a.title).trim().toLowerCase() === k; }) || null; }
+  /** Name der Baustelle: verknüpfte Baustelle oder frei eingetragener Name (Feld baustelle). */
+  function termSiteName(t) { var a = t.auftragId ? auftrag(t.auftragId) : null; return a ? a.title : (t.baustelle || ''); }
   function termShort(t) { return (t.time ? t.time.replace(/^0/, '') + ' ' : '') + t.title; }
   function termRow(t) {
-    var a = t.auftragId ? auftrag(t.auftragId) : null;
+    var sn = termSiteName(t);
     return '<article class="row order term' + (t.date === today() ? ' today' : '') + '" tabindex="0" role="button" data-edit="termine:' + esc(t.id) + '"><div class="top1"><span class="vendor">' + esc(t.title) + '</span><span class="when">' + esc(termWhen(t, true)) + '</span></div>' +
-      '<div class="meta">' + [t.place, a ? 'Baustelle ' + a.title : '', t.note].filter(Boolean).map(esc).join(' · ') + (t.remind === 'keine' ? (t.place || a || t.note ? ' · ' : '') + 'ohne Erinnerung' : '') + '</div></article>';
+      '<div class="meta">' + [t.place, sn ? 'Baustelle ' + sn : '', t.note].filter(Boolean).map(esc).join(' · ') + (t.remind === 'keine' ? (t.place || sn || t.note ? ' · ' : '') + 'ohne Erinnerung' : '') + '</div></article>';
   }
   function renderTermine() {
     var box = $('#termBox'); if (!box) return;
@@ -1980,26 +1988,32 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var t = id ? state.data.termine.find(function (x) { return x.id === id; }) : null;
     var v = t || { title: '', date: addDays(today(), 1), time: '', place: '', auftragId: '', remind: 'beides', note: '' };
     draft = { coll: 'termine', id: id || null, confirm: false, uploaded: [] };
-    var sites = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && (a.status !== 'Bezahlt' || a.id === v.auftragId); }).sort(function (a, b) { return String(a.title).localeCompare(String(b.title), 'de'); });
+    var sites = termSites(v.auftragId);
     showSheet('<h2 id="sheetTitle">' + (t ? 'Termin bearbeiten' : 'Neuer Termin') + '</h2><form id="form" novalidate>' +
       '<div class="field"><label for="t-title">Was</label><input id="t-title" type="text" autocomplete="off" placeholder="z. B. Aufmaß, Besichtigung, Material abholen" value="' + esc(v.title) + '"></div>' +
       '<div class="grid2"><div class="field"><label for="t-date">Datum</label><input id="t-date" type="date" value="' + esc(v.date) + '"></div><div class="field"><label for="t-time">Uhrzeit (leer = ganztägig)</label><input id="t-time" type="time" value="' + esc(v.time || '') + '"></div></div>' +
       '<p class="hint" id="t-warn" style="margin:-4px 0 10px;color:var(--warn)"></p>' +
-      '<div class="field"><label for="t-auf">Baustelle (optional)</label><select id="t-auf"><option value="">– keine –</option>' + sites.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === v.auftragId ? ' selected' : '') + '>' + esc(a.title + (a.party ? ' · ' + a.party : '')) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="t-site">Baustelle (optional)</label><input id="t-site" type="text" autocomplete="off" list="t-sites" placeholder="Name wählen oder neu eintragen, z. B. Bad Müller" value="' + esc(termSiteName(v)) + '"><datalist id="t-sites">' + sites.map(function (a) { return '<option value="' + esc(a.title) + '">' + esc(a.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="t-sitehint" style="margin:4px 0 0"></p></div>' +
       '<div class="field"><label for="t-place">Ort</label><input id="t-place" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.place || '') + '"></div>' +
       '<div class="field"><label for="t-remind">Erinnerung aufs Handy</label><select id="t-remind">' + Object.keys(REMIND).map(function (k) { return '<option value="' + k + '"' + ((v.remind || 'beides') === k ? ' selected' : '') + '>' + REMIND[k] + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label for="t-note">Notiz</label><input id="t-note" type="text" autocomplete="off" value="' + esc(v.note || '') + '"></div>' +
       (t ? '<div class="field"><span class="lbl">In den Kalender</span><div class="calrow"><button type="button" class="btn small" data-act="term-ics" data-id="' + esc(t.id) + '">Kalender-Datei (.ics)</button><a class="btn small" href="' + esc(termGoogle(t)) + '" target="_blank" rel="noopener">Google Kalender</a></div><p class="hint" style="margin:6px 0 0">Damit erinnert dich auch der Kalender deines Handys oder Laptops.</p></div>' : '') +
       '<p class="err" id="formErr" role="alert"></p><div class="actions">' + (t ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>');
-    termWarn();
+    termWarn(); termSiteHint();
+  }
+  /** Zeigt unter dem Feld, ob der Name zu einer vorhandenen Baustelle gehört oder neu ist. */
+  function termSiteHint() {
+    var el = $('#t-sitehint'), n = val('t-site'); if (!el) return;
+    var a = siteByName(n);
+    el.textContent = !n ? (termSites().length ? 'Tippe ins Feld, um eine Baustelle auszuwählen, oder schreib einen neuen Namen.' : 'Schreib einfach den Namen der Baustelle hinein.') : a ? 'Verknüpft mit der Baustelle „' + a.title + '“' + (a.party ? ' (' + a.party + ')' : '') + '.' : 'Neuer Name – wird beim Termin vermerkt. Als Baustelle mit Kunde legst du sie unter „Baustellen & Material“ an.';
   }
   /* Kalender-Export. Zeiten als UTC (das Gerät läuft in deutscher Zeit), damit jeder Kalender sie gleich liest. */
   function termStart(t) { var p = t.date.split('-'), h = (t.time || '00:00').split(':'); return new Date(+p[0], p[1] - 1, +p[2], +h[0], +h[1]); }
   function utcStamp(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
   function icsText(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
   function termIcsText(t) {
-    var st = termStart(t), a = t.auftragId ? auftrag(t.auftragId) : null, desc = [a ? 'Baustelle: ' + a.title : '', t.note].filter(Boolean).join('\n');
+    var st = termStart(t), sn = termSiteName(t), desc = [sn ? 'Baustelle: ' + sn : '', t.note].filter(Boolean).join('\n');
     var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FFH Bau und Buero//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', 'UID:' + t.id + '@ffh-bau-buero', 'DTSTAMP:' + utcStamp(new Date())];
     if (t.time) L.push('DTSTART:' + utcStamp(st), 'DTEND:' + utcStamp(new Date(st.getTime() + 3600000)));
     else L.push('DTSTART;VALUE=DATE:' + t.date.replace(/-/g, ''), 'DTEND;VALUE=DATE:' + addDays(t.date, 1).replace(/-/g, ''));
@@ -2014,10 +2028,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return L.join('\r\n') + '\r\n';
   }
   function termGoogle(t) {
-    var st = termStart(t), a = t.auftragId ? auftrag(t.auftragId) : null;
+    var st = termStart(t), sn = termSiteName(t);
     var dates = t.time ? utcStamp(st) + '/' + utcStamp(new Date(st.getTime() + 3600000)) : t.date.replace(/-/g, '') + '/' + addDays(t.date, 1).replace(/-/g, '');
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(t.title) + '&dates=' + dates + '&ctz=Europe/Berlin' +
-      (t.place ? '&location=' + encodeURIComponent(t.place) : '') + '&details=' + encodeURIComponent([a ? 'Baustelle: ' + a.title : '', t.note].filter(Boolean).join('\n'));
+      (t.place ? '&location=' + encodeURIComponent(t.place) : '') + '&details=' + encodeURIComponent([sn ? 'Baustelle: ' + sn : '', t.note].filter(Boolean).join('\n'));
   }
   async function termIcs(id) {
     var t = state.data.termine.find(function (x) { return x.id === id; }); if (!t) return;
@@ -2426,7 +2440,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else if (draft.coll === 'termine') {
       if (!val('t-title')) return formErr('Bitte eintragen, worum es geht.');
       if (!val('t-date')) return formErr('Bitte ein Datum angeben.');
-      obj = { title: val('t-title'), date: val('t-date'), time: val('t-time'), place: val('t-place'), auftragId: val('t-auf'), remind: val('t-remind') || 'beides', note: val('t-note') };
+      var tsa = siteByName(val('t-site'));
+      obj = { title: val('t-title'), date: val('t-date'), time: val('t-time'), place: val('t-place'), auftragId: tsa ? tsa.id : '', baustelle: tsa ? '' : val('t-site'), remind: val('t-remind') || 'beides', note: val('t-note') };
     } else if (draft.coll === 'belege') {
       var gross = parseNum(val('f-gross'));
       if (!val('f-date')) return formErr('Bitte ein Datum angeben.');
@@ -3697,7 +3712,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'f-km' || e.target.id === 'f-place' || e.target.id === 'f-vaddr') renderTrip();
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
     if (e.target.id === 't-date') termWarn();
-    if (e.target.id === 't-auf' && !val('t-place')) { var ta = auftrag(e.target.value); if (ta && ta.site) $('#t-place').value = ta.site; }
+    if (e.target.id === 't-site') { termSiteHint(); var ta = siteByName(e.target.value); if (ta && ta.site && !val('t-place')) $('#t-place').value = ta.site; }
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }
     if (e.target.id === 'kq') { state.kq = e.target.value; renderKunden(); }
     if (e.target.id === 'f-endplan') renderDelays();

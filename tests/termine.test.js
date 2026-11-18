@@ -23,8 +23,20 @@ const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.ge
   await add('Fliesen abholen', iso(5), '');
   await add('Aufmaß Bad', iso(1), '08:30', async () => { await page.fill('#t-place', 'Dorfstraße 3, 18510 Zarrendorf'); await page.selectOption('#t-remind', 'abend'); });
   await add('Alter Termin', iso(-3), '10:00');
+  // Baustelle: neuer Name frei eintragen
+  await page.click('#fab'); await page.fill('#t-title', 'Besichtigung'); await page.fill('#t-date', iso(3)); await page.fill('#t-site', 'Küche Schulz');
+  assert(/Neuer Name/.test(await page.textContent('#t-sitehint')), 'Hinweis: neuer Baustellenname');
+  await page.click('#form [data-act="save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  assert(/Baustelle Küche Schulz/.test(await page.textContent('#termBox')), 'frei benannte Baustelle steht beim Termin');
+  // Baustelle: vorhandene über den Namen verknüpfen, Ort wird übernommen
+  await page.evaluate(() => { const a = JSON.parse(localStorage.getItem('belegbuch:auftraege') || '[]'); a.push({ id: 'b1', kind: 'kunde', title: 'Bad EG Meier', party: 'Meier', site: 'Lindenweg 2, 18510 Zarrendorf', status: 'In Arbeit', amount: 0, _t: 1 }); localStorage.setItem('belegbuch:auftraege', JSON.stringify(a)); });
+  await page.reload(); await page.waitForSelector('#termBox .row');
+  await page.click('#fab'); await page.fill('#t-title', 'Fugen'); await page.fill('#t-date', iso(4)); await page.fill('#t-site', 'bad eg meier');
+  assert(/Verknüpft mit der Baustelle „Bad EG Meier“ \(Meier\)/.test(await page.textContent('#t-sitehint')) && await page.inputValue('#t-place') === 'Lindenweg 2, 18510 Zarrendorf', 'vorhandene Baustelle erkannt, Ort übernommen');
+  await page.click('#form [data-act="save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).some(t => t.title === 'Fugen' && t.auftragId === 'b1' && !t.baustelle)), 'Termin mit der Baustelle verknüpft');
   const rows = await page.$$eval('#termBox > .list .row .vendor', x => x.map(e => e.textContent));
-  assert(rows.join('|') === 'Aufmaß Bad|Fliesen abholen', 'anstehende Termine nach Datum sortiert: ' + rows.join('|'));
+  assert(rows.join('|') === 'Aufmaß Bad|Besichtigung|Fugen|Fliesen abholen', 'anstehende Termine nach Datum sortiert: ' + rows.join('|'));
   assert(/Vergangene Termine \(1\)/.test(await page.textContent('#termBox summary')), 'vergangener Termin eingeklappt');
   assert(/Morgen: 8:30 Aufmaß Bad/.test(await page.textContent('#remindBox')), 'Kachel zeigt die Termine von morgen neben der Belege-Erinnerung');
   // Hinweis Feiertag + Urlaub
@@ -51,7 +63,7 @@ const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.ge
   // Löschen
   await nav(page, 'erledigen'); await page.click('#termBox > .list .row:first-child'); await page.click('[data-act="delete"]'); await page.click('[data-act="delete"]');
   await page.waitForSelector('#sheet', { state: 'hidden' });
-  assert((await page.$$('#termBox > .list .row')).length === 1, 'Termin gelöscht');
-  assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).length === 2), 'Termine liegen im Speicher (und damit in Sicherung und Abgleich)');
+  assert((await page.$$('#termBox > .list .row')).length === 3, 'Termin gelöscht');
+  assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).length === 4), 'Termine liegen im Speicher (und damit in Sicherung und Abgleich)');
   console.log('Fehler:', errs.join('|') || 'keine'); await b.close();
 })();

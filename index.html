@@ -333,6 +333,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .pcard .sub:empty { display: none; }
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
+.warnline { border: 1px solid var(--warn); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.warnline .btn { margin-left: auto; }
 .plzhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 10px; }
 .plzhint:empty { display: none; }
 .plzhint small { color: var(--muted); font-weight: 400; }
@@ -3482,6 +3484,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (!ex) suggest();
     showSheet('<div id="angBody"></div>', true);
     renderAng();
+    if (A.status === 'Entwurf') plzCheckAll();
+  }
+  /** Fehlende PLZ in beiden Adressen des offenen Angebots nachfragen (nacheinander, damit die Baustelle die ergänzte Rechnungsadresse nutzen kann). */
+  async function plzCheckAll() {
+    var ids = ['a-address', 'a-site'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = $('#' + ids[i]); if (!el || !draft || draft.coll !== 'angebot') return;
+      var v = String(el.value).trim(); if (v && !/\b\d{5}\b/.test(v)) { try { await plzFill(el); } catch (e) { } }
+    }
   }
   function totalsHtml(A, c) {
     var priv = A.ckind === 'privat', v = Number(A.vat) > 0;
@@ -3537,6 +3548,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '</div>' +
       '<div class="grid2 stack" style="margin-top:14px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" placeholder="0" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
       '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
+      '<p class="warnline" id="kleinWarn"' + (setting('firma').kleinunt && Number(A.vat) > 0 ? '' : ' hidden') + '>Achtung: Du bist als Kleinunternehmer (§ 19 UStG) eingetragen. Weist du Umsatzsteuer aus, musst du sie ans Finanzamt zahlen (§ 14c UStG). Normal ist hier „0 %“.</p>' +
       '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
       (regionsList().length ? '<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Preisregion und Richtwerte</summary>' + regionSelect(A) + standHtml(A.region) + '</details>' : standHtml(A.region));
     var s3 = '<h3 class="section-h" style="margin-top:4px">Nummer, Datum und Texte</h3>' +
@@ -3548,6 +3560,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="overview"><dl><dt>Kunde</dt><dd id="ovName">' + esc(A.name || '–') + '</dd><dt>Baustelle</dt><dd>' + esc((a ? a.title : draft.bsName) || '–') + (A.site ? ' · ' + esc(A.site) : '') + '</dd>' +
       '<dt>Betreff</dt><dd>' + esc(A.title || '–') + '</dd><dt>Leistungen</dt><dd>' + A.positions.length + (A.positions.length === 1 ? ' Position' : ' Positionen') + '</dd><dt>Gültig bis</dt><dd>' + (A.valid ? fdate(A.valid) : '–') + '</dd></dl>' +
       '<div id="angTotals4">' + totalsHtml(A, c) + '</div></div>' +
+      ([['address', 'Rechnungsadresse'], ['site', 'Adresse der Baustelle']].filter(function (x) { return String(A[x[0]] || '').trim() && !/\b\d{5}\b/.test(A[x[0]]); }).map(function (x) { return '<p class="warnline">In der ' + x[1] + ' „' + esc(A[x[0]]) + '“ fehlt die Postleitzahl. <button type="button" class="btn small" data-act="ang-step" data-step="1">Zu Schritt 1</button></p>'; }).join('')) +
+      (setting('firma').kleinunt && Number(A.vat) > 0 ? '<p class="warnline">Du bist als Kleinunternehmer eingetragen, das Angebot weist aber ' + fmtQ(A.vat) + ' % Umsatzsteuer aus. <button type="button" class="btn small" data-act="ang-step" data-step="2">Zu Schritt 2</button></p>' : '') +
       '<p class="hint" style="margin-top:12px">So versendest du: 1. PDF speichern, 2. E-Mail öffnen und das PDF anhängen. Die App verschickt nichts selbst.</p>' +
       '<div class="actions" style="justify-content:flex-start;margin:8px 0 12px"><button type="button" class="btn" data-act="ang-view-draft">PDF ansehen</button><button type="button" class="btn" data-act="ang-pdf">1. PDF speichern</button>' +
       '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
@@ -3588,8 +3602,18 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var out = [], seen = {}, nt = normTown(town);
     function add(plz, t, st) { if (/^\d{5}$/.test(plz || '') && !seen[plz]) { seen[plz] = 1; out.push({ plz: plz, town: t || town, state: st || '' }); } }
     if (mode === 'db' && MAP) {
-      var res = await mapCall('search_and_geocode_tool', { q: (street ? street + ', ' : '') + town, country: ['de'], language: 'de' }), t = mapText(res), re = /Address:\s*([^\n]+)/g, m;
-      while ((m = re.exec(t))) { var a = /(\d{5})\s+([^,\n]+)/.exec(m[1]); if (a && normTown(a[2]).indexOf(nt) === 0) add(a[1], a[2].trim()); }
+      var hc = TOWNS_N[homeTown()] || [54.233, 13.083];
+      var res = await mapCall('search_and_geocode_tool', { q: (street ? street + ', ' : '') + town, country: ['de'], language: 'de', proximity: { latitude: hc[0], longitude: hc[1] } }), t = mapText(res);
+      var items = t.split(/\n(?=\d+\.\s)/).map(function (blk) {
+        var ad = /Address:\s*([^\n]+)/.exec(blk), co = /Coordinates:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/.exec(blk), pc = ad && /(\d{5})\s+([^,\n]+)/.exec(ad[1]);
+        return pc ? { plz: pc[1], town: pc[2].trim(), street: ad[1].split(',')[0].trim(), km: co ? airKm(hc, [+co[1], +co[2]]) : 9999 } : null;
+      }).filter(Boolean);
+      items.forEach(function (x) { if (normTown(x.town).indexOf(nt) === 0) add(x.plz, x.town); });
+      if (!out.length && street) {
+        // Ortsteil: Mapbox nennt die Gemeinde (Negast → Steinhagen). Gleiche Straße in der Nähe gilt als Treffer, der eingegebene Ort bleibt.
+        var sn = normTown(String(street).replace(/\s*\d.*$/, ''));
+        items.forEach(function (x) { if (x.km < 80 && normTown(x.street.replace(/\s*\d.*$/, '')) === sn) { add(x.plz, town, ''); out[out.length - 1].part = x.town; } });
+      }
     } else {
       var sname = String(street || '').replace(/\s*\d.*$/, '').trim(), list = [];
       try {
@@ -3601,6 +3625,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         var r3 = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=de&limit=8&' + (street ? 'street=' + encodeURIComponent(street) + '&' : '') + 'city=' + encodeURIComponent(town));
         if (r3.ok) (await r3.json()).forEach(function (x) { var ad = x.address || {}; add(ad.postcode, ad.city || ad.town || ad.village || ad.municipality || town, ad.state); });
       }
+      if (!out.length) {
+        // Freitext-Suche: findet auch Ortsteile wie „Negast“ (Gemeinde Steinhagen); der eingegebene Ort bleibt.
+        var r4 = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=de&limit=5&q=' + encodeURIComponent((street ? street + ', ' : '') + town));
+        if (r4.ok) (await r4.json()).forEach(function (x) { var ad = x.address || {}; if (ad.postcode) { add(ad.postcode, town, ad.state); var mun = ad.city || ad.town || ad.municipality || ''; if (mun && normTown(mun) !== nt) out[out.length - 1].part = mun; } });
+      }
     }
     var home = LAENDER[land()] || '';
     out.sort(function (a, b) { return (b.state === home) - (a.state === home); });
@@ -3610,6 +3639,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function plzSet(id, v) { var el = $('#' + id); if (!el) return; el.value = v; el.dataset.plzSet = v; if (draft && draft.a && el.dataset.h) { draft.a[el.dataset.h] = v; updAng(); } }
   async function plzFill(el) {
     var box = $('#plz-' + el.id), p = addrParts(el.value), asked = el.value; if (!box) return;
+    if (!p && /\d/.test(el.value) && !/\b\d{5}\b/.test(el.value) && !/,/.test(el.value)) {
+      // Nur „Straße Nr.“: steht dieselbe Straße in der anderen Adresse mit Ort, die ganze Adresse übernehmen.
+      var other = $(el.id === 'a-site' ? '#a-address' : '#a-site'), ov = other ? String(other.value).trim() : '';
+      if (ov && normTown(ov).indexOf(normTown(el.value)) === 0 && ov.length > String(el.value).trim().length) { plzSet(el.id, ov); box.innerHTML = '<span class="hint">Ort und PLZ aus der ' + (el.id === 'a-site' ? 'Rechnungsadresse' : 'Baustellenadresse') + ' übernommen – bitte prüfen.</span>'; return; }
+      box.innerHTML = '<span class="hint">Der Ort fehlt – bitte „Straße Nr., Ort“ eintragen, dann sucht die App die PLZ.</span>'; return;
+    }
     if (!p) { if (el.value !== el.dataset.plzSet) box.innerHTML = ''; return; }
     box.innerHTML = '<span class="hint">Postleitzahl für „' + esc(p.town) + '“ wird gesucht …</span>';
     var hits = null, err = false;
@@ -3622,7 +3657,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (hits.length === 1 || homeHits.length === 1) {
       var best = hits.length === 1 ? hits[0] : homeHits[0], rest = hits.filter(function (h) { return h !== best; });
       plzSet(el.id, plzAddr(p, best));
-      box.innerHTML = '<span class="hint">PLZ ' + best.plz + ' online ergänzt – bitte prüfen.' + (rest.length ? ' Andere Orte gleichen Namens:' : '') + '</span>' +
+      box.innerHTML = '<span class="hint">PLZ ' + best.plz + ' online ergänzt' + (best.part ? ' (' + esc(p.town) + ' gehört zu ' + esc(best.part) + ')' : '') + ' – bitte prüfen.' + (rest.length ? ' Andere Orte gleichen Namens:' : '') + '</span>' +
         rest.slice(0, 4).map(function (h) { return '<button type="button" class="btn small" data-act="plz-pick" data-f="' + el.id + '" data-v="' + esc(plzAddr(p, h)) + '">' + h.plz + ' ' + esc(h.town) + (h.state ? ' <small>' + esc(h.state) + '</small>' : '') + '</button>'; }).join('');
       return;
     }
@@ -3667,6 +3702,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var t4 = $('#angTotals4'); if (t4) t4.innerHTML = totalsHtml(A, c);
     var sh = $('#angSumHead'); if (sh) sh.textContent = angSumText(A, c);
     var hn = $('#angHeadName'); if (hn) hn.textContent = A.name || 'Neuer Kunde';
+    var kw = $('#kleinWarn'); if (kw) kw.hidden = !(setting('firma').kleinunt && Number(A.vat) > 0);
     $('#mailTo').textContent = A.email || '(keine E-Mail-Adresse eingetragen)';
     if (!draft.mailEdited) { var m = mailParts(A, c); $('#mailSubj').value = m.sub; $('#mailBody').value = m.body; }
   }

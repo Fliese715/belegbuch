@@ -45,5 +45,23 @@ const { chromium } = require('playwright');
   await type('a-address', 'Dorfstraße 1, 18445 Prohn');
   assert(await page.textContent('#plz-a-address') === '', 'mit PLZ: keine Suche');
   assert(await page.evaluate(() => true), 'Daten: ' + asked.length + ' Anfragen');
+  // Nur „Straße Nr.“ in der Baustellenadresse: gleiche Straße aus der Rechnungsadresse übernehmen
+  down = false;
+  await type('a-address', 'Lindenweg 2, Zarrendorf');
+  await type('a-site', 'Lindenweg 2');
+  assert(await page.inputValue('#a-site') === 'Lindenweg 2, 18510 Zarrendorf', 'Baustelle „Lindenweg 2“ → ganze Rechnungsadresse');
+  await type('a-site', 'Gartenweg 5');
+  assert(/Der Ort fehlt/.test(await page.textContent('#plz-a-site')), 'nur Straße, andere Straße: Hinweis „Ort fehlt“');
+  // Schritt 4 warnt bei fehlender PLZ; Kleinunternehmer mit 19 %
+  await page.evaluate(() => { const f = { id: 'firma', name: 'FFH', city: '18510 Zarrendorf', street: 'Kirchstraße 40', kleinunt: true, _t: 1 }; localStorage.setItem('belegbuch:settings', JSON.stringify([f])); });
+  await page.evaluate(() => localStorage.setItem('belegbuch:angebote', JSON.stringify([{ id: 'g9', auftragId: '', nr: 'A-2026-001', name: 'Simone Jung', address: 'Weidenring 12 Negast', site: 'Weidenring 12', date: '2026-11-21', status: 'Entwurf', ckind: 'privat', vat: 19, discount: 0, positions: [{ text: 'x', qty: 1, unit: 'm²', price: 10, art: 'lohn' }], _t: 1 }])));
+  await page.reload(); await page.waitForSelector('#angeboteList .row');
+  await page.click('#angeboteList .row .vendor'); await page.waitForSelector('#angBody .stepper');
+  await page.waitForFunction(() => /Nirgendwo|nicht erreichbar|Keine PLZ|ergänzt|Ort fehlt|übernommen/.test((document.querySelector('#plz-a-address') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
+  assert(/Weidenring 12/.test(await page.inputValue('#a-address')), 'Entwurf öffnen prüft die PLZ (Ergebnis: ' + (await page.textContent('#plz-a-address')).trim() + ')');
+  await page.click('.stepper [data-step="2"]');
+  assert(await page.isVisible('#kleinWarn'), 'Kleinunternehmer mit 19 %: Warnung in Schritt 2');
+  await page.selectOption('#a-vat', '0');
+  assert(await page.isHidden('#kleinWarn'), 'mit 0 % verschwindet die Warnung');
   console.log('Fehler:', errs.join('|') || 'keine'); await b.close();
 })();

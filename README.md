@@ -66,6 +66,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß-Übersicht:** Baustellen & Material › Aufmaß (`renderAufmassList`): Karten mit Flächen gesamt und je Raum,
   Öffnen / PDF / → Angebot, darunter Baustellen ohne Aufmaß. „+ Aufmaß“ wählt eine Baustelle oder legt beim
   Speichern eine neue an (Status „Anfrage“, Kundendaten aus der Kartei).
+- **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
+  Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
+  Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Termin
+  übernehmen die Kundendaten; „Bearbeiten“ öffnet das bisherige Kundenformular.
 - **Eigene Aufmaß-Bereiche:** `settings/aufmass.types` ({id, name, unit m²|lfm|Stk, katId}), per `amSync()` in `AM`
   eingeblendet. Anlegen über „+ Eigener Bereich …“ in der Bereichsauswahl oder Schnellvorschläge (Abdichtung Boden/Wand …).
   Abdichtung zählt nicht zur Fliesenfläche, füllt aber die Abdichtungsfläche des Materialrechners. Im Angebot mit

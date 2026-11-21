@@ -34,8 +34,11 @@ const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if 
   await page.click('#fab'); await page.fill('#k-name', 'meier'); await page.click('[data-act="save"]');
   assert(/gibt es schon/.test(await page.textContent('#formErr')), 'doppelter Kunde wird abgelehnt');
   await page.fill('#k-name', 'Schulz'); await page.fill('#k-addr', 'Hafenstraße 3, 18439 Stralsund'); await page.fill('#k-phone', '03831 123'); await page.click('[data-act="save"]'); await page.waitForTimeout(300);
-  await page.click('#kundenList article:has-text("Meier") .vendor'); await page.waitForSelector('#k-name');
-  assert(/Bad EG/.test(await page.textContent('#sheet')), 'Kundenblatt zeigt die Aufträge'); await page.click('[data-act="cancel"]');
+  await page.click('#kundenList article:has-text("Meier") .vendor'); await page.waitForSelector('.akstats');
+  assert(/Bad EG/.test(await page.textContent('#sheet')), 'Kundenakte zeigt die Baustellen');
+  await page.click('[data-act="k-edit"]'); await page.waitForSelector('#k-name');
+  await page.click('[data-act="cancel"]'); await page.waitForSelector('.akstats');
+  assert(true, 'Bearbeiten → Abbrechen führt zurück in die Akte'); await page.click('[data-act="cancel"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
   // Auftrag: Kundendaten vorschlagen, neuer Kunde wird angelegt
   await nav(page, 'auftraege'); await page.click('#fab'); await page.fill('#f-title', 'Küche'); await page.fill('#f-party', 'Schulz'); await page.press('#f-party', 'Tab');
   assert(await page.inputValue('#f-addr') === 'Hafenstraße 3, 18439 Stralsund' && await page.inputValue('#f-ckind') === 'privat', 'Auftrag übernimmt Adresse und Kundenart von Schulz');

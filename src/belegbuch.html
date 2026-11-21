@@ -2907,9 +2907,35 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     ['Untergrund spachteln', 'm²'], ['Grundierung', 'm²'], ['Bodenausgleich', 'm²'], ['Entkopplung', 'm²'], ['Alte Fliesen entfernen', 'm²'], ['Fliesenschiene', 'lfm'], ['Gehrung', 'lfm'], ['Bohrungen', 'Stk'],
     ['Fensterbank', 'lfm'], ['Treppenstufen', 'lfm'], ['Bodenablauf', 'Stk'], ['Duschrinne', 'Stk']];
   function amCustom() { var t = setting('aufmass').types; return Array.isArray(t) ? t : []; }
+  /* Aufmaß-Bereiche aus der Preisliste: fest eingebaut (Kennung „k-…“), nach den Gruppen der Preisliste.
+   * Gibt es schon einen eigenen Bereich mit gleichem Namen, bleibt der eigene (bestehende Aufmaße und Angebote hängen daran). */
+  var AM_CAT = [
+    ['k-abbruch', 'Alte Fliesen entfernen', 'm²', 'abbruch'], ['k-grundierung', 'Grundierung', 'm²', 'grundierung'], ['k-untergrund', 'Untergrund spachteln', 'm²', 'untergrund'],
+    ['k-ausgleich', 'Bodenausgleich', 'm²', 'ausgleich'], ['k-entkopplung', 'Entkopplung', 'm²', 'entkopplung'],
+    ['k-abd-boden', 'Abdichtung Boden', 'm²', 'abdichtung'], ['k-abd-wand', 'Abdichtung Wand', 'm²', 'abdichtung'], ['k-dichtband', 'Dichtband', 'lfm', 'dichtband'],
+    ['k-ecke-innen', 'Dichtecke innen', 'Stk', 'dichtecke-innen'], ['k-ecke-aussen', 'Dichtecke außen', 'Stk', 'dichtecke-aussen'],
+    ['k-mans-wand', 'Manschette Wand', 'Stk', 'manschette-wand'], ['k-mans-boden', 'Manschette Boden', 'Stk', 'manschette-boden'],
+    ['k-profil', 'Fliesenschiene / Profil', 'lfm', 'profil'], ['k-gehrung', 'Gehrung', 'lfm', 'gehrung'], ['k-bohrung', 'Bohrungen', 'Stk', 'bohrung'],
+    ['k-treppe', 'Treppenstufen', 'lfm', 'treppe'], ['k-fensterbank', 'Fensterbank / Laibung', 'lfm', 'fensterbank'], ['k-bordure', 'Bordüre', 'lfm', 'bordure'],
+    ['k-bodenablauf', 'Bodenablauf', 'Stk', 'bodenablauf'], ['k-duschrinne', 'Duschrinne', 'Stk', 'duschrinne']
+  ];
+  function amCatOf(type) { var x = AM_CAT.find(function (c) { return c[0] === type; }); return x ? catItem(x[3]) : null; }
   function amSync() {
     Object.keys(AM).forEach(function (k) { if (AM_BASE.indexOf(k) < 0) delete AM[k]; });
+    var own = {}; amCustom().forEach(function (x) { if (x && x.name) own[String(x.name).trim().toLowerCase()] = 1; });
+    AM_CAT.forEach(function (c) { if (!own[c[1].toLowerCase()]) AM[c[0]] = [c[1], c[2]]; });
     amCustom().forEach(function (x) { if (x && x.id && AM_BASE.indexOf(x.id) < 0) AM[x.id] = [x.name, x.unit || 'm²']; });
+  }
+  /** Bereichsauswahl im Aufmaß mit Gruppen: Fliesen, die Gruppen der Preisliste, eigene Bereiche. */
+  function amTypeOptions(cur) {
+    function opt(k) { return '<option value="' + esc(k) + '"' + (k === cur ? ' selected' : '') + '>' + esc(AM[k][0]) + ' (' + esc(AM[k][1]) + ')</option>'; }
+    var h = '<optgroup label="Fliesen">' + AM_BASE.map(opt).join('') + '</optgroup>', groups = [];
+    AM_CAT.forEach(function (c) { var g = (catItem(c[3]) || {}).g || 'Weitere'; if (AM[c[0]] && groups.indexOf(g) < 0) groups.push(g); });
+    groups.forEach(function (g) { h += '<optgroup label="' + esc(g) + '">' + AM_CAT.filter(function (c) { return AM[c[0]] && ((catItem(c[3]) || {}).g || 'Weitere') === g; }).map(function (c) { return opt(c[0]); }).join('') + '</optgroup>'; });
+    var cu = amCustom().filter(function (x) { return AM[x.id]; });
+    if (cu.length) h += '<optgroup label="Eigene Bereiche">' + cu.map(function (x) { return opt(x.id); }).join('') + '</optgroup>';
+    if (!AM[cur]) h += '<option value="' + esc(cur) + '" selected>Unbekannter Bereich</option>';
+    return h + '<option value="__new">+ Eigener Bereich …</option>';
   }
   function amName(type) { return AM[type] ? AM[type][0] : 'Unbekannter Bereich'; }
   function amUnit(type) { return AM[type] ? AM[type][1] : 'm²'; }
@@ -3229,7 +3255,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var cu = amCustom(), names = Object.keys(AM).map(function (k) { return AM[k][0].toLowerCase(); });
     var pre = AM_PRESETS.filter(function (x) { return names.indexOf(x[0].toLowerCase()) < 0; });
     var open = draft.newTypeFor !== undefined && draft.newTypeFor !== null;
-    return '<details class="amtypes" id="amTypes"' + (open ? ' open' : '') + '><summary>Eigene Bereiche' + (cu.length ? ' (' + cu.length + ')' : '') + ' – z. B. Abdichtung Boden / Wand</summary>' +
+    return '<details class="amtypes" id="amTypes"' + (open ? ' open' : '') + '><summary>Eigene Bereiche' + (cu.length ? ' (' + cu.length + ')' : '') + ' – für alles, was nicht in der Liste steht</summary>' +
       (open ? '<p class="hint" style="margin:8px 0 0">Lege den Bereich an – er wird gleich in Zeile ' + (draft.newTypeFor + 1) + ' eingesetzt.</p>' : '') +
       (cu.length ? '<div class="amt-list">' + cu.map(function (x) { return '<span class="amt">' + esc(x.name) + ' <small>' + esc(x.unit) + '</small><button type="button" data-act="am-type-del" data-id="' + esc(x.id) + '" aria-label="Bereich ' + esc(x.name) + ' löschen">×</button></span>'; }).join('') + '</div>' : '') +
       (pre.length ? '<div class="amt-pre"><span class="hint">Schnell anlegen:</span>' + pre.map(function (x) { return '<button type="button" class="btn small" data-act="am-type-add" data-name="' + esc(x[0]) + '" data-unit="' + esc(x[1]) + '">+ ' + esc(x[0]) + '</button>'; }).join('') + '</div>' : '') +
@@ -3274,7 +3300,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var unit = amUnit(r.type), lfm = unit === 'lfm', stk = unit === 'Stk', newRoom = i > 0 && String(r.room || '').trim().toLowerCase() !== String(draft.rows[i - 1].room || '').trim().toLowerCase();
       return '<div class="pos amcard' + (newRoom ? ' newroom' : '') + '" data-i="' + i + '">' +
         '<div class="am-top"><input type="text" data-f="room" aria-label="Raum / Bauteil" autocomplete="off" list="amRoomList" placeholder="Raum, z. B. Bad" value="' + esc(r.room) + '">' +
-        '<select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + esc(AM[k][0]) + '</option>'; }).join('') + (AM[r.type] ? '' : '<option value="' + esc(r.type) + '" selected>Unbekannter Bereich</option>') + '<option value="__new">+ Eigener Bereich …</option></select>' +
+        '<select data-f="type" aria-label="Bereich">' + amTypeOptions(r.type) + '</select>' +
         '<button type="button" class="pc-x" data-act="am-del" data-i="' + i + '" aria-label="Zeile entfernen">×</button></div>' +
         (stk ? '<div class="am-nums stk">' + amField(r, i, 'n', 'Anzahl (Stück)', 'z. B. 2 + 1') + '</div>' :
         '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
@@ -3453,8 +3479,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function amQty(rows, key) { var g = amGroups(rows, key.indexOf('*|') === 0 ? 'summe' : 'raum').find(function (x) { return x.key === key; }); return g ? g.qty : 0; }
   function amCustomType(type) { return amCustom().find(function (x) { return x.id === type; }) || null; }
-  function amPosKat(type) { if (AM_POS[type]) return catItem(AM_POS[type][0]); var x = amCustomType(type), k = x ? (x.katId || amGuessKat(x.name)) : ''; return k ? catItem(k) || null : null; }
+  function amPosKat(type) { if (AM_POS[type]) return catItem(AM_POS[type][0]); if (amCatOf(type)) return amCatOf(type); var x = amCustomType(type), k = x ? (x.katId || amGuessKat(x.name)) : ''; return k ? catItem(k) || null : null; }
   function amPosText(g) {
+    var kc = amCatOf(g.type), split = /^k-abd-/.test(g.type) ? ' – ' + (g.type === 'k-abd-boden' ? 'Boden' : 'Wand') : '';
+    if (kc) return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + kc.text + split;
     if (!AM_POS[g.type]) return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + amName(g.type);
     var c = catItem(AM_POS[g.type][0]), t = AM_POS[g.type][1] ? c.text.replace(/^Fliesen/, AM_POS[g.type][1]) : c.text;
     return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + t;

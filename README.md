@@ -81,6 +81,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Dusche & Bad, Sonstiges); u. a. Dichtband, Dichtecken innen/außen, Manschetten Wand/Boden, Entkopplung, Fliesenschiene,
   Gehrung, Bohrungen, Treppe, Fensterbank, Bodenablauf, Duschrinne. `est: true` = Schätzwert ohne belastbare Quelle,
   in den Einstellungen markiert. Quellen im Kommentar über `CATALOG`.
+- **Aufmaß-Bereiche aus der Preisliste:** `AM_CAT` (Kennung `k-…`) – Abdichtung Boden/Wand, Dichtband, Dichtecken,
+  Manschetten, Entkopplung, Profile, Bohrungen, Treppe, Fensterbank, Bodenablauf, Duschrinne u. a. – stehen gruppiert in
+  der Bereichsauswahl (`amTypeOptions`). Ein eigener Bereich gleichen Namens verdrängt den eingebauten.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

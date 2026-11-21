@@ -365,6 +365,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amsite .rowbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .amwithout { display: flex; flex-direction: column; gap: 6px; }
 .amw { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.amcard .am-nums.stk { grid-template-columns: minmax(0, 1fr); }
+.amtypes { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.amtypes summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 32px; display: flex; align-items: center; }
+.amt-list, .amt-pre { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.amt { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 99px; padding: 2px 4px 2px 10px; font-size: 13px; background: var(--surface-2); }
+.amt small { color: var(--muted); }
+.amt button { border: 0; background: transparent; color: var(--bad); font-size: 18px; width: 30px; height: 30px; cursor: pointer; }
+.amt-new { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; margin-top: 10px; }
+.amt-new select { width: auto; }
+@media (max-width: 480px) { .amt-new { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .amt-new input { grid-column: 1 / -1; } }
 .amrooms { display: flex; flex-direction: column; gap: 6px; }
 .amroom { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
 .amroom span { font-family: var(--font-mono); font-size: 13px; text-align: right; margin-left: auto; }
@@ -2181,7 +2191,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   function render() {
-    renderMode(); renderBanner(); renderTabs();
+    amSync(); renderMode(); renderBanner(); renderTabs();
     renderOverview(); renderJahr(); renderAbsenz(); renderBelege(); renderAuftraege(); renderAngebote(); renderRechnungen(); renderKunden(); renderTermine(); renderOrdner(); renderSync(); renderMenu();
   }
 
@@ -2650,6 +2660,22 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   var DEF_INTRO = 'Guten Tag,\n\nvielen Dank für Ihre Anfrage. Gerne biete ich Ihnen die folgenden Leistungen an:';
   var DEF_OUTRO = 'Zahlungsziel: 14 Tage netto ab Rechnungsdatum. Abgerechnet wird nach tatsächlichem Aufmaß. Fliesen und sonstiges Material sind nur enthalten, wenn sie oben aufgeführt sind.\n\nMit freundlichen Grüßen';
   var AM = { boden: ['Boden', 'm²'], wand: ['Wand', 'm²'], sockel: ['Sockel', 'lfm'], silikon: ['Silikonfuge', 'lfm'] };
+  /* Eigene Aufmaß-Bereiche (settings/aufmass.types: {id, name, unit 'm²'|'lfm'|'Stk', katId}) werden in AM eingeblendet. */
+  var AM_BASE = ['boden', 'wand', 'sockel', 'silikon'];
+  var AM_UNITS = { 'm²': 'm² – Fläche', 'lfm': 'lfm – Länge', 'Stk': 'Stück' };
+  var AM_PRESETS = [['Abdichtung Boden', 'm²'], ['Abdichtung Wand', 'm²'], ['Untergrund spachteln', 'm²'], ['Bodenausgleich', 'm²'], ['Alte Fliesen entfernen', 'm²'], ['Dichtband', 'lfm'], ['Dichtmanschetten', 'Stk']];
+  function amCustom() { var t = setting('aufmass').types; return Array.isArray(t) ? t : []; }
+  function amSync() {
+    Object.keys(AM).forEach(function (k) { if (AM_BASE.indexOf(k) < 0) delete AM[k]; });
+    amCustom().forEach(function (x) { if (x && x.id && AM_BASE.indexOf(x.id) < 0) AM[x.id] = [x.name, x.unit || 'm²']; });
+  }
+  function amName(type) { return AM[type] ? AM[type][0] : 'Unbekannter Bereich'; }
+  function amUnit(type) { return AM[type] ? AM[type][1] : 'm²'; }
+  /** Passende Leistung aus der Preisliste zu einem eigenen Bereich (für das Angebot). */
+  function amGuessKat(name) {
+    var n = String(name || '').toLowerCase();
+    return /abdicht/.test(n) ? 'abdichtung' : /spachtel|grundier|untergrund/.test(n) ? 'untergrund' : /ausgleich/.test(n) ? 'ausgleich' : /entfern|abbruch|abriss|abschlag/.test(n) ? 'abbruch' : '';
+  }
 
   function setting(id) { return state.data.settings.find(function (x) { return x.id === id; }) || {}; }
   function regionF() { return 1 + (Number(setting('preise').region) || 0) / 100; }
@@ -2847,7 +2873,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   /** Ergebnis einer Aufmaß-Zeile mit Rechenweg. lfm-Bereiche: Länge × Anzahl − Abzüge. */
   function amCalc(r) {
-    var lfm = r.type === 'sockel' || r.type === 'silikon';
+    var unit = amUnit(r.type), lfm = unit === 'lfm';
+    if (unit === 'Stk') {
+      var S = evalMass(r.n);
+      return { res: isNaN(S.v) ? 0 : Math.max(0, S.v), err: isNaN(S.v), empty: S.empty, way: massText(r.n) || '0', unit: 'Stk' };
+    }
     var L = evalMass(r.l), B = lfm ? { v: 1 } : evalMass(r.b), N = evalMass(r.n), err = false;
     if (N.empty) N = { v: 1 };
     var abz = 0, abzT = [];
@@ -2857,7 +2887,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     function part(src, e) { var t = massText(src) || '0'; return e && e.sum ? '(' + t + ')' : t; }
     var way = part(r.l, L) + (lfm ? '' : ' × ' + part(r.b, B)) + (N.v !== 1 ? ' × ' + part(r.n, N) : '') +
       abzT.map(function (t) { return ' − ' + (/[+−]/.test(t) ? '(' + t + ')' : t); }).join('');
-    return { res: res, err: err, empty: L.empty && (lfm || evalMass(r.b).empty), way: way, unit: AM[r.type][1] };
+    return { res: res, err: err, empty: L.empty && (lfm || evalMass(r.b).empty), way: way, unit: unit };
   }
   function amRes(r) { return amCalc(r).res; }
   /** Summen je Raum in der Reihenfolge des ersten Auftretens; Zeilen ohne Raum unter „ohne Raum“. */
@@ -2865,14 +2895,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var map = {}, list = [];
     (rows || []).forEach(function (r) {
       var name = String(r.room || '').trim() || 'ohne Raum', key = name.toLowerCase();
-      if (!map[key]) { map[key] = { room: name, boden: 0, wand: 0, sockel: 0, silikon: 0, n: 0 }; list.push(map[key]); }
+      if (!map[key]) { map[key] = { room: name, n: 0 }; Object.keys(AM).forEach(function (k) { map[key][k] = 0; }); list.push(map[key]); }
       if (map[key][r.type] !== undefined) { map[key][r.type] += amRes(r); map[key].n++; }
     });
     return list;
   }
   function amRoomLine(x) { return Object.keys(AM).filter(function (k) { return x[k] > 0; }).map(function (k) { return AM[k][0] + ' ' + fmtQ(x[k]) + ' ' + AM[k][1]; }).join(' · ') || '–'; }
   function amTot(rows) {
-    var t = { boden: 0, wand: 0, sockel: 0, silikon: 0 };
+    var t = {}; Object.keys(AM).forEach(function (k) { t[k] = 0; });
     (rows || []).forEach(function (r) { if (t[r.type] !== undefined) t[r.type] += amRes(r); });
     t.flaeche = t.boden + t.wand;
     return t;
@@ -2892,7 +2922,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       return '<article class="row order amsite"><div class="top1"><span class="vendor">' + esc(a.title) + '</span><span class="num">' + (a.aufmass.date ? fdate(a.aufmass.date).slice(0, 6) : '') + '</span></div>' +
         '<div class="meta">' + esc([a.party, a.site].filter(Boolean).join(' · ')) + '</div>' +
         '<div class="amtot">' + esc(main || 'keine Flächen') + '</div>' +
-        (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== 'ohne Raum') ? '<ul class="amr">' + rooms.map(function (x) { return '<li><b>' + esc(x.room) + ':</b> ' + Object.keys(AM).filter(function (k) { return x[k] > 0; }).map(function (k) { return AM_SHORT[k] + ' ' + fmtQ(x[k]); }).join(' · ') + '</li>'; }).join('') + '</ul>' : '') +
+        (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== 'ohne Raum') ? '<ul class="amr">' + rooms.map(function (x) { return '<li><b>' + esc(x.room) + ':</b> ' + Object.keys(AM).filter(function (k) { return x[k] > 0; }).map(function (k) { return (AM_SHORT[k] || AM[k][0]) + ' ' + fmtQ(x[k]); }).join(' · ') + '</li>'; }).join('') + '</ul>' : '') +
         '<div class="rowbtns"><button type="button" class="btn small" data-act="aufmass" data-id="' + esc(a.id) + '">Öffnen</button><button type="button" class="btn small" data-act="am-pdf-list" data-id="' + esc(a.id) + '">PDF</button>' +
         '<button type="button" class="btn small" data-act="angebot" data-id="' + esc(a.id) + '">' + (latestAngebot(a.id) ? 'Angebot ansehen' : '→ Angebot') + '</button></div></article>';
     }).join('');
@@ -2924,7 +2954,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function amSite() { return auftrag(draft.id) || draft.newSite || null; }
   function newAmRow(prev) { return { room: prev ? prev.room : '', type: prev ? prev.type : 'boden', l: '', b: '', n: '1', abz: '' }; }
   function openAufmass(id, newSite) {
-    var a = id ? auftrag(id) : null; if (!a && !newSite) return;
+    amSync(); var a = id ? auftrag(id) : null; if (!a && !newSite) return;
     var am = (a && a.aufmass) || {};
     draft = { coll: 'aufmass', sticky: true, id: a ? id : null, newSite: a ? null : newSite, rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10, abd: am.abd ? String(am.abd).replace('.', ',') : '' };
     if (!draft.rows.length) draft.rows.push(newAmRow());
@@ -2938,12 +2968,52 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== 'ohne Raum') ? '<h3 class="section-h">Summe je Raum</h3><div class="amrooms">' + rooms.map(function (x) { return '<div class="amroom"><b>' + esc(x.room) + '</b><span>' + esc(amRoomLine(x)) + '</span></div>'; }).join('') + '</div>' : '') +
       '<h3 class="section-h">Gesamt</h3><table class="sumtable" style="margin-top:0">' + row('Boden', fmtQ(t.boden) + ' m²') + row('Wand', fmtQ(t.wand) + ' m²') + row('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true) +
       row('Sockel', fmtQ(t.sockel) + ' lfm') + row('Silikonfugen', fmtQ(t.silikon) + ' lfm') +
-      row('Fliesenbedarf inkl. ' + fmtQ(w) + ' % Verschnitt', fmtQ(t.flaeche * (1 + w / 100)) + ' m²', true) + '</table>';
+      row('Fliesenbedarf inkl. ' + fmtQ(w) + ' % Verschnitt', fmtQ(t.flaeche * (1 + w / 100)) + ' m²', true) +
+      Object.keys(AM).filter(function (k) { return AM_BASE.indexOf(k) < 0 && t[k] > 0; }).map(function (k) { return row(esc(AM[k][0]), fmtQ(t[k]) + ' ' + esc(AM[k][1])); }).join('') + '</table>';
+  }
+  /** Abdichtungsfläche: eigene Eingabe, sonst Summe der Bereiche mit „Abdichtung“ im Namen (m²). */
+  function amAbdArea() {
+    var own = parseNum(String(draft.abd || '')); if (own > 0) return own;
+    var t = amTot(draft.rows), s = 0; Object.keys(AM).forEach(function (k) { if (AM[k][1] === 'm²' && /abdicht/i.test(AM[k][0])) s += t[k] || 0; }); return r2(s);
+  }
+  /** Verwaltung der eigenen Bereiche (z. B. Abdichtung Boden): Liste, Vorschläge, eigenes Feld. */
+  function amTypesHtml() {
+    var cu = amCustom(), names = Object.keys(AM).map(function (k) { return AM[k][0].toLowerCase(); });
+    var pre = AM_PRESETS.filter(function (x) { return names.indexOf(x[0].toLowerCase()) < 0; });
+    var open = draft.newTypeFor !== undefined && draft.newTypeFor !== null;
+    return '<details class="amtypes" id="amTypes"' + (open ? ' open' : '') + '><summary>Eigene Bereiche' + (cu.length ? ' (' + cu.length + ')' : '') + ' – z. B. Abdichtung Boden / Wand</summary>' +
+      (open ? '<p class="hint" style="margin:8px 0 0">Lege den Bereich an – er wird gleich in Zeile ' + (draft.newTypeFor + 1) + ' eingesetzt.</p>' : '') +
+      (cu.length ? '<div class="amt-list">' + cu.map(function (x) { return '<span class="amt">' + esc(x.name) + ' <small>' + esc(x.unit) + '</small><button type="button" data-act="am-type-del" data-id="' + esc(x.id) + '" aria-label="Bereich ' + esc(x.name) + ' löschen">×</button></span>'; }).join('') + '</div>' : '') +
+      (pre.length ? '<div class="amt-pre"><span class="hint">Schnell anlegen:</span>' + pre.map(function (x) { return '<button type="button" class="btn small" data-act="am-type-add" data-name="' + esc(x[0]) + '" data-unit="' + esc(x[1]) + '">+ ' + esc(x[0]) + '</button>'; }).join('') + '</div>' : '') +
+      '<div class="amt-new"><input id="am-tname" type="text" autocomplete="off" placeholder="Eigener Name, z. B. Fensterbank" aria-label="Name des Bereichs"><select id="am-tunit" aria-label="Einheit">' + Object.keys(AM_UNITS).map(function (u) { return '<option value="' + u + '">' + AM_UNITS[u] + '</option>'; }).join('') + '</select>' +
+      '<button type="button" class="btn small primary" data-act="am-type-add">Anlegen</button></div></details>';
+  }
+  async function amTypeAdd(name, unit) {
+    name = String(name || '').trim().replace(/\s+/g, ' ');
+    if (!name) { toast('Bitte einen Namen für den Bereich eingeben'); return; }
+    var hit = Object.keys(AM).find(function (k) { return AM[k][0].toLowerCase() === name.toLowerCase(); });
+    if (!hit) {
+      var x = { id: 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name, unit: AM_UNITS[unit] ? unit : 'm²', katId: amGuessKat(name) };
+      try { await persist('settings', 'aufmass', { types: amCustom().concat([x]) }); } catch (e) { toast('Speichern hat nicht geklappt'); return; }
+      amSync(); hit = x.id; toast('Bereich „' + name + '“ angelegt');
+    }
+    if (draft && draft.coll === 'aufmass') {
+      var i = draft.newTypeFor; draft.newTypeFor = null;
+      if (i !== undefined && i !== null && draft.rows[i]) draft.rows[i].type = hit;
+      renderAm();
+    }
+  }
+  async function amTypeDel(id) {
+    var used = state.data.auftraege.some(function (a) { return a.aufmass && (a.aufmass.rows || []).some(function (r) { return r.type === id; }); }) || (draft && draft.rows || []).some(function (r) { return r.type === id; });
+    if (used) { toast('Der Bereich wird noch in einem Aufmaß verwendet'); return; }
+    try { await persist('settings', 'aufmass', { types: amCustom().filter(function (x) { return x.id !== id; }) }); } catch (e) { toast('Speichern hat nicht geklappt'); return; }
+    amSync(); if (draft && draft.coll === 'aufmass') renderAm();
   }
   function amWayHtml(r) {
     var c = amCalc(r);
     if (c.err) return '<span class="bad">Eingabe prüfen – erlaubt sind Zahlen, + − × : und Klammern</span>';
     if (c.empty) return '<span class="hint">Maße eintragen – mehrere Längen mit + addieren</span>';
+    if (c.way === fmtQ(c.res)) return '<b>' + fmtQ(c.res) + ' ' + c.unit + '</b>';
     return '<span class="way">' + esc(c.way) + ' =</span> <b>' + fmtQ(c.res) + ' ' + c.unit + '</b>';
   }
   function amField(r, i, k, label, ph) {
@@ -2953,15 +3023,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function renderAm() {
     var a = amSite();
     var cards = draft.rows.map(function (r, i) {
-      var lfm = r.type === 'sockel' || r.type === 'silikon', newRoom = i > 0 && String(r.room || '').trim().toLowerCase() !== String(draft.rows[i - 1].room || '').trim().toLowerCase();
+      var unit = amUnit(r.type), lfm = unit === 'lfm', stk = unit === 'Stk', newRoom = i > 0 && String(r.room || '').trim().toLowerCase() !== String(draft.rows[i - 1].room || '').trim().toLowerCase();
       return '<div class="pos amcard' + (newRoom ? ' newroom' : '') + '" data-i="' + i + '">' +
         '<div class="am-top"><input type="text" data-f="room" aria-label="Raum / Bauteil" autocomplete="off" list="amRoomList" placeholder="Raum, z. B. Bad" value="' + esc(r.room) + '">' +
-        '<select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + AM[k][0] + '</option>'; }).join('') + '</select>' +
+        '<select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + esc(AM[k][0]) + '</option>'; }).join('') + (AM[r.type] ? '' : '<option value="' + esc(r.type) + '" selected>Unbekannter Bereich</option>') + '<option value="__new">+ Eigener Bereich …</option></select>' +
         '<button type="button" class="pc-x" data-act="am-del" data-i="' + i + '" aria-label="Zeile entfernen">×</button></div>' +
-        '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', lfm ? 'Länge (m)' : 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
-        (lfm ? '' : amField(r, i, 'b', r.type === 'wand' ? 'Höhe (m)' : 'Breite (m)', r.type === 'wand' ? 'z. B. 2,50' : 'z. B. 1,80')) +
+        (stk ? '<div class="am-nums stk">' + amField(r, i, 'n', 'Anzahl (Stück)', 'z. B. 2 + 1') + '</div>' :
+        '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
+        (lfm ? '' : amField(r, i, 'b', /wand/i.test(amName(r.type)) ? 'Höhe (m)' : 'Breite (m)', /wand/i.test(amName(r.type)) ? 'z. B. 2,50' : 'z. B. 1,80')) +
         '<label class="am-n">Anzahl<input type="text" inputmode="decimal" data-f="n" autocomplete="off" value="' + esc(r.n) + '"></label></div>' +
-        '<label class="am-abz">Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Tür, Fenster: Breite x Höhe)') + '<input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 0,885 x 2,01; 0,6 x 0,6') + '" value="' + esc(r.abz) + '"></label>' +
+        '<label class="am-abz">Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Tür, Fenster: Breite x Höhe)') + '<input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 0,885 x 2,01; 0,6 x 0,6') + '" value="' + esc(r.abz) + '"></label>') +
         '<div class="am-res" data-res>' + amWayHtml(r) + '</div></div>';
     }).join('');
     var roomNames = []; draft.rows.forEach(function (r) { var n = String(r.room || '').trim(); if (n && roomNames.indexOf(n) < 0) roomNames.push(n); });
@@ -2971,10 +3042,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<datalist id="amRoomList">' + roomNames.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
       '<div class="amlist">' + cards + '</div>' +
       '<div class="addbar" style="margin-top:10px"><button type="button" class="btn small" data-act="am-add">+ Zeile im selben Raum</button><button type="button" class="btn small" data-act="am-room">+ Neuer Raum</button></div>' +
+      amTypesHtml() +
       '<div id="amSum">' + amSumHtml() + '</div>' +
       '<div class="field" style="margin-top:14px;max-width:260px"><label for="am-waste">Verschnitt Fliesenmaterial (%)</label><input id="am-waste" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(draft.waste).replace('.', ',')) + '"></div>' +
       '<h3 class="section-h">Materialbedarf</h3>' +
-      '<div class="field" style="max-width:260px"><label for="am-abd">Abdichtungsfläche (m², Nassbereich)</label><input id="am-abd" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="' + esc(draft.abd) + '"></div>' +
+      '<div class="field" style="max-width:260px"><label for="am-abd">Abdichtungsfläche (m², Nassbereich)</label><input id="am-abd" type="text" inputmode="decimal" autocomplete="off" placeholder="' + (amAbdArea() > 0 && !(parseNum(String(draft.abd || '')) > 0) ? 'aus dem Aufmaß: ' + fmtQ(amAbdArea()) : '0') + '" value="' + esc(draft.abd) + '"></div>' +
       '<div id="matBox">' + matHtml() + '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn small" data-act="mat-copy">Liste kopieren</button><button type="button" class="btn small" data-act="mat-order">Als Bestellung anlegen</button></div>' +
       '<div class="actions" style="margin-top:14px"><button type="button" class="btn small left" data-act="am-csv">CSV</button><button type="button" class="btn small" data-act="am-pdf">PDF</button>' +
@@ -3033,14 +3105,14 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function matHtml() {
     var t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
-    var L = matList(t, w, parseNum(String(draft.abd || '')) || 0);
+    var L = matList(t, w, amAbdArea());
     if (!L.length) return '<p class="hint">Trage Maße ein, dann berechnet die App den Materialbedarf.</p>';
     return '<table class="nk"><tbody>' + L.map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num"><b>' + (x.packs != null ? x.packs + ' × ' + esc(x.pack) : fmtQ(x.qty) + ' ' + x.unit) + '</b>' + (x.packs != null ? '<div class="hint" style="margin:0">' + fmtQ(x.qty) + ' ' + x.unit + '</div>' : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
       '<p class="hint" style="margin:6px 0 0">Richtwerte. Herstellerangaben auf dem Gebinde gehen vor; die Verbrauchswerte änderst du unter „Firma und Preise“. Dichtband, Ecken und Schienen nach Bedarf.</p>';
   }
   function matText() {
     var a = amSite(), t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
-    return 'Material für ' + (a ? a.title : 'Baustelle') + '\n' + matList(t, w, parseNum(String(draft.abd || '')) || 0).map(function (x) { return '- ' + x.label + ': ' + fmtQ(x.qty) + ' ' + x.unit + (x.packs != null ? ' (' + x.packs + ' × ' + x.pack + ')' : ''); }).join('\n');
+    return 'Material für ' + (a ? a.title : 'Baustelle') + '\n' + matList(t, w, amAbdArea()).map(function (x) { return '- ' + x.label + ': ' + fmtQ(x.qty) + ' ' + x.unit + (x.packs != null ? ' (' + x.packs + ' × ' + x.pack + ')' : ''); }).join('\n');
   }
   async function matCopy() { var txt = matText(); try { await navigator.clipboard.writeText(txt); toast('Materialliste kopiert'); } catch (e) { toast('Kopieren ging nicht'); } }
   async function matOrder() {
@@ -3069,7 +3141,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function exportAm() {
     var a = amSite(), head = ['Raum', 'Bereich', 'Länge m', 'Breite/Höhe m', 'Anzahl', 'Abzüge', 'Rechenweg', 'Ergebnis', 'Einheit'];
-    var body = amCleanRows().map(function (r) { var c = amCalc(r); return [r.room, AM[r.type][0], r.l, r.b, r.n, r.abz, c.way, de(c.res), c.unit]; });
+    var body = amCleanRows().map(function (r) { var c = amCalc(r); return [r.room, amName(r.type), r.l, r.b, r.n, r.abz, c.way, de(c.res), c.unit]; });
     exportCsv('aufmass-' + (a ? a.title.replace(/[^\wäöüÄÖÜß-]+/g, '-') : 'baustelle') + '.csv', [head].concat(body));
   }
 
@@ -3114,7 +3186,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return out;
   }
   function amQty(rows, key) { var g = amGroups(rows, key.indexOf('*|') === 0 ? 'summe' : 'raum').find(function (x) { return x.key === key; }); return g ? g.qty : 0; }
+  function amCustomType(type) { return amCustom().find(function (x) { return x.id === type; }) || null; }
+  function amPosKat(type) { if (AM_POS[type]) return catItem(AM_POS[type][0]); var x = amCustomType(type); return x && x.katId ? catItem(x.katId) : null; }
   function amPosText(g) {
+    if (!AM_POS[g.type]) return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + amName(g.type);
     var c = catItem(AM_POS[g.type][0]), t = AM_POS[g.type][1] ? c.text.replace(/^Fliesen/, AM_POS[g.type][1]) : c.text;
     return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + t;
   }
@@ -3133,7 +3208,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (!rows.length) return 0;
     var groups = amGroups(rows, mode), old = A.positions.filter(function (p) { return p.amKey; }), price = {};
     old.forEach(function (p) { var ty = p.amKey.split('|')[1]; if (price[ty] === undefined) price[ty] = p.price; });
-    function make(g) { var c = catItem(AM_POS[g.type][0]); return { katId: c.id, amKey: g.key, art: 'lohn', text: amPosText(g), unit: c.unit, qty: g.qty, price: price[g.type] !== undefined ? price[g.type] : priceFor(c, A.region, A.ckind) }; }
+    function make(g) { var c = amPosKat(g.type); return { katId: c ? c.id : '', amKey: g.key, art: 'lohn', text: amPosText(g), unit: c ? c.unit : amUnit(g.type), qty: g.qty, price: price[g.type] !== undefined ? price[g.type] : c ? priceFor(c, A.region, A.ckind) : 0 }; }
     var st = amState(A, rows, mode);
     if (st === 'same' || st === 'changed') {
       var byKey = {}; old.forEach(function (p) { byKey[p.amKey] = p; });
@@ -3312,6 +3387,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (t.id === 'am-waste') { draft.waste = t.value; updAm(); return; }
       if (t.id === 'am-abd') { draft.abd = t.value; updAm(); return; }
       var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
+      if (t.dataset.f === 'type' && t.value === '__new') {
+        draft.newTypeFor = Number(pos.dataset.i); renderAm();
+        var dt = $('#amTypes'); if (dt) { dt.open = true; dt.scrollIntoView({ block: 'center' }); } var tn = $('#am-tname'); if (tn) tn.focus();
+        return;
+      }
       draft.rows[Number(pos.dataset.i)][t.dataset.f] = t.value;
       if (t.dataset.f !== 'room' && t.value.trim()) amAutoRoom(Number(pos.dataset.i));
       if (t.dataset.f === 'type') renderAm(); else updAm();
@@ -3516,7 +3596,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       var lines = d.splitTextToSize(String(r.room || ''), 31), way = d.splitTextToSize(c.err ? 'Eingabe fehlerhaft' : c.way, 80), n = Math.max(lines.length, way.length), h = Math.max(7, n * 4.5 + 2.6);
       needT(h); var ty = top + 4.8;
       pdfGrid(d, XS, top, h, false);
-      d.text(lines, 22, ty); d.text(AM[r.type][0], 56, ty); d.text(way, 78, ty); d.text(fmtQ(c.res) + ' ' + c.unit, 188, ty, { align: 'right' });
+      d.text(lines, 22, ty); d.text(amName(r.type), 56, ty); d.text(way, 78, ty); d.text(fmtQ(c.res) + ' ' + c.unit, 188, ty, { align: 'right' });
       top += h;
     });
     var rooms = amRooms(rows).filter(function (x) { return x.n; });
@@ -3994,6 +4074,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'am-add') { draft.rows.push(newAmRow(draft.rows[draft.rows.length - 1])); renderAm(); amFocusLast('l'); }
       else if (act === 'am-room') { draft.rows.push(newAmRow()); renderAm(); amFocusLast('room'); }
       else if (act === 'am-plus') amPlus(Number(a.dataset.i), a.dataset.k);
+      else if (act === 'am-type-add') { if (a.dataset.name) amTypeAdd(a.dataset.name, a.dataset.unit); else amTypeAdd(val('am-tname'), val('am-tunit')); }
+      else if (act === 'am-type-del') amTypeDel(a.dataset.id);
       else if (act === 'am-del') { draft.rows.splice(Number(a.dataset.i), 1); if (!draft.rows.length) draft.rows.push(newAmRow()); renderAm(); }
       else if (act === 'am-save') saveAm();
       else if (act === 'am-csv') exportAm();

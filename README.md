@@ -66,6 +66,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß-Übersicht:** Baustellen & Material › Aufmaß (`renderAufmassList`): Karten mit Flächen gesamt und je Raum,
   Öffnen / PDF / → Angebot, darunter Baustellen ohne Aufmaß. „+ Aufmaß“ wählt eine Baustelle oder legt beim
   Speichern eine neue an (Status „Anfrage“, Kundendaten aus der Kartei).
+- **Eigene Aufmaß-Bereiche:** `settings/aufmass.types` ({id, name, unit m²|lfm|Stk, katId}), per `amSync()` in `AM`
+  eingeblendet. Anlegen über „+ Eigener Bereich …“ in der Bereichsauswahl oder Schnellvorschläge (Abdichtung Boden/Wand …).
+  Abdichtung zählt nicht zur Fliesenfläche, füllt aber die Abdichtungsfläche des Materialrechners. Im Angebot mit
+  passender Preislisten-Leistung (`amGuessKat`), sonst ohne Preis. Löschen nur, wenn kein Aufmaß den Bereich nutzt.
 - **Aufmaß → Angebot:** Kasten „Aus dem Aufmaß“ in Schritt 2 (`amPanelHtml`, `amApply`). „Je Raum“ (Boden/Wand
   getrennt) oder „Zusammengefasst“; Positionen tragen `amKey`. Erneutes Übernehmen aktualisiert nur Mengen
   (Text/Preis bleiben), ergänzt neue und entfernt weggefallene Räume. Die Rechnung holt Mengen über `amKey`.

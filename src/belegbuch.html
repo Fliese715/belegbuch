@@ -602,12 +602,20 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /* ---------- Zustand (einzige Quelle für alle render-Funktionen) ---------- */
   /** Reiter in Anzeige-Reihenfolge; Schlüssel = id der <section> ohne 'v-' = URL-Hash. */
   var TABS = ['menu', 'erledigen', 'uebersicht', 'belege', 'auftraege', 'rechnungen', 'kunden', 'ordner', 'angebote', 'sicherung'];
+  /* Zuletzt gewählte Ansicht unter „Baustellen & Material“ (Baustellen / Bestellungen / Alle / Aufmaß und „Nur offene“).
+   * Nur eine Bequemlichkeit pro Gerät im Browser-Speicher; fehlt er, gilt „Baustellen, nur offene“. */
+  var FA_KEY = 'belegbuch:ui-fa';
+  function faLoad() {
+    try { var o = JSON.parse(localStorage.getItem(FA_KEY) || 'null'); if (o && ['kunde', 'lieferant', 'all', 'aufmass'].indexOf(o.kind) >= 0) return { kind: o.kind, open: o.open !== false }; } catch (e) { /* kein Speicher */ }
+    return { kind: 'kunde', open: true };
+  }
+  function faSave() { try { localStorage.setItem(FA_KEY, JSON.stringify({ kind: state.fa.kind, open: state.fa.open })); } catch (e) { /* kein Speicher */ } }
   var state = {
     tab: 'menu',
     data: { belege: [], auftraege: [], angebote: [], rechnungen: [], settings: [], dokumente: [], kunden: [], abwesenheit: [], termine: [] },
     loaded: { belege: false, auftraege: false, angebote: false, rechnungen: false, settings: false, dokumente: false, kunden: false, abwesenheit: false, termine: false },
     fb: { month: 'all', cat: 'all', q: '', nophoto: false },
-    fa: { kind: 'kunde', open: true },
+    fa: faLoad(),
     slow: false, err: false
   };
   /** Laufzeit-Dienste der Claude-Umgebung; außerhalb davon null (siehe Kopfkommentar). */
@@ -3953,7 +3961,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         else if (g === 'run') { state.fa = { kind: 'kunde', open: true, run: true }; setTab('auftraege'); }
         else if (g === 'inv') setTab('rechnungen');
       }
-      else if (act === 'fa-kind') { state.fa.kind = a.dataset.kind; state.fa.run = false; renderAuftraege(); renderTabs(); }
+      else if (act === 'fa-kind') { state.fa.kind = a.dataset.kind; state.fa.run = false; faSave(); renderAuftraege(); renderTabs(); }
       else if (act === 'am-pdf-list') { var ap = auftrag(a.dataset.id); if (ap && ap.aufmass) saveBlob('Aufmass-' + safeName(ap.title) + '.pdf', pdfAm(ap, ap.aufmass.rows || [], Number(ap.aufmass.waste) || 0, setting('firma'))); }
       else if (act === 'fb-clear') { state.fb.year = ''; state.fb.km = false; renderBelege(); }
       else if (act === 'fa-clear') { state.fa.run = false; state.fa.km = false; state.fa.year = ''; renderAuftraege(); }
@@ -4032,7 +4040,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (t.id === 'fb-month') { state.fb.month = t.value; renderBelege(); }
     else if (t.id === 'fb-cat') { state.fb.cat = t.value; renderBelege(); }
     else if (t.id === 'fb-nophoto') { state.fb.nophoto = t.checked; renderBelege(); }
-    else if (t.id === 'fa-open') { state.fa.open = t.checked; renderAuftraege(); }
+    else if (t.id === 'fa-open') { state.fa.open = t.checked; faSave(); renderAuftraege(); }
     else if (t.id === 'f-kind') {
       $('#f-status').innerHTML = options(STAT[t.value], STAT[t.value][0]);
       var kd = t.value === 'kunde';

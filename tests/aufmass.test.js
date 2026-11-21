@@ -73,7 +73,8 @@ const fs = require('fs');
   assert(true, 'PDF direkt aus der Übersicht');
   // + Aufmaß für eine neue Baustelle
   await page.evaluate(() => { localStorage.setItem('belegbuch:kunden', JSON.stringify([{ id: 'k9', name: 'Lange', ckind: 'privat', address: 'Dorfweg 1, 18510 Zarrendorf', email: 'lange@test.de', phone: '', note: '', _t: 1 }])); });
-  await page.reload(); await page.waitForSelector('#fa-seg'); await page.click('#fa-seg [data-kind="aufmass"]');
+  await page.reload(); await page.waitForSelector('#fa-seg button');
+  assert(await page.getAttribute('#fa-seg [data-kind="aufmass"]', 'aria-pressed') === 'true' && await page.textContent('#fab') === '+ Aufmaß', 'nach dem Neuladen ist „Aufmaß“ noch gewählt');
   await page.click('#fab'); await page.fill('#ams-site', 'Gäste-WC Lange');
   assert(/Neue Baustelle/.test(await page.textContent('#ams-hint')) && await page.isVisible('#ams-party'), 'neuer Name: Kunde und Adresse abfragen');
   await page.fill('#ams-party', 'Lange'); await page.click('#ams-go'); await page.waitForSelector('#amBody .pos');

@@ -72,7 +72,7 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Adressfeld und speichert es an der Baustelle.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
-  Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Termin
+  Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin
   übernehmen die Kundendaten; „Bearbeiten“ öffnet das bisherige Kundenformular.
 - **Eigene Aufmaß-Bereiche:** `settings/aufmass.types` ({id, name, unit m²|lfm|Stk, katId}), per `amSync()` in `AM`
   eingeblendet. Anlegen über „+ Eigener Bereich …“ in der Bereichsauswahl oder Schnellvorschläge (Abdichtung Boden/Wand …).

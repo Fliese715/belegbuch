@@ -48,6 +48,15 @@ const { chromium } = require('playwright');
   assert(await page.inputValue('#t-place') === 'Lindenweg 2, 18510 Zarrendorf', '+ Termin mit Adresse des Kunden');
   await page.fill('#t-site', 'Terrasse'); await page.click('#form [data-act="save"]'); await page.waitForSelector('.akstats');
   assert(/Termine 3/i.test(await sec('Termine')), 'neuer Termin erscheint gleich in der Akte');
+  // + Aufmaß: Start mit den Baustellen des Kunden, Baustelle ohne Aufmaß vorgewählt
+  await page.click('[data-act="k-new"][data-what="aufmass"]'); await page.waitForSelector('#ams-site');
+  const opts = await page.$$eval('#ams-list option', e => e.map(x => x.value));
+  assert(await page.inputValue('#ams-site') === 'Terrasse' && opts.sort().join('|') === 'Bad EG|Terrasse', '+ Aufmaß: nur Baustellen dieses Kunden, „Terrasse“ (ohne Aufmaß) vorgewählt');
+  await page.click('#ams-go'); await page.waitForSelector('#amBody .pos');
+  assert(/Terrasse/.test(await page.textContent('#sheetTitle')), 'Aufmaß für die Terrasse offen');
+  await page.fill('#amBody .pos[data-i="0"] [data-f="l"]', '5'); await page.fill('#amBody .pos[data-i="0"] [data-f="b"]', '4');
+  await page.click('[data-act="am-save"]'); await page.waitForSelector('.akstats');
+  assert(/Aufmaß 2/i.test(await sec('Aufmaß')) && /Boden 20 m²/.test(await sec('Aufmaß')), 'nach dem Speichern zurück in der Akte, Aufmaß erscheint');
   // + Baustelle
   await page.click('[data-act="k-new"][data-what="baustelle"]'); await page.waitForSelector('#f-title');
   assert(await page.inputValue('#f-party') === 'Petra Meier' && await page.inputValue('#f-kind') === 'kunde', '+ Baustelle für diesen Kunden');

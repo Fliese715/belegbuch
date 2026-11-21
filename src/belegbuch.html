@@ -2075,7 +2075,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       (k.note ? '<p class="hint" style="margin:6px 0 0">' + esc(k.note) + '</p>' : '') +
       '<div class="akstats"><div><span>Umsatz</span><b>' + money(d.st.umsatz) + '</b></div><div><span>Offen</span><b' + (d.st.offen ? ' class="warn-t"' : '') + '>' + money(d.st.offen) + '</b></div><div><span>Baustellen</span><b>' + d.A.length + '</b></div></div>' +
       '<div class="akact"><button type="button" class="btn small" data-act="k-edit" data-id="' + esc(k.id) + '">Bearbeiten</button><button type="button" class="btn small" data-act="k-new" data-what="baustelle" data-id="' + esc(k.id) + '">+ Baustelle</button>' +
-      '<button type="button" class="btn small" data-act="k-new" data-what="angebot" data-id="' + esc(k.id) + '">+ Angebot</button><button type="button" class="btn small" data-act="k-new" data-what="termin" data-id="' + esc(k.id) + '">+ Termin</button></div>' +
+      '<button type="button" class="btn small" data-act="k-new" data-what="angebot" data-id="' + esc(k.id) + '">+ Angebot</button><button type="button" class="btn small" data-act="k-new" data-what="aufmass" data-id="' + esc(k.id) + '">+ Aufmaß</button><button type="button" class="btn small" data-act="k-new" data-what="termin" data-id="' + esc(k.id) + '">+ Termin</button></div>' +
       sec('Baustellen', d.A.length, d.A.map(function (a) { return row('auftraege:' + esc(a.id), a.title, [a.site, a.date ? fdate(a.date) : ''].filter(Boolean).join(' · '), a.amount ? money(a.amount) : '', stBadge(a.status)); }).join(''), 'Noch keine Baustelle.') +
       sec('Termine', d.tm.length, up.concat(past).map(function (t) { return row('termine:' + esc(t.id), t.title, termWhen(t) + (termSiteName(t) ? ' · ' + termSiteName(t) : ''), '', t.date < today() ? '<span class="badge">vorbei</span>' : ''); }).join(''), 'Keine Termine.') +
       sec('Aufmaß', d.am.length, d.am.map(function (a) { var t = amTot(a.aufmass.rows); return row('aufmass:' + esc(a.id), a.title, Object.keys(AM).filter(function (x) { return t[x] > 0; }).map(function (x) { return AM[x][0] + ' ' + fmtQ(t[x]) + ' ' + AM[x][1]; }).join(' · '), a.aufmass.date ? fdate(a.aufmass.date) : '', ''); }).join(''), 'Noch kein Aufmaß.') +
@@ -2098,6 +2098,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       A.name = k.name; A.email = k.email || ''; A.address = k.address || '';
       if ((k.ckind === 'privat' ? 'privat' : 'firma') !== A.ckind) repriceKind(A, k.ckind === 'privat' ? 'privat' : 'firma');
       draft.step = 1; renderAng();
+    });
+    else if (what === 'aufmass') fromAkte(kid, function () {
+      var open = kundeStats(k).auftraege.filter(function (a) { return a.status !== 'Bezahlt'; });
+      var noAm = open.filter(function (a) { return !(a.aufmass && (a.aufmass.rows || []).length); });
+      if (open.length === 1) { openAufmass(open[0].id); return; }
+      openAufmassStart(k);
+      if (noAm.length === 1) { $('#ams-site').value = noAm[0].title; amStartHint(); }
     });
     else if (what === 'termin') fromAkte(kid, function () { openTermin(); var tp = $('#t-place'); if (tp && k.address) tp.value = k.address; var tt = $('#t-title'); if (tt) tt.value = 'Termin ' + k.name; });
   }
@@ -3062,12 +3069,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<p class="hint" style="margin-top:10px">B = Boden, W = Wand (m²) · S = Sockel, Si = Silikon (lfm)</p>';
   }
   /** „+ Aufmaß“: Baustelle wählen oder neu benennen. */
-  function openAufmassStart() {
+  function openAufmassStart(k) {
     draft = { coll: 'amstart' };
+    var own = k ? kundeStats(k).auftraege.filter(function (a) { return a.status !== 'Bezahlt'; }) : null;
     showSheet('<h2 id="sheetTitle">Neues Aufmaß</h2><form id="form" novalidate>' +
-      '<div class="field"><label for="ams-site">Baustelle</label><input id="ams-site" type="text" list="ams-list" autocomplete="off" placeholder="Vorhandene wählen oder neuen Namen eintragen"><datalist id="ams-list">' + termSites().map(function (a) { return '<option value="' + esc(a.title) + '">' + esc(a.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="ams-hint" style="margin:4px 0 0">Tippe ins Feld, um eine Baustelle auszuwählen, oder schreib einen neuen Namen.</p></div>' +
-      '<div id="ams-new"><div class="field"><label for="ams-party">Kunde (optional)</label><input id="ams-party" type="text" list="ams-klist" autocomplete="off"><datalist id="ams-klist">' + state.data.kunden.map(function (k) { return '<option value="' + esc(k.name) + '"></option>'; }).join('') + '</datalist></div>' +
-      '<div class="field"><label for="ams-addr">Adresse der Baustelle (optional)</label><input id="ams-addr" type="text" autocomplete="off"></div></div>' +
+      '<div class="field"><label for="ams-site">Baustelle</label><input id="ams-site" type="text" list="ams-list" autocomplete="off" placeholder="Vorhandene wählen oder neuen Namen eintragen"><datalist id="ams-list">' + (own || termSites()).map(function (a) { return '<option value="' + esc(a.title) + '">' + esc(a.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="ams-hint" style="margin:4px 0 0">Tippe ins Feld, um eine Baustelle auszuwählen, oder schreib einen neuen Namen.</p></div>' +
+      '<div id="ams-new"><div class="field"><label for="ams-party">Kunde (optional)</label><input id="ams-party" type="text" list="ams-klist" autocomplete="off" value="' + esc(k ? k.name : '') + '"><datalist id="ams-klist">' + state.data.kunden.map(function (k) { return '<option value="' + esc(k.name) + '"></option>'; }).join('') + '</datalist></div>' +
+      '<div class="field"><label for="ams-addr">Adresse der Baustelle (optional)</label><input id="ams-addr" type="text" autocomplete="off" value="' + esc(k && k.ckind === 'privat' ? k.address || '' : '') + '"></div></div>' +
       '<p class="err" id="formErr" role="alert"></p><div class="actions"><button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" id="ams-go">Weiter zum Aufmaß</button></div></form>');
   }
   function amStartHint() {
@@ -3077,9 +3085,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function amStartGo() {
     var name = val('ams-site'); if (!name) return formErr('Bitte die Baustelle eintragen.');
-    var x = siteByName(name);
-    if (x) { openAufmass(x.id); return; }
-    openAufmass(null, { title: name, party: val('ams-party'), site: val('ams-addr') });
+    var x = siteByName(name), back = draft && draft.backKunde;
+    if (x) openAufmass(x.id); else openAufmass(null, { title: name, party: val('ams-party'), site: val('ams-addr') });
+    if (back && draft) draft.backKunde = back;
   }
   /** Baustelle des offenen Aufmaßes – vorhanden oder (noch nicht gespeichert) neu. */
   function amSite() { return auftrag(draft.id) || draft.newSite || null; }

@@ -63,6 +63,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß:** Zeilen als Karten. Maßfelder rechnen (`evalMass`: + − × : und Klammern, ohne eval),
   z. B. Wandlängen „2,45 + 1,80 + 2,45 + 1,80“; „+“-Knopf am Feld, weil Zahlentastaturen oft kein Plus haben.
   Jede Zeile zeigt den Rechenweg; Summe je Raum, Gesamt; Rechenweg auch in PDF und CSV. Gespeichert wird die Eingabe.
+- **Aufmaß-Übersicht:** Baustellen & Material › Aufmaß (`renderAufmassList`): Karten mit Flächen gesamt und je Raum,
+  Öffnen / PDF / → Angebot, darunter Baustellen ohne Aufmaß. „+ Aufmaß“ wählt eine Baustelle oder legt beim
+  Speichern eine neue an (Status „Anfrage“, Kundendaten aus der Kartei).
 - **Angebot in vier Schritten:** 1 Kunde (Baustelle wählen oder neu benennen, Kunde aus der Kartei),
   2 Leistungen (Positionen als Karten, Preisliste, freie Position, Aufmaß), 3 Texte, 4 Prüfen und Senden.
   Ein Angebot aus der Angebotsliste legt beim Speichern die Baustelle (Status „Anfrage“) an.

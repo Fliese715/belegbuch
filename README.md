@@ -66,6 +66,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß-Übersicht:** Baustellen & Material › Aufmaß (`renderAufmassList`): Karten mit Flächen gesamt und je Raum,
   Öffnen / PDF / → Angebot, darunter Baustellen ohne Aufmaß. „+ Aufmaß“ wählt eine Baustelle oder legt beim
   Speichern eine neue an (Status „Anfrage“, Kundendaten aus der Kartei).
+- **Adresse der Baustelle:** `siteCandidates` sammelt alle bekannten Adressen (Rechnung, Angebot – bei Privatkunden
+  auch die Rechnungsadresse –, Termine, Kundenkartei; Firmensitz nur als Vorschlag). Leeres Feld wird mit der besten
+  gefüllt, die übrigen stehen als Knöpfe darunter. „Strecke ermitteln“ nimmt das Feld. Das Aufmaß hat ein eigenes
+  Adressfeld und speichert es an der Baustelle.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Termin

@@ -375,6 +375,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amt-new { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; margin-top: 10px; }
 .amt-new select { width: auto; }
 @media (max-width: 480px) { .amt-new { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .amt-new input { grid-column: 1 / -1; } }
+.sitechips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+.sitechips:empty { display: none; }
+.sitechips .btn { flex-direction: column; align-items: flex-start; text-align: left; min-height: 44px; height: auto; padding: 4px 10px; max-width: 100%; }
+.sitechips .btn span { overflow-wrap: anywhere; }
+.sitechips .btn small { color: var(--muted); font-size: 11.5px; font-weight: 400; }
 .akhead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 14px; margin-top: -4px; }
 .akhead a { color: var(--accent); overflow-wrap: anywhere; }
 .akstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 10px; }
@@ -2472,7 +2477,38 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
   /* ---------- Fahrten zu Baustellen ---------- */
   function siteKmTotal(a) { var o = Number(a && a.siteKm); return o > 0 ? Math.round(o * 2 * Math.max(1, Math.round(Number(a.visits) || 1)) * 10) / 10 : 0; }
-  function siteAddr(aid, fallback) { var r = aid ? latestRechnung(aid) : null; return String((r && r.site) || fallback || '').trim(); }
+  /** Woher die Baustellen-Adresse kommen kann, wenn sie an der Baustelle fehlt: Rechnung, Angebot, Termin,
+   * zuletzt die Adresse eines Privatkunden. Liefert {addr, src} oder null. */
+  /** Beste bekannte Baustellen-Adresse (siehe siteCandidates); Firmensitz einer Firma zählt nicht. */
+  function siteSource(aid) {
+    var a = aid ? auftrag(aid) : null; if (!a) return null;
+    var c = siteCandidates(aid).filter(function (x) { return !/Firmensitz/.test(x.src); })[0];
+    if (c) return c;
+    if (a.ckind === 'privat' && String(a.address || '').trim()) return { addr: String(a.address).trim(), src: 'Rechnungsadresse' };
+    return null;
+  }
+  /** Alle bekannten Adressen für eine Baustelle, beste zuerst, ohne Doppelte:
+   * Rechnung (Baustelle, bei Privatkunden auch Rechnungsadresse), Angebot (ebenso), Termine,
+   * Adresse des Kunden aus der Kartei, Rechnungsadresse im Formular. */
+  function siteCandidates(aid, party, billAddr, ckind) {
+    var out = [], seen = {}, a = aid ? auftrag(aid) : null;
+    party = party !== undefined ? party : a && a.party; ckind = ckind || (a && a.ckind);
+    function add(addr, src) { addr = String(addr || '').trim(); var key = addr.toLowerCase().replace(/[\s,.]+/g, ' '); if (addr && !seen[key]) { seen[key] = 1; out.push({ addr: addr, src: src }); } }
+    if (aid) {
+      state.data.rechnungen.filter(function (x) { return x.auftragId === aid; }).sort(function (x, y) { return String(y.date || '').localeCompare(String(x.date || '')); }).forEach(function (r) { add(r.site, 'Rechnung ' + (r.nr || '(Entwurf)')); if (r.ckind === 'privat') add(r.address, 'Rechnung ' + (r.nr || '(Entwurf)') + ', Rechnungsadresse'); });
+      state.data.angebote.filter(function (x) { return x.auftragId === aid; }).sort(function (x, y) { return String(y.date || '').localeCompare(String(x.date || '')); }).forEach(function (g) { add(g.site, 'Angebot ' + g.nr); if (g.ckind === 'privat') add(g.address, 'Angebot ' + g.nr + ', Rechnungsadresse'); });
+      state.data.termine.filter(function (x) { return x.auftragId === aid; }).sort(termSort).forEach(function (t) { add(t.place, 'Termin „' + t.title + '“'); });
+    }
+    var k = party ? kundeByName(party) : null; if (k) add(k.address, 'Adresse des Kunden' + (k.ckind === 'privat' ? '' : ' (Firmensitz)'));
+    add(billAddr, 'Rechnungsadresse');
+    return out;
+  }
+  function siteAddr(aid, fallback) { var r = aid ? latestRechnung(aid) : null, so = siteSource(aid); return String((r && r.site) || fallback || (so && so.addr) || '').trim(); }
+  /** Adresse aus Angebot/Rechnung an der Baustelle nachtragen, wenn sie dort noch fehlt. */
+  async function siteBackfill(aid, addr) {
+    var a = aid ? auftrag(aid) : null; addr = String(addr || '').trim();
+    if (a && addr && !String(a.site || '').trim()) { try { await patch('auftraege', aid, { site: addr }); } catch (e) { /* nicht schlimm */ } }
+  }
   function renderSiteTotal() {
     var el = $('#siteTotal'); if (!el) return;
     var o = parseNum(val('f-skm')), n = Math.max(1, Math.round(parseNum(val('f-svis')) || 1));
@@ -2480,9 +2516,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   async function siteCalc() {
     var msg = $('#siteMsg'), skm = $('#f-skm'); if (!msg || !skm) return;
-    var dest = siteAddr(draft && draft.id, val('f-site'));
+    var dest = val('f-site'), src = 'Adresse der Baustelle';
+    if (!dest) {
+      var c0 = siteCandidates(draft && draft.id, val('f-party'), val('f-ckind') === 'privat' ? val('f-addr') : '', val('f-ckind'))[0];
+      if (c0) { dest = c0.addr; src = c0.src; $('#f-site').value = dest; renderSiteChips(); }
+    }
     if (!dest) { msg.textContent = 'Bitte zuerst die Baustellen-Adresse eintragen.'; return; }
-    var src = siteAddr(draft && draft.id, '') ? 'Adresse auf der Rechnung' : 'Adresse der Baustelle';
     var pre = '';
     if (MAP) {
       msg.textContent = 'Kürzeste Strecke wird mit Mapbox berechnet …';
@@ -2504,6 +2543,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else msg.textContent = pre + 'Trage die Kilometer einfach selbst ein.';
   }
 
+  /** Vorschläge unter „Adresse der Baustelle“: jede bekannte Adresse als Knopf, die aktuelle ausgenommen. */
+  function renderSiteChips() {
+    var el = $('#siteChips'); if (!el) return;
+    var cur = val('f-site').toLowerCase().replace(/[\s,.]+/g, ' ');
+    var c = siteCandidates(draft && draft.id, val('f-party'), val('f-addr'), val('f-ckind')).filter(function (x) { return x.addr.toLowerCase().replace(/[\s,.]+/g, ' ') !== cur; });
+    el.innerHTML = c.length ? '<span class="hint">' + (cur ? 'Andere Adresse übernehmen:' : 'Adresse übernehmen:') + '</span>' + c.slice(0, 4).map(function (x) { return '<button type="button" class="btn small" data-act="site-pick" data-addr="' + esc(x.addr) + '" data-src="' + esc(x.src) + '"><span>' + esc(x.addr) + '</span><small>' + esc(x.src) + '</small></button>'; }).join('') : '';
+  }
   /** Öffnet das Beleg-Formular (id = null: neuer Beleg). */
   function openBeleg(id) {
     var b = id ? state.data.belege.find(function (x) { return x.id === id; }) : null;
@@ -2558,6 +2604,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     draft = { coll: 'auftraege', id: id || null, confirm: false, uploaded: [], hours: (a && a.hours || []).slice(), photos: (a && a.photos || []).slice(), delays: JSON.parse(JSON.stringify(a && a.delays || [])) };
     var v = a || { kind: state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde', party: '', title: '', site: '', area: '', amount: '', date: today(), due: addDays(today(), 14), terms: 14, status: STAT[state.fa.kind === 'lieferant' ? 'lieferant' : 'kunde'][0], note: '' };
     var k = v.kind === 'lieferant' ? 'lieferant' : 'kunde';
+    var siteFill = a && k === 'kunde' && !String(a.site || '').trim() ? siteSource(a.id) : null;
     var terms = (v.terms !== undefined && v.terms !== null) ? v.terms : (v.due ? 'custom' : 14);
     var parties = {};
     state.data.auftraege.forEach(function (x) { if (x.party) parties[x.party] = 1; });
@@ -2568,7 +2615,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="field"><label for="f-kind">Art</label><select id="f-kind"><option value="kunde"' + (k === 'kunde' ? ' selected' : '') + '>Baustelle / Kundenauftrag</option><option value="lieferant"' + (k === 'lieferant' ? ' selected' : '') + '>Materialbestellung beim Händler</option></select></div>' +
       '<div class="field"><label for="f-title">Bezeichnung</label><input id="f-title" type="text" autocomplete="off" placeholder="z. B. Bad EG, Wand- und Bodenfliesen" value="' + esc(v.title) + '"></div>' +
       '<div class="field"><label for="f-party" id="partyLbl">' + (k === 'kunde' ? 'Kunde' : 'Händler / Lieferant') + '</label><input id="f-party" type="text" autocomplete="off" list="parties" value="' + esc(v.party) + '"><datalist id="parties">' + Object.keys(parties).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist></div>' +
-      '<div class="field" id="siteWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-site">Baustelle / Adresse</label><input id="f-site" type="text" autocomplete="off" placeholder="z. B. Lindenweg 12, Bad EG" value="' + esc(v.site || '') + '"></div>' +
+      '<div class="field" id="siteWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-site">Adresse der Baustelle</label><input id="f-site" type="text" autocomplete="off" placeholder="Straße Nr., PLZ Ort" value="' + esc(v.site || (siteFill ? siteFill.addr : '')) + '">' +
+        (siteFill ? '<p class="hint" id="siteFillHint" style="margin:4px 0 0">Übernommen aus ' + esc(siteFill.src) + ' – bitte prüfen und speichern.</p>' : '') + '<div class="sitechips" id="siteChips"></div></div>' +
       '<div class="field trip" id="siteTripWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Fahrten zur Baustelle (optional)</span><div class="grid2 stack"><div class="field"><label for="f-skm">Strecke einfach (km)</label><input id="f-skm" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 12,5" value="' + (Number(v.siteKm) > 0 ? String(v.siteKm).replace('.', ',') : '') + '"></div><div class="field"><label for="f-svis">Anzahl Fahrten (hin und zurück)</label><input id="f-svis" type="text" inputmode="numeric" autocomplete="off" value="' + (Number(v.visits) > 0 ? Number(v.visits) : 1) + '"></div></div><p class="hint" id="siteTotal" style="margin:6px 0 0"></p><button type="button" class="btn small" data-act="site-calc" style="margin-top:8px">Strecke zur Baustelle ermitteln</button><p class="hint" id="siteMsg" style="margin-top:6px"></p></div>' +
       '<div id="kundeWrap"' + (k === 'kunde' ? '' : ' hidden') + '><div class="field"><label for="f-ckind">Kundenart</label><select id="f-ckind"><option value="firma"' + (v.ckind !== 'privat' ? ' selected' : '') + '>Firma</option><option value="privat"' + (v.ckind === 'privat' ? ' selected' : '') + '>Privatkunde</option></select></div><div class="field"><label for="f-email">E-Mail des Kunden</label><input id="f-email" type="text" inputmode="email" autocomplete="off" value="' + esc(v.email || '') + '"></div><div class="field"><label for="f-addr">Rechnungsadresse</label><input id="f-addr" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.address || '') + '"></div></div>' +
       '<div class="grid2 stack"><div class="field"><label for="f-amount" id="amountLbl">' + (k === 'kunde' ? 'Auftragswert' + NET() + ' (€)' : 'Betrag' + NET() + ' (€)') + '</label><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="' + (a ? de(v.amount) : '') + '"></div>' +
@@ -2597,7 +2645,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="actions">' + (a ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>'
     );
-    renderHours(); renderPhotos(); renderDelays();
+    renderHours(); renderPhotos(); renderDelays(); renderSiteChips();
   }
 
   function formErr(msg) { var e = $('#formErr'); if (e) e.textContent = msg; return false; }
@@ -3039,7 +3087,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function openAufmass(id, newSite) {
     amSync(); var a = id ? auftrag(id) : null; if (!a && !newSite) return;
     var am = (a && a.aufmass) || {};
-    draft = { coll: 'aufmass', sticky: true, id: a ? id : null, newSite: a ? null : newSite, rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10, abd: am.abd ? String(am.abd).replace('.', ',') : '' };
+    draft = { coll: 'aufmass', sticky: true, id: a ? id : null, newSite: a ? null : newSite, site: a ? (a.site || (siteSource(a.id) || {}).addr || '') : (newSite.site || ''), rows: (am.rows || []).map(function (r) { return Object.assign({}, r); }), waste: am.waste !== undefined ? am.waste : 10, abd: am.abd ? String(am.abd).replace('.', ',') : '' };
     if (!draft.rows.length) draft.rows.push(newAmRow());
     showSheet('<div id="amBody"></div>', true);
     renderAm();
@@ -3120,7 +3168,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }).join('');
     var roomNames = []; draft.rows.forEach(function (r) { var n = String(r.room || '').trim(); if (n && roomNames.indexOf(n) < 0) roomNames.push(n); });
     $('#amBody').innerHTML = '<h2 id="sheetTitle">Aufmaß: ' + esc(a ? a.title : '') + '</h2>' +
-      '<p class="hint" style="margin-bottom:6px">' + esc(a ? a.party : '') + (a && a.site ? ' · ' + esc(a.site) : '') + '</p>' +
+      (a && a.party ? '<p class="hint" style="margin-bottom:6px">' + esc(a.party) + '</p>' : '') +
+      '<div class="field" style="margin-bottom:10px"><label for="am-site">Adresse der Baustelle</label><input id="am-site" type="text" autocomplete="off" placeholder="Straße Nr., PLZ Ort" value="' + esc(draft.site) + '"></div>' +
       '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Unter jeder Zeile steht der Rechenweg. Den Raum trägt die App selbst ein, sobald du ein Maß eingibst – bis du einen neuen Namen schreibst.</p>' +
       '<datalist id="amRoomList">' + roomNames.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
       '<div class="amlist">' + cards + '</div>' +
@@ -3210,10 +3259,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var rows = amCleanRows(), t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
     var abd = parseNum(String(draft.abd || '')); var fields = { aufmass: { rows: rows, waste: w, date: today(), abd: abd > 0 ? r2(abd) : 0 } };
     if (t.flaeche > 0) fields.area = r2(t.flaeche);
+    if (String(draft.site || '').trim()) fields.site = String(draft.site).trim();
     try {
       if (!draft.id) {
         var ns = draft.newSite;
-        draft.id = await persist('auftraege', null, { kind: 'kunde', title: ns.title, party: ns.party || '', amount: 0, status: 'Anfrage', site: ns.site || '', email: '', ckind: 'privat', address: '', area: '', date: today(), terms: 14, due: addDays(today(), 14), note: '' });
+        draft.id = await persist('auftraege', null, { kind: 'kunde', title: ns.title, party: ns.party || '', amount: 0, status: 'Anfrage', site: fields.site || ns.site || '', email: '', ckind: 'privat', address: '', area: '', date: today(), terms: 14, due: addDays(today(), 14), note: '' });
         draft.newSite = null;
         var kk = ns.party ? kundeByName(ns.party) : null;
         if (kk) await patch('auftraege', draft.id, { email: kk.email || '', address: kk.address || '', ckind: kk.ckind === 'firma' ? 'firma' : 'privat' });
@@ -3327,7 +3377,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma');
     var A = ex ? JSON.parse(JSON.stringify(ex)) : {
       auftragId: aid || '', region: detectRegion(a), ckind: a ? (a.ckind === 'privat' ? 'privat' : 'firma') : 'privat', rc: false, nr: nextNr(), date: today(), valid: addDays(today(), 30),
-      name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || '' : '',
+      name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || ((siteSource(aid) || {}).addr || '') : '',
       title: 'Fliesenarbeiten ' + (a ? a.title : ''), positions: [], discount: 0, vat: f.kleinunt ? 0 : 19,
       intro: DEF_INTRO, outro: DEF_OUTRO, status: 'Entwurf'
     };
@@ -3469,6 +3519,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (draft.coll === 'aufmass') {
       if (t.id === 'am-waste') { draft.waste = t.value; updAm(); return; }
       if (t.id === 'am-abd') { draft.abd = t.value; updAm(); return; }
+      if (t.id === 'am-site') { draft.site = t.value; return; }
       var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
       if (t.dataset.f === 'type' && t.value === '__new') {
         draft.newTypeFor = Number(pos.dataset.i); renderAm();
@@ -3522,7 +3573,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       } catch (e) { return formErr('Die Baustelle ließ sich nicht anlegen. Versuche es noch einmal.'); }
     }
     var obj = JSON.parse(JSON.stringify(A)); delete obj.id;
-    try { draft.id = await persist('angebote', draft.id, obj); return true; }
+    try { draft.id = await persist('angebote', draft.id, obj); await siteBackfill(obj.auftragId, obj.site); return true; }
     catch (e) { return formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
   }
   async function markSent() {
@@ -3878,7 +3929,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       R = {
         auftragId: aid, angebotId: ang ? ang.id : '', nr: '', date: today(), servFrom: a && a.date ? a.date : today(), servTo: today(),
         terms: terms, due: addDays(today(), terms),
-        name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || '' : '',
+        name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || (ang && ang.site) || ((siteSource(aid) || {}).addr || '') : '',
         title: 'Fliesenarbeiten ' + (a ? a.title : ''), region: ang ? ang.region || '' : detectRegion(a),
         ckind: a && a.ckind === 'privat' ? 'privat' : 'firma', rc: ang ? !!ang.rc : false,
         vat: ang ? Number(ang.vat) : (f.kleinunt ? 0 : 19), discount: ang ? Number(ang.discount) || 0 : 0,
@@ -4008,7 +4059,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var A = draft.a, msg = reCheck(A, strict);
     if (msg) return formErr(msg);
     var obj = JSON.parse(JSON.stringify(A)); delete obj.id;
-    try { draft.id = await persist('rechnungen', draft.id, obj); return true; }
+    try { draft.id = await persist('rechnungen', draft.id, obj); await siteBackfill(obj.auftragId, obj.site); return true; }
     catch (e) { return formErr('Speichern hat nicht geklappt. Versuche es noch einmal.'); }
   }
   async function issueRe(btn) {
@@ -4099,6 +4150,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'delete') del(a);
       else if (act === 'trip-calc') fillTrip(false);
       else if (act === 'site-calc') siteCalc();
+      else if (act === 'site-pick') { $('#f-site').value = a.dataset.addr; var sh = $('#siteFillHint'); if (sh) sh.textContent = 'Übernommen aus ' + a.dataset.src + ' – bitte prüfen und speichern.'; renderSiteChips(); var sm = $('#siteMsg'); if (sm) sm.textContent = ''; }
       else if (act === 'timer') toggleTimer(a.dataset.id);
       else if (act === 'abschlag') openRechnung(null, a.dataset.id, 'abschlag');
       else if (act === 'k-import') kundenImport();
@@ -4234,6 +4286,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (draft && draft.sticky) { onSheetInput(e.target); return; }
     if (e.target.id === 'f-km' || e.target.id === 'f-place' || e.target.id === 'f-vaddr') renderTrip();
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
+    if (e.target.id === 'f-site' || e.target.id === 'f-addr') renderSiteChips();
     if (e.target.id === 't-date') termWarn();
     if (e.target.id === 'ams-site') amStartHint();
     if (e.target.id === 't-site') { termSiteHint(); var ta = siteByName(e.target.value); if (ta && ta.site && !val('t-place')) $('#t-place').value = ta.site; }
@@ -4272,7 +4325,12 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (t.dataset && t.dataset.doc) { patch('dokumente', t.dataset.doc, { name: String(t.value).trim() }).then(function () { toast('Name gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
     if (t.id === 'f-party' && draft && draft.coll === 'auftraege' && val('f-kind') === 'kunde') {
       var kk = kundeByName(t.value);
-      if (kk) { if (!val('f-addr')) $('#f-addr').value = kk.address || ''; if (!val('f-email')) $('#f-email').value = kk.email || ''; $('#f-ckind').value = kk.ckind === 'privat' ? 'privat' : 'firma'; toast('Kundendaten übernommen'); }
+      if (kk) {
+        if (!val('f-addr')) $('#f-addr').value = kk.address || ''; if (!val('f-email')) $('#f-email').value = kk.email || ''; $('#f-ckind').value = kk.ckind === 'privat' ? 'privat' : 'firma';
+        if (!val('f-site') && kk.ckind === 'privat' && kk.address) { $('#f-site').value = kk.address; var fh = $('#siteFillHint'); if (!fh) { fh = document.createElement('p'); fh.className = 'hint'; fh.id = 'siteFillHint'; fh.style.margin = '4px 0 0'; $('#f-site').after(fh); } fh.textContent = 'Übernommen aus der Adresse des Kunden – bitte prüfen.'; }
+        toast('Kundendaten übernommen');
+      }
+      renderSiteChips();
       return;
     }
     if (t.id === 'ab-result') { $('#ab-mWrap').hidden = t.value === 'ok'; return; }

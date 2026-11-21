@@ -41,6 +41,20 @@ const { chromium } = require('playwright');
   assert(p.length === 6 && /^Bad: Wandfliesen.* = 20,32 @ 62,00/.test(p[1]) && /^Küche: Wandfliesen.* = 1,8 @ 62,00/.test(p[4]) && /^Anfahrt = 1 @ 35,00/.test(p[5]), 'Mengen aktualisiert, Küche ergänzt, Preise und freie Position bleiben: ' + p.join(' | '));
   assert(/Mengen sind aktuell/.test(await page.textContent('.ampanel [data-act="ang-am"]')), 'danach wieder aktuell');
   await page.click('[data-act="ang-save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  // Aus dem Aufmaß: „In Angebot übernehmen“ aktualisiert den Entwurf
+  await page.click('[data-act="fa-kind"][data-kind="aufmass"]').catch(() => {});
+  await page.click('#auftraegeList [data-act="aufmass"]'); await page.waitForSelector('#amBody .pos');
+  await page.fill('#amBody .pos[data-i="0"] [data-f="b"]', '2');
+  await page.click('[data-act="am-angebot"]'); await page.waitForSelector('.ampanel');
+  p = await pos();
+  assert(await page.isVisible('.angstep[data-step="2"]') && /^Bad: Bodenfliesen.* = 8,5/.test(p[0]) && p.length === 6 && /Mengen sind aktuell/.test(await page.textContent('.ampanel [data-act="ang-am"]')), 'Aufmaß → Entwurf aktualisiert, Schritt 2: ' + p[0]);
+  assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:auftraege'))[0].aufmass.rows[0].b === '2'), 'Aufmaß wurde dabei gespeichert');
+  await page.click('.stepper [data-step="4"]'); await page.click('[data-act="ang-sent"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  await page.click('#auftraegeList [data-act="aufmass"]'); await page.waitForSelector('#amBody .pos');
+  await page.click('[data-act="am-angebot"]'); await page.waitForSelector('.ampanel');
+  assert(/A-\d{4}-002/.test(await page.textContent('#sheetTitle')) && /ist schon versendet/.test(await page.textContent('#toast')), 'versendetes Angebot bleibt, neues Angebot entsteht');
+  await page.click('[data-act="cancel"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  await page.evaluate(() => { const a = JSON.parse(localStorage.getItem('belegbuch:auftraege')); a[0].aufmass.rows[0].b = '1,80'; localStorage.setItem('belegbuch:auftraege', JSON.stringify(a)); });
   // Rechnung: Bad-Wand nochmal größer → Menge je Raum, nicht die Gesamtfläche
   await page.evaluate(() => { const a = JSON.parse(localStorage.getItem('belegbuch:auftraege')); a[0].aufmass.rows[1].b = '2,7'; localStorage.setItem('belegbuch:auftraege', JSON.stringify(a)); });
   await page.reload(); await page.waitForSelector('#auftraegeList');

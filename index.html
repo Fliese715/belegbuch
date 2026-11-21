@@ -3188,7 +3188,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<h3 class="section-h">Materialbedarf</h3>' +
       '<div class="field" style="max-width:260px"><label for="am-abd">Abdichtungsfläche (m², Nassbereich)</label><input id="am-abd" type="text" inputmode="decimal" autocomplete="off" placeholder="' + (amAbdArea() > 0 && !(parseNum(String(draft.abd || '')) > 0) ? 'aus dem Aufmaß: ' + fmtQ(amAbdArea()) : '0') + '" value="' + esc(draft.abd) + '"></div>' +
       '<div id="matBox">' + matHtml() + '</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn small" data-act="mat-copy">Liste kopieren</button><button type="button" class="btn small" data-act="mat-order">Als Bestellung anlegen</button></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn small" data-act="mat-copy">Liste kopieren</button><button type="button" class="btn small" data-act="mat-order">Als Bestellung anlegen</button><button type="button" class="btn small primary" data-act="am-angebot">In Angebot übernehmen</button></div>' +
       '<div class="actions" style="margin-top:14px"><button type="button" class="btn small left" data-act="am-csv">CSV</button><button type="button" class="btn small" data-act="am-pdf">PDF</button>' +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="button" class="btn primary" data-act="am-save">Speichern</button></div>';
   }
@@ -3263,8 +3263,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
   function amFocusLast(k) { var el = document.querySelectorAll('#amBody .pos [data-f="' + k + '"]'); if (el.length) el[el.length - 1].focus(); }
   function amCleanRows() { return draft.rows.filter(function (r) { return amRes(r) > 0 || String(r.room || '').trim(); }); }
-  async function saveAm() {
-    var rows = amCleanRows(), t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
+  async function saveAm(next) {
+    var rows = amCleanRows();
+    if (next === 'angebot' && !rows.some(function (r) { return amRes(r) > 0; })) { toast('Trage zuerst Maße ein'); return; }
+    var t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
     var abd = parseNum(String(draft.abd || '')); var fields = { aufmass: { rows: rows, waste: w, date: today(), abd: abd > 0 ? r2(abd) : 0 } };
     if (t.flaeche > 0) fields.area = r2(t.flaeche);
     if (String(draft.site || '').trim()) fields.site = String(draft.site).trim();
@@ -3276,9 +3278,23 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         var kk = ns.party ? kundeByName(ns.party) : null;
         if (kk) await patch('auftraege', draft.id, { email: kk.email || '', address: kk.address || '', ckind: kk.ckind === 'firma' ? 'firma' : 'privat' });
       }
-      await patch('auftraege', draft.id, fields); await closeSheet(false); toast('Aufmaß gespeichert');
+      await patch('auftraege', draft.id, fields);
+      if (next === 'angebot') { var aid = draft.id, back = draft.backKunde; draft.backKunde = null; await closeSheet(false); amToAngebot(aid, back); return; }
+      await closeSheet(false); toast('Aufmaß gespeichert');
     }
     catch (e) { toast('Speichern hat nicht geklappt'); }
+  }
+  /** Aufmaß → Angebot: offener Entwurf der Baustelle wird aktualisiert, sonst entsteht ein neues Angebot. */
+  function amToAngebot(aid, back) {
+    var ex = latestAngebot(aid);
+    if (ex && ex.status === 'Entwurf') {
+      openAngebot(ex.id); amApply(draft.amMode || ex.amMode || 'raum'); draft.step = 2; renderAng();
+      toast('Aufmaß gespeichert und in ' + ex.nr + ' übernommen');
+    } else {
+      openAngebot(null, aid); if (draft.a.name) draft.step = 2; renderAng();
+      toast(ex ? 'Neues Angebot – ' + ex.nr + ' ist schon ' + String(ex.status).toLowerCase() : 'Aufmaß gespeichert, Angebot angelegt');
+    }
+    if (back && draft) draft.backKunde = back;
   }
   function exportAm() {
     var a = amSite(), head = ['Raum', 'Bereich', 'Länge m', 'Breite/Höhe m', 'Anzahl', 'Abzüge', 'Rechenweg', 'Ergebnis', 'Einheit'];
@@ -4223,6 +4239,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'am-type-del') amTypeDel(a.dataset.id);
       else if (act === 'am-del') { draft.rows.splice(Number(a.dataset.i), 1); if (!draft.rows.length) draft.rows.push(newAmRow()); renderAm(); }
       else if (act === 'am-save') saveAm();
+      else if (act === 'am-angebot') saveAm('angebot');
       else if (act === 'am-csv') exportAm();
       else if (act === 'am-pdf') pdfAmFile();
       else if (act === 'angebot') { var ea = latestAngebot(a.dataset.id); if (ea) openAngebot(ea.id); else openAngebot(null, a.dataset.id); }

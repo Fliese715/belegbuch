@@ -330,6 +330,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .pcard .sub:empty { display: none; }
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
+.ampanel { border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin: 4px 0 6px; background: var(--accent-soft); display: flex; flex-direction: column; gap: 8px; }
+.ampanel .amp-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ampanel .amp-tot { font-family: var(--font-mono); font-size: 13px; }
+.ampanel .amp-seg { background: var(--surface); }
+.ampanel .btn { align-self: flex-start; }
 .amlist { display: flex; flex-direction: column; gap: 8px; }
 .amcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px; }
 .amcard.newroom { margin-top: 10px; }
@@ -3097,13 +3102,67 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     else { var c = catItem(v); if (!c) return; A.positions.push({ katId: c.id, art: 'lohn', text: c.text, unit: c.unit, qty: basisQty(c, A.auftragId), price: priceFor(c, A.region, A.ckind) }); }
     renderAng();
   }
-  function suggest() {
-    var A = draft.a, a = auftrag(A.auftragId), t = a && a.aufmass ? amTot(a.aufmass.rows) : null, n = 0;
-    if (!t) return 0;
-    [['verl-std', t.flaeche], ['sockel', t.sockel], ['silikon', t.silikon]].forEach(function (x) {
-      if (x[1] > 0) { var c = catItem(x[0]); A.positions.push({ katId: c.id, art: 'lohn', text: c.text, unit: c.unit, qty: r2(x[1]), price: priceFor(c, A.region, A.ckind) }); n++; }
-    });
-    return n;
+  /* ---------- Aufmaß → Angebot ----------
+   * mode 'raum': je Raum eine Position je Bereich (Bad: Bodenfliesen …, Bad: Wandfliesen …),
+   * mode 'summe': je Bereich eine Position über alle Räume. Jede so erzeugte Position trägt amKey
+   * ('raum|bereich' bzw. '*|bereich'); daran erkennt die App sie beim Aktualisieren und in der Rechnung. */
+  var AM_POS = { boden: ['verl-std', 'Bodenfliesen'], wand: ['verl-std', 'Wandfliesen'], sockel: ['sockel', ''], silikon: ['silikon', ''] };
+  function amGroups(rows, mode) {
+    var out = [];
+    if (mode === 'summe') { var t = amTot(rows); Object.keys(AM).forEach(function (k) { if (t[k] > 0) out.push({ key: '*|' + k, type: k, room: '', qty: r2(t[k]) }); }); }
+    else amRooms(rows).forEach(function (x) { Object.keys(AM).forEach(function (k) { if (x[k] > 0) out.push({ key: x.room.toLowerCase() + '|' + k, type: k, room: x.room, qty: r2(x[k]) }); }); });
+    return out;
+  }
+  function amQty(rows, key) { var g = amGroups(rows, key.indexOf('*|') === 0 ? 'summe' : 'raum').find(function (x) { return x.key === key; }); return g ? g.qty : 0; }
+  function amPosText(g) {
+    var c = catItem(AM_POS[g.type][0]), t = AM_POS[g.type][1] ? c.text.replace(/^Fliesen/, AM_POS[g.type][1]) : c.text;
+    return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + t;
+  }
+  /** Stand der Aufmaß-Positionen im Angebot: 'none' | 'same' (Mengen stimmen) | 'changed' | 'other' (andere Art). */
+  function amState(A, rows, mode) {
+    var old = A.positions.filter(function (p) { return p.amKey; }); if (!old.length) return 'none';
+    if (!old.every(function (p) { return (p.amKey.indexOf('*|') === 0) === (mode === 'summe'); })) return 'other';
+    var g = amGroups(rows, mode);
+    var same = g.length === old.length && g.every(function (x) { var p = old.find(function (q) { return q.amKey === x.key; }); return p && Math.abs((Number(p.qty) || 0) - x.qty) < 0.001; });
+    return same ? 'same' : 'changed';
+  }
+  /** Übernimmt das Aufmaß der Baustelle. Gleiche Art: nur Mengen aktualisieren (Text und Preis bleiben),
+   * neue Räume ergänzen, weggefallene entfernen. Andere Art: Aufmaß-Positionen ersetzen, Preise je Bereich behalten. */
+  function amApply(mode) {
+    var A = draft.a, a = auftrag(A.auftragId), rows = a && a.aufmass ? a.aufmass.rows || [] : [];
+    if (!rows.length) return 0;
+    var groups = amGroups(rows, mode), old = A.positions.filter(function (p) { return p.amKey; }), price = {};
+    old.forEach(function (p) { var ty = p.amKey.split('|')[1]; if (price[ty] === undefined) price[ty] = p.price; });
+    function make(g) { var c = catItem(AM_POS[g.type][0]); return { katId: c.id, amKey: g.key, art: 'lohn', text: amPosText(g), unit: c.unit, qty: g.qty, price: price[g.type] !== undefined ? price[g.type] : priceFor(c, A.region, A.ckind) }; }
+    var st = amState(A, rows, mode);
+    if (st === 'same' || st === 'changed') {
+      var byKey = {}; old.forEach(function (p) { byKey[p.amKey] = p; });
+      var lastAm = -1; A.positions.forEach(function (p, i) { if (p.amKey) lastAm = i; });
+      var add = [];
+      groups.forEach(function (g) { if (byKey[g.key]) byKey[g.key].qty = g.qty; else add.push(make(g)); });
+      A.positions.splice.apply(A.positions, [lastAm + 1, 0].concat(add));
+      A.positions = A.positions.filter(function (p) { return !p.amKey || groups.some(function (g) { return g.key === p.amKey; }); });
+    } else {
+      var at = A.positions.findIndex(function (p) { return p.amKey; }); if (at < 0) at = 0;
+      A.positions = A.positions.filter(function (p) { return !p.amKey; });
+      A.positions.splice.apply(A.positions, [Math.min(at, A.positions.length), 0].concat(groups.map(make)));
+    }
+    A.amMode = mode; draft.amMode = mode;
+    return groups.length;
+  }
+  function suggest() { return amApply((draft && draft.amMode) || draft.a.amMode || 'raum'); }
+  /** Kasten „Aus dem Aufmaß“ oben in Schritt 2. */
+  function amPanelHtml(A, a) {
+    if (!a || !a.aufmass || !(a.aufmass.rows || []).length) return '';
+    var rows = a.aufmass.rows, t = amTot(rows), mode = draft.amMode || A.amMode || 'raum', st = amState(A, rows, mode);
+    var tot = Object.keys(AM).filter(function (k) { return t[k] > 0; }).map(function (k) { return AM[k][0] + ' ' + fmtQ(t[k]) + ' ' + AM[k][1]; }).join(' · ');
+    var btn = st === 'none' ? ['Ins Angebot übernehmen', true] : st === 'changed' ? ['Mengen aktualisieren', true] : st === 'other' ? ['Auf „' + (mode === 'summe' ? 'Zusammengefasst' : 'Je Raum') + '“ umstellen', true] : ['✓ Mengen sind aktuell', false];
+    return '<div class="ampanel"><div class="amp-h"><b>Aus dem Aufmaß</b><span class="hint">' + (a.aufmass.date ? 'vom ' + fdate(a.aufmass.date) : '') + '</span></div>' +
+      '<div class="amp-tot">' + esc(tot) + '</div>' +
+      '<div class="seg amp-seg" role="group" aria-label="Wie übernehmen"><button type="button" data-act="ang-am-mode" data-mode="raum" aria-pressed="' + (mode === 'raum') + '"><b>Je Raum</b><span>Boden und Wand getrennt</span></button>' +
+      '<button type="button" data-act="ang-am-mode" data-mode="summe" aria-pressed="' + (mode === 'summe') + '"><b>Zusammengefasst</b><span>alle Räume in einer Zeile</span></button></div>' +
+      '<button type="button" class="btn small' + (btn[1] ? ' primary' : '') + '" data-act="ang-am"' + (btn[1] ? '' : ' disabled') + '>' + btn[0] + '</button>' +
+      (st === 'changed' ? '<p class="hint" style="margin:6px 0 0">Das Aufmaß hat sich geändert. Texte und Preise bleiben, nur die Mengen werden angepasst.</p>' : '') + '</div>';
   }
   function openAngebot(id, aid) {
     var ex = id ? state.data.angebote.find(function (x) { return x.id === id; }) : null;
@@ -3158,7 +3217,6 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var opts = '<option value="">+ Leistung aus Preisliste …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + ' (' + esc(x.unit) + ')</option>'; }).join('');
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
     function sec(n, html) { return '<section class="angstep" data-step="' + n + '"' + (n === st ? '' : ' hidden') + '>' + html + '</section>'; }
-    var hasAm = a && a.aufmass && (a.aufmass.rows || []).length;
     var bsHint = draft.fromList ? (A.auftragId && a ? 'Verknüpft mit der Baustelle „' + a.title + '“.' : draft.bsName ? 'Neue Baustelle – wird beim Speichern unter „Baustellen & Material“ angelegt.' : 'Wähle eine vorhandene Baustelle oder gib einen neuen Namen ein.') : '';
     var s1 = '<h3 class="section-h" style="margin-top:4px">Für wen ist das Angebot?</h3>' +
       (draft.fromList
@@ -3170,10 +3228,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       inp('a-site', 'site', 'Adresse der Baustelle') +
       inp('a-email', 'email', 'E-Mail des Kunden (für den Versand)', 'text', ' inputmode="email"') +
       inp('a-title', 'title', 'Betreff des Angebots');
-    var s2 = '<h3 class="section-h" style="margin-top:4px">Was bietest du an?</h3>' + reRows(A) +
+    var s2 = amPanelHtml(A, a) + '<h3 class="section-h" style="margin-top:4px">Was bietest du an?</h3>' + reRows(A) +
       '<div class="addbar" style="margin-top:4px"><select id="angAdd" aria-label="Leistung aus Preisliste hinzufügen">' + opts + '</select>' +
       '<button type="button" class="btn small" data-act="ang-free">+ Freie Position</button>' +
-      (hasAm ? '<button type="button" class="btn small" data-act="ang-suggest">Aus Aufmaß übernehmen</button>' : '') + '</div>' +
+      '</div>' +
       '<div class="grid2 stack" style="margin-top:14px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" placeholder="0" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
       '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
       '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
@@ -3222,7 +3280,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (x) {
         if (!A.name) A.name = x.party || ''; if (!A.email) A.email = x.email || ''; if (!A.address) A.address = x.address || ''; if (!A.site) A.site = x.site || '';
         if (x.ckind && x.ckind !== A.ckind) repriceKind(A, x.ckind === 'privat' ? 'privat' : 'firma');
-        if (!A.positions.length) A.region = detectRegion(x);
+        if (!A.positions.length) { A.region = detectRegion(x); suggest(); }
         if (/^Fliesenarbeiten\s*$/.test(A.title || '')) A.title = 'Fliesenarbeiten ' + x.title;
       } else if (/^Fliesenarbeiten\s*$/.test(A.title || '') && draft.bsName) A.title = 'Fliesenarbeiten ' + draft.bsName;
       renderAng();
@@ -3640,8 +3698,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var t = amTot(R.amSnap.rows);
     R.positions.forEach(function (p) {
       var c = p.katId && catItem(p.katId);
-      if (c && c.basis && t[c.basis] > 0) {
-        var q = r2(t[c.basis]);
+      if (p.amKey || (c && c.basis && t[c.basis] > 0)) {
+        var q = p.amKey ? amQty(R.amSnap.rows, p.amKey) : r2(t[c.basis]);
         if (Math.abs(q - (Number(p.qty) || 0)) > 0.001) { if (p.angQty === undefined) p.angQty = Number(p.qty) || 0; p.qty = q; n++; }
       }
     });
@@ -3941,7 +3999,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'am-csv') exportAm();
       else if (act === 'am-pdf') pdfAmFile();
       else if (act === 'angebot') { var ea = latestAngebot(a.dataset.id); if (ea) openAngebot(ea.id); else openAngebot(null, a.dataset.id); }
-      else if (act === 'ang-suggest') { var nn = suggest(); renderAng(); if (!nn) toast('Kein Aufmaß vorhanden. Erfasse zuerst das Aufmaß.'); }
+      else if (act === 'ang-suggest' || act === 'ang-am') { var nn = suggest(); renderAng(); toast(nn ? 'Aufmaß übernommen' : 'Kein Aufmaß vorhanden. Erfasse zuerst das Aufmaß.'); }
+      else if (act === 'ang-am-mode') { draft.amMode = a.dataset.mode; renderAng(); }
       else if (act === 'ang-free') { addPos('__free'); var fl = document.querySelectorAll('#angBody .pos textarea[data-pf="text"]'); if (fl.length) fl[fl.length - 1].focus(); }
       else if (act === 'ang-step') angStep(Number(a.dataset.step));
       else if (act === 'ang-del-pos') { draft.a.positions.splice(Number(a.dataset.i), 1); renderAng(); }

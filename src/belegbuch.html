@@ -3629,6 +3629,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<p class="hint" style="margin-top:12px">So versendest du: 1. PDF speichern, 2. E-Mail öffnen und das PDF anhängen. Die App verschickt nichts selbst.</p>' +
       '<div class="actions" style="justify-content:flex-start;margin:8px 0 12px"><button type="button" class="btn" data-act="ang-view-draft">PDF ansehen</button><button type="button" class="btn" data-act="ang-pdf">1. PDF speichern</button>' +
       '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
+      '<div class="actions" style="justify-content:flex-start;margin:0 0 12px"><button type="button" class="btn" data-act="ang-to-re-draft">Angebot speichern und in Rechnung übernehmen</button></div>' +
       '<details><summary class="hint" style="cursor:pointer">E-Mail-Text ansehen oder ändern</summary>' +
       '<div class="field" style="margin-top:10px"><span class="lbl">An</span><div class="num" id="mailTo">' + esc(A.email || '(keine E-Mail-Adresse eingetragen – Schritt 1)') + '</div></div>' +
       '<div class="field"><label for="mailSubj">Betreff</label><input id="mailSubj" type="text" autocomplete="off" value="' + esc(m.sub) + '"></div>' +
@@ -4016,6 +4017,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
   function pdfAmFile() { var a = amSite(), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10; saveBlob('Aufmass-' + safeName(a ? a.title : 'Baustelle') + '.pdf', pdfAm(a, amCleanRows(), w, setting('firma'))); }
 
   /* ---------- Angebote-Liste ---------- */
+  /** Kurzinfo, ob es zum Angebot schon eine Rechnung gibt (Nummer oder „Entwurf“). */
+  function angReOf(x) { var r = state.data.rechnungen.filter(function (q) { return q.angebotId === x.id && reType(q) !== 'storno' && q.status !== 'Storniert'; }).sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })[0]; return r ? (r.nr || 'Entwurf') + ' öffnen' : ''; }
   function renderAngebote() {
     var el = $('#angeboteList'), note = stateNote();
     if (note) { el.innerHTML = note; $('#angeboteSum').textContent = ''; return; }
@@ -4031,7 +4034,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + '</div>' +
         '<div class="tools"><select data-astatus="' + esc(x.id) + '" aria-label="Status von ' + esc(x.nr) + '">' + options(ANG_STAT, x.status) + '</select><span class="badge ' + cls + '">' + esc(x.status) + '</span>' +
         (x.valid && x.status === 'Versendet' && x.valid < today() ? '<span class="badge bad">abgelaufen</span>' : '') +
-        '<button type="button" class="btn small primary ang-pdfbtn" data-act="ang-view" data-id="' + esc(x.id) + '">PDF ansehen' + (x.status === 'Entwurf' ? ' & senden' : '') + '</button></div></article>';
+        '<button type="button" class="btn small primary ang-pdfbtn" data-act="ang-view" data-id="' + esc(x.id) + '">PDF ansehen' + (x.status === 'Entwurf' ? ' & senden' : '') + '</button>' +
+        (x.status !== 'Abgelehnt' ? '<button type="button" class="btn small" data-act="ang-to-re" data-id="' + esc(x.id) + '">' + (angReOf(x) ? 'Rechnung ' + esc(angReOf(x)) : 'In Rechnung übernehmen') + '</button>' : '') + '</div></article>';
     }).join('');
   }
 
@@ -4177,13 +4181,13 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     });
     return n;
   }
-  function openRechnung(id, aid, type) {
+  function openRechnung(id, aid, type, angId) {
     var ex = id ? state.data.rechnungen.find(function (x) { return x.id === id; }) : null;
     if (!ex && !aid) return;
     var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma'), R;
     if (ex) R = JSON.parse(JSON.stringify(ex));
     else {
-      var ang = bestAngebot(aid), terms = a && typeof a.terms === 'number' ? a.terms : 14;
+      var ang = (angId && state.data.angebote.find(function (x) { return x.id === angId; })) || bestAngebot(aid), terms = a && typeof a.terms === 'number' ? a.terms : 14;
       R = {
         auftragId: aid, angebotId: ang ? ang.id : '', nr: '', date: today(), servFrom: a && a.date ? a.date : today(), servTo: today(),
         terms: terms, due: addDays(today(), terms),
@@ -4248,9 +4252,11 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var missing = (ang.positions || []).some(function (q) { return !posMatch(q, A.positions); });
     return diff || missing ? 'prices' : 'same';
   }
+  /** Angebot zu einer Rechnung: das verknüpfte (falls noch vorhanden und nicht abgelehnt), sonst das beste der Baustelle. */
+  function reAng(A) { var g = A.angebotId ? state.data.angebote.find(function (x) { return x.id === A.angebotId && x.status !== 'Abgelehnt'; }) : null; return g || bestAngebot(A.auftragId); }
   function reAngPanel(A) {
     if (reLocked(A) || ['rechnung', 'schluss'].indexOf(reType(A)) < 0) return '';
-    var ang = bestAngebot(A.auftragId); if (!ang) return '';
+    var ang = reAng(A); if (!ang) return '';
     var st = reAngState(A, ang), c = calcAng(ang);
     var btn = st === 'other' ? ['Kunde und Leistungen übernehmen', 're-fromang-all'] : st === 'prices' ? ['Preise und fehlende Positionen übernehmen', 're-fromang-prices'] : null;
     return '<div class="ampanel"><div class="amp-h"><b>Aus dem Angebot ' + esc(ang.nr) + '</b><span class="hint">' + esc(ang.status) + (ang.date ? ' · ' + fdate(ang.date) : '') + '</span></div>' +
@@ -4259,8 +4265,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         st === 'prices' ? '<p class="hint" style="margin:0">Das Angebot wurde geändert: andere Preise oder neue Positionen.</p>' : '') +
       (btn ? '<button type="button" class="btn small primary" data-act="' + btn[1] + '">' + btn[0] + '</button>' : '<button type="button" class="btn small" disabled>✓ Preise wie im Angebot</button>') + '</div>';
   }
-  function reFromAng(all) {
-    var A = draft.a, ang = bestAngebot(A.auftragId); if (!ang) return;
+  function reFromAng(all, angX) {
+    var A = draft.a, ang = angX || reAng(A); if (!ang) return;
     if (all) {
       ['name', 'email', 'address', 'site', 'title', 'region', 'ckind', 'discount'].forEach(function (k) { if (ang[k] !== undefined && ang[k] !== '') A[k] = ang[k]; });
       A.rc = !!ang.rc; A.vat = Number(ang.vat) || 0; A.angebotId = ang.id;
@@ -4272,6 +4278,22 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var n = applyAufmass(A); A.annex = !!A.amSnap;
     renderRe();
     toast(all ? 'Angebot ' + ang.nr + ' übernommen' + (n ? ', ' + n + ' Menge(n) aus dem Aufmaß' : '') : 'Preise aus ' + ang.nr + ' übernommen');
+  }
+  /** Angebot → Rechnung (aus der Angebotsliste oder Schritt 4): offenen Rechnungsentwurf der Baustelle aktualisieren,
+   * sonst neue Rechnung (Schlussrechnung, wenn schon Abschläge gestellt sind) aus genau diesem Angebot anlegen. */
+  function angToRe(angId) {
+    var x = state.data.angebote.find(function (g) { return g.id === angId; }); if (!x) return;
+    if (!x.auftragId || !auftrag(x.auftragId)) { toast('Das Angebot gehört zu keiner Baustelle – speichere es zuerst'); return; }
+    var er = state.data.rechnungen.filter(function (r) { return r.auftragId === x.auftragId && r.status === 'Entwurf' && ['rechnung', 'schluss'].indexOf(reType(r)) >= 0; })
+      .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })[0];
+    if (er) {
+      openRechnung(er.id);
+      if (er.angebotId !== x.id) reFromAng(true, x); else if (reAngState(draft.a, x) !== 'same') reFromAng(false, x); else toast('Rechnungsentwurf ist schon auf dem Stand von ' + x.nr);
+    } else {
+      openRechnung(null, x.auftragId, null, x.id);
+      toast('Rechnung aus ' + x.nr + ' angelegt – Mengen aus dem Aufmaß');
+    }
+    if (x.status === 'Entwurf' || x.status === 'Versendet') setTimeout(function () { toast('Tipp: ' + x.nr + ' unter Angebote als „Angenommen“ markieren'); }, 2600);
   }
   function renderRe() {
     var A = draft.a, locked = reLocked(A), a = auftrag(A.auftragId);
@@ -4545,6 +4567,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 're-storno-list') { openRechnung(a.dataset.id); setTimeout(function () { var sb = document.querySelector('#sheet [data-act="re-storno"]'); if (sb) stornoRe(sb); }, 60); }
       else if (act === 're-del') delRe(a);
       else if (act === 're-fromang-all') reFromAng(true);
+      else if (act === 'ang-to-re') { var arx = state.data.angebote.find(function (g) { return g.id === a.dataset.id; }), rr = arx && state.data.rechnungen.filter(function (q) { return q.angebotId === arx.id && reType(q) !== 'storno' && q.status !== 'Storniert' && q.status !== 'Entwurf'; })[0]; if (rr) openRechnung(rr.id); else angToRe(a.dataset.id); }
+      else if (act === 'ang-to-re-draft') { saveAng().then(function (ok) { if (ok) { var gid = draft.id; closeSheet(false).then(function () { angToRe(gid); }); } }); }
       else if (act === 're-fromang-prices') reFromAng(false);
       else if (act === 're-fromam') { var nr2 = applyAufmass(draft.a); draft.a.annex = !!draft.a.amSnap; renderRe(); toast(nr2 ? nr2 + ' Menge(n) aus dem Aufmaß übernommen' : 'Die Mengen stimmen schon mit dem Aufmaß überein'); }
       else if (act === 'export-belege') exportBelege();

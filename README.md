@@ -87,6 +87,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Rechnung ← Angebot:** Kasten „Aus dem Angebot“ in Rechnungs-Entwürfen (`reAngPanel`, `reFromAng`): Rechnung ohne
   dieses Angebot → Kunde, Adressen, Positionen und Preise übernehmen; geändertes Angebot → Preise und neue Positionen
   nachziehen (Zuordnung über amKey bzw. Leistung + Text). Mengen danach aus dem Aufmaß. Kleinunternehmer-Warnung bei USt.
+- **Angebot → Rechnung:** Knopf „In Rechnung übernehmen“ in der Angebotsliste und in Schritt 4 (`angToRe`): offener
+  Rechnungsentwurf der Baustelle wird aus genau diesem Angebot aktualisiert, sonst entsteht eine neue Rechnung
+  (Schlussrechnung, wenn Abschläge gestellt sind). Gibt es schon eine Rechnung, öffnet der Knopf sie.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

@@ -42,5 +42,20 @@ const { chromium } = require('playwright');
   await page.click('#auftraegeList [data-act="rechnung"]'); await page.waitForSelector('#angBody .pos');
   const p3 = await page.$$eval('#angBody .pos [data-pf="price"]', e => e.map(x => x.value));
   assert(p3.join('|') === '48,50|8,00|6,50|7,50' && /Preise wie im Angebot/.test(await page.textContent('.ampanel')), 'neue Rechnung: Preise aus dem Angebot');
+  await page.click('[data-act="cancel"]').catch(() => {});
+  // Aus der Angebotsliste: „In Rechnung übernehmen“
+  await page.evaluate(() => localStorage.setItem('belegbuch:rechnungen', JSON.stringify([{ id: 'r9', auftragId: 'b1', angebotId: '', nr: '', name: 'Mustermann', date: '2026-11-13', status: 'Entwurf', ckind: 'privat', vat: 19, discount: 0, intro: '', outro: '', _t: 1, positions: [{ art: 'lohn', katId: 'verl-std', price: 40, qty: 1, text: 'alt', unit: 'm²' }] }])));
+  await page.reload(); await page.waitForSelector('#backBtn'); await page.click('#backBtn'); await page.click('.mtile[data-tab="rechnungen"]'); await page.click('#v-rechnungen .seg [data-tab="angebote"]');
+  assert(/In Rechnung übernehmen/.test(await page.textContent('#angeboteList [data-act="ang-to-re"]')), 'Knopf „In Rechnung übernehmen“ in der Angebotsliste');
+  await page.click('#angeboteList [data-act="ang-to-re"]'); await page.waitForSelector('#angBody #r-name');
+  assert(await page.inputValue('#r-name') === 'Simone Jung' && (await page.$$('#angBody .pos')).length === 4 && /Preise wie im Angebot/.test(await page.textContent('.ampanel')), 'vorhandener Rechnungsentwurf wurde aus dem Angebot aktualisiert');
+  await page.click('[data-act="re-save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  assert(/Entwurf öffnen/.test(await page.textContent('#angeboteList [data-act="ang-to-re"]')), 'danach zeigt der Knopf „Entwurf öffnen“');
+  // ohne Entwurf: neue Rechnung aus genau diesem Angebot; aus Schritt 4
+  await page.evaluate(() => localStorage.setItem('belegbuch:rechnungen', '[]'));
+  await page.reload(); await page.waitForSelector('#angeboteList .row');
+  await page.click('#angeboteList .row .vendor'); await page.waitForSelector('#angBody .stepper'); await page.click('.stepper [data-step="4"]');
+  await page.click('[data-act="ang-to-re-draft"]'); await page.waitForSelector('#angBody #r-name');
+  assert(/Neue Rechnung/.test(await page.textContent('#sheetTitle')) && await page.inputValue('#r-name') === 'Simone Jung', 'Schritt 4: speichern und neue Rechnung aus dem Angebot');
   console.log('Fehler:', errs.join('|') || 'keine'); await b.close();
 })();

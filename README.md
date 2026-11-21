@@ -77,6 +77,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
   auch die Rechnungsadresse –, Termine, Kundenkartei; Firmensitz nur als Vorschlag). Leeres Feld wird mit der besten
   gefüllt, die übrigen stehen als Knöpfe darunter. „Strecke ermitteln“ nimmt das Feld. Das Aufmaß hat ein eigenes
   Adressfeld und speichert es an der Baustelle.
+- **Preisliste:** `CATALOG` nach Gruppen (Verlegen, Zuschläge, Untergrund & Abbruch, Abdichtung, Profile & Zuschnitt,
+  Dusche & Bad, Sonstiges); u. a. Dichtband, Dichtecken innen/außen, Manschetten Wand/Boden, Entkopplung, Fliesenschiene,
+  Gehrung, Bohrungen, Treppe, Fensterbank, Bodenablauf, Duschrinne. `est: true` = Schätzwert ohne belastbare Quelle,
+  in den Einstellungen markiert. Quellen im Kommentar über `CATALOG`.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

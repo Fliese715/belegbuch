@@ -333,6 +333,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .pcard .sub:empty { display: none; }
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
+.catg { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
 .warnline { border: 1px solid var(--warn); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .warnline .btn { margin-left: auto; }
 .plzhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 10px; }
@@ -2849,23 +2850,51 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /* ---------- Preisliste (Richtwerte), Firma ---------- */
   // Richtwerte: bundesweite Netto-Durchschnittswerte aus Ratgeberseiten (aroundhome.de, meister-job.de, clean-invoice.com, Stand 2024 bis 2026).
   // Sie sind keine Preise für einen bestimmten Ort. Regionalfaktor und eigene Preise gelten vor.
+  /* Preisliste (Netto-Arbeitspreise ohne Material, Richtwerte min–max je Einheit), nach Gruppen.
+   * est: true = keine belastbare Quelle, eigener Schätzwert – in „Firma & Einstellungen“ markiert.
+   * Quellen (Stand Nov. 2026): aroundhome, meister-job, clean-invoice (Verlegen, Abbruch, Abdichtung, Sockel, Silikon);
+   * angebots-meister.de „Fliesenleger Preise 2026“ (Dichtband 4–8 €/lfm, Entkopplung 12–25 €/m², Grundieren 3–10 €/m²,
+   * Spachteln 10–25 €/m², Bohrungen 8–20 €/Stk, Abdichtung 18–32 €/m²); hausjournal.net (Treppe 30–45 €/lfm,
+   * Kantenschutz anbringen 5–10 €/lfm); numiq.com (Gehrungsschnitt 11–15 €/lfm, Bordüre); Händlerpreise Dichtecken
+   * ca. 3 €/Stk Material (beha-web.de). */
   var CATALOG = [
-    { id: 'verl-std', text: 'Fliesen verlegen und verfugen (Standardformat bis ca. 60 x 60 cm)', unit: 'm²', basis: 'flaeche', min: 40, max: 70 },
-    { id: 'verl-gross', text: 'Großformatfliesen verlegen und verfugen (ab ca. 80 x 80 cm)', unit: 'm²', basis: 'flaeche', min: 60, max: 100 },
-    { id: 'verl-mosaik', text: 'Mosaik verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 60, max: 110 },
-    { id: 'verl-stein', text: 'Naturstein verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 55, max: 110 },
-    { id: 'zu-diagonal', text: 'Zuschlag Diagonalverlegung', unit: 'm²', basis: 'flaeche', min: 10, max: 20 },
-    { id: 'zu-fischgraet', text: 'Zuschlag Fischgrätverlegung', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
-    { id: 'zu-fbh', text: 'Zuschlag Fußbodenheizung', unit: 'm²', basis: 'boden', min: 5, max: 10 },
-    { id: 'abdichtung', text: 'Verbundabdichtung im Nassbereich', unit: 'm²', basis: '', min: 15, max: 40 },
-    { id: 'untergrund', text: 'Untergrund spachteln und grundieren', unit: 'm²', basis: 'boden', min: 5, max: 20 },
-    { id: 'ausgleich', text: 'Bodenausgleichsmasse einbringen', unit: 'm²', basis: 'boden', min: 8, max: 15 },
-    { id: 'abbruch', text: 'Alte Fliesen entfernen und entsorgen', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
-    { id: 'sockel', text: 'Fliesensockel anbringen', unit: 'lfm', basis: 'sockel', min: 5, max: 15 },
-    { id: 'silikon', text: 'Silikonfugen ziehen', unit: 'lfm', basis: 'silikon', min: 3, max: 10 },
-    { id: 'stunde', text: 'Stundenlohn Fliesenleger', unit: 'Std', basis: '', min: 45, max: 70 },
-    { id: 'anfahrt', text: 'Anfahrt (Pauschale)', unit: 'pausch.', basis: '', min: 30, max: 50 }
+    { g: 'Verlegen', id: 'verl-std', text: 'Fliesen verlegen und verfugen (Standardformat bis ca. 60 x 60 cm)', unit: 'm²', basis: 'flaeche', min: 40, max: 70 },
+    { g: 'Verlegen', id: 'verl-gross', text: 'Großformatfliesen verlegen und verfugen (ab ca. 80 x 80 cm)', unit: 'm²', basis: 'flaeche', min: 60, max: 100 },
+    { g: 'Verlegen', id: 'verl-mosaik', text: 'Mosaik verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 60, max: 110 },
+    { g: 'Verlegen', id: 'verl-stein', text: 'Naturstein verlegen und verfugen', unit: 'm²', basis: 'flaeche', min: 55, max: 110 },
+    { g: 'Verlegen', id: 'verfugen', text: 'Fliesen verfugen (separat)', unit: 'm²', basis: 'flaeche', min: 4, max: 12 },
+    { g: 'Verlegen', id: 'treppe', text: 'Treppenstufen fliesen (Tritt- und Setzstufe)', unit: 'lfm', basis: '', min: 30, max: 45 },
+    { g: 'Verlegen', id: 'fensterbank', text: 'Fensterbank / Laibung fliesen', unit: 'lfm', basis: '', min: 20, max: 50, est: true },
+    { g: 'Verlegen', id: 'bordure', text: 'Bordüre / Listello einlegen', unit: 'lfm', basis: '', min: 5, max: 20, est: true },
+    { g: 'Zuschläge', id: 'zu-diagonal', text: 'Zuschlag Diagonalverlegung', unit: 'm²', basis: 'flaeche', min: 10, max: 20 },
+    { g: 'Zuschläge', id: 'zu-fischgraet', text: 'Zuschlag Fischgrätverlegung', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
+    { g: 'Zuschläge', id: 'zu-fbh', text: 'Zuschlag Fußbodenheizung', unit: 'm²', basis: 'boden', min: 5, max: 10 },
+    { g: 'Untergrund & Abbruch', id: 'abbruch', text: 'Alte Fliesen entfernen und entsorgen', unit: 'm²', basis: 'flaeche', min: 15, max: 30 },
+    { g: 'Untergrund & Abbruch', id: 'grundierung', text: 'Untergrund grundieren', unit: 'm²', basis: 'flaeche', min: 3, max: 10 },
+    { g: 'Untergrund & Abbruch', id: 'untergrund', text: 'Untergrund spachteln und grundieren', unit: 'm²', basis: 'boden', min: 5, max: 20 },
+    { g: 'Untergrund & Abbruch', id: 'ausgleich', text: 'Bodenausgleichsmasse einbringen', unit: 'm²', basis: 'boden', min: 8, max: 15 },
+    { g: 'Untergrund & Abbruch', id: 'entkopplung', text: 'Entkopplungsmatte verlegen', unit: 'm²', basis: 'boden', min: 12, max: 25 },
+    { g: 'Abdichtung', id: 'abdichtung', text: 'Verbundabdichtung im Nassbereich', unit: 'm²', basis: '', min: 15, max: 40 },
+    { g: 'Abdichtung', id: 'dichtband', text: 'Dichtband in Ecken und Anschlüssen einbetten', unit: 'lfm', basis: '', min: 4, max: 8 },
+    { g: 'Abdichtung', id: 'dichtecke-innen', text: 'Dichtband-Innenecke einbauen', unit: 'Stk', basis: '', min: 5, max: 10, est: true },
+    { g: 'Abdichtung', id: 'dichtecke-aussen', text: 'Dichtband-Außenecke einbauen', unit: 'Stk', basis: '', min: 5, max: 10, est: true },
+    { g: 'Abdichtung', id: 'manschette-wand', text: 'Dichtmanschette Wand (Rohrdurchführung) einbauen', unit: 'Stk', basis: '', min: 6, max: 12, est: true },
+    { g: 'Abdichtung', id: 'manschette-boden', text: 'Dichtmanschette Boden (Bodenablauf) einbauen', unit: 'Stk', basis: '', min: 10, max: 20, est: true },
+    { g: 'Profile & Zuschnitt', id: 'sockel', text: 'Fliesensockel anbringen', unit: 'lfm', basis: 'sockel', min: 5, max: 15 },
+    { g: 'Profile & Zuschnitt', id: 'silikon', text: 'Silikonfugen ziehen', unit: 'lfm', basis: 'silikon', min: 3, max: 10 },
+    { g: 'Profile & Zuschnitt', id: 'profil', text: 'Abschluss- / Eckschutzprofil (Fliesenschiene) setzen', unit: 'lfm', basis: '', min: 5, max: 10 },
+    { g: 'Profile & Zuschnitt', id: 'gehrung', text: 'Gehrungsschnitt an Außenecken (statt Profil)', unit: 'lfm', basis: '', min: 10, max: 20 },
+    { g: 'Profile & Zuschnitt', id: 'bohrung', text: 'Bohrung / Aussparung in Fliese (z. B. Armatur, Rohr)', unit: 'Stk', basis: '', min: 8, max: 20 },
+    { g: 'Dusche & Bad', id: 'bodenablauf', text: 'Bodenablauf setzen und an die Abdichtung anschließen (ohne Material)', unit: 'Stk', basis: '', min: 60, max: 150, est: true },
+    { g: 'Dusche & Bad', id: 'duschrinne', text: 'Duschrinne setzen und an die Abdichtung anschließen (ohne Material)', unit: 'Stk', basis: '', min: 100, max: 250, est: true },
+    { g: 'Sonstiges', id: 'stunde', text: 'Stundenlohn Fliesenleger', unit: 'Std', basis: '', min: 45, max: 70 },
+    { g: 'Sonstiges', id: 'anfahrt', text: 'Anfahrt (Pauschale)', unit: 'pausch.', basis: '', min: 30, max: 50 }
   ];
+  /** Auswahlliste der Preisliste mit Gruppen. */
+  function catOptions(withUnit) {
+    var groups = []; CATALOG.forEach(function (c) { if (groups.indexOf(c.g) < 0) groups.push(c.g); });
+    return groups.map(function (g) { return '<optgroup label="' + esc(g) + '">' + CATALOG.filter(function (c) { return c.g === g; }).map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + (withUnit ? ' (' + esc(x.unit) + ')' : '') + '</option>'; }).join('') + '</optgroup>'; }).join('');
+  }
   var FIRMA_FIELDS = [['name', 'Firma / Name'], ['owner', 'Inhaber'], ['street', 'Straße und Nr.'], ['city', 'PLZ und Ort'], ['phone', 'Telefon'], ['email', 'E-Mail'], ['taxid', 'Steuernummer oder USt-IdNr.'], ['home', 'Ausgangsort für Fahrten (z. B. Zarrendorf)'], ['iban', 'IBAN'], ['bank', 'Bank']];
   var ANG_STAT = ['Entwurf', 'Versendet', 'Angenommen', 'Abgelehnt'];
   var DEF_INTRO = 'Guten Tag,\n\nvielen Dank für Ihre Anfrage. Gerne biete ich Ihnen die folgenden Leistungen an:';
@@ -2874,7 +2903,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /* Eigene Aufmaß-Bereiche (settings/aufmass.types: {id, name, unit 'm²'|'lfm'|'Stk', katId}) werden in AM eingeblendet. */
   var AM_BASE = ['boden', 'wand', 'sockel', 'silikon'];
   var AM_UNITS = { 'm²': 'm² – Fläche', 'lfm': 'lfm – Länge', 'Stk': 'Stück' };
-  var AM_PRESETS = [['Abdichtung Boden', 'm²'], ['Abdichtung Wand', 'm²'], ['Untergrund spachteln', 'm²'], ['Bodenausgleich', 'm²'], ['Alte Fliesen entfernen', 'm²'], ['Dichtband', 'lfm'], ['Dichtmanschetten', 'Stk']];
+  var AM_PRESETS = [['Abdichtung Boden', 'm²'], ['Abdichtung Wand', 'm²'], ['Dichtband', 'lfm'], ['Dichtecke innen', 'Stk'], ['Dichtecke außen', 'Stk'], ['Manschette Wand', 'Stk'], ['Manschette Boden', 'Stk'],
+    ['Untergrund spachteln', 'm²'], ['Grundierung', 'm²'], ['Bodenausgleich', 'm²'], ['Entkopplung', 'm²'], ['Alte Fliesen entfernen', 'm²'], ['Fliesenschiene', 'lfm'], ['Gehrung', 'lfm'], ['Bohrungen', 'Stk'],
+    ['Fensterbank', 'lfm'], ['Treppenstufen', 'lfm'], ['Bodenablauf', 'Stk'], ['Duschrinne', 'Stk']];
   function amCustom() { var t = setting('aufmass').types; return Array.isArray(t) ? t : []; }
   function amSync() {
     Object.keys(AM).forEach(function (k) { if (AM_BASE.indexOf(k) < 0) delete AM[k]; });
@@ -2885,7 +2916,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /** Passende Leistung aus der Preisliste zu einem eigenen Bereich (für das Angebot). */
   function amGuessKat(name) {
     var n = String(name || '').toLowerCase();
-    return /abdicht/.test(n) ? 'abdichtung' : /spachtel|grundier|untergrund/.test(n) ? 'untergrund' : /ausgleich/.test(n) ? 'ausgleich' : /entfern|abbruch|abriss|abschlag/.test(n) ? 'abbruch' : '';
+    return /innenecke|ecke innen/.test(n) ? 'dichtecke-innen' : /au(ß|ss)enecke|ecke au(ß|ss)en/.test(n) ? 'dichtecke-aussen' : /manschette/.test(n) ? (/boden|ablauf/.test(n) ? 'manschette-boden' : 'manschette-wand') :
+      /dichtband/.test(n) ? 'dichtband' : /abdicht/.test(n) ? 'abdichtung' : /entkopp/.test(n) ? 'entkopplung' : /^grundier/.test(n) ? 'grundierung' : /spachtel|grundier|untergrund/.test(n) ? 'untergrund' :
+      /ausgleich/.test(n) ? 'ausgleich' : /entfern|abbruch|abriss|abschlag/.test(n) ? 'abbruch' : /schiene|profil/.test(n) ? 'profil' : /gehrung|jolly/.test(n) ? 'gehrung' : /bohr|aussparung/.test(n) ? 'bohrung' :
+      /fensterbank|laibung/.test(n) ? 'fensterbank' : /treppe|stufe/.test(n) ? 'treppe' : /bodenablauf/.test(n) ? 'bodenablauf' : /duschrinne|rinne/.test(n) ? 'duschrinne' : /bord(ü|ue)re|listello/.test(n) ? 'bordure' : '';
   }
 
   function setting(id) { return state.data.settings.find(function (x) { return x.id === id; }) || {}; }
@@ -3012,9 +3046,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<a href="https://www.clean-invoice.com/wissen/allgemein/fliesen-verlegen-kosten" target="_blank" rel="noopener">clean-invoice</a>.</p>' +
       regionsList().map(function (r) { return standHtml(r.id); }).join('') + '<div class="field" style="margin-top:12px"><label for="s-region">Zusätzlicher Faktor in % auf alle Richtwerte (Standard 0)</label><input id="s-region" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(Number(p.region) || 0).replace('.', ',')) + '"></div>';
     h += '<p class="hint" style="margin:10px 0 4px">Eigene Preise: „Firma“ gilt für alle Kunden, „Privatkunde“ nur für Privatkunden. Leer bedeutet: Richtwert der Region.</p>';
+    var lastG = '';
     CATALOG.forEach(function (c) {
+      if (c.g !== lastG) { lastG = c.g; h += '<h4 class="catg">' + esc(c.g) + '</h4>'; }
       var bb = bounds(c), def = half((bb[0] + bb[1]) / 2), op = p.ownPrivat || {};
-      h += '<div class="prow"><div class="ptext"><div>' + esc(c.text) + '</div><div class="hint">bundesweit ' + bb[0] + ' bis ' + bb[1] + ' € je ' + esc(c.unit) + '</div></div>' +
+      h += '<div class="prow"><div class="ptext"><div>' + esc(c.text) + '</div><div class="hint">' + (c.est ? '<span class="badge warn">Schätzwert</span> ' : '') + 'bundesweit ' + bb[0] + ' bis ' + bb[1] + ' € je ' + esc(c.unit) + '</div></div>' +
         '<div class="field"><span class="lbl">Firma</span><input id="p-' + c.id + '" type="text" inputmode="decimal" autocomplete="off" aria-label="Eigener Preis Firma ' + esc(c.text) + '" placeholder="' + de(def) + '" value="' + (own[c.id] > 0 ? de(own[c.id]) : '') + '"></div>' +
         '<div class="field"><span class="lbl">Privatkunde</span><input id="pp-' + c.id + '" type="text" inputmode="decimal" autocomplete="off" aria-label="Eigener Preis Privatkunde ' + esc(c.text) + '" placeholder="wie Firma" value="' + (op[c.id] > 0 ? de(op[c.id]) : '') + '"></div></div>';
     });
@@ -3417,7 +3453,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function amQty(rows, key) { var g = amGroups(rows, key.indexOf('*|') === 0 ? 'summe' : 'raum').find(function (x) { return x.key === key; }); return g ? g.qty : 0; }
   function amCustomType(type) { return amCustom().find(function (x) { return x.id === type; }) || null; }
-  function amPosKat(type) { if (AM_POS[type]) return catItem(AM_POS[type][0]); var x = amCustomType(type); return x && x.katId ? catItem(x.katId) : null; }
+  function amPosKat(type) { if (AM_POS[type]) return catItem(AM_POS[type][0]); var x = amCustomType(type), k = x ? (x.katId || amGuessKat(x.name)) : ''; return k ? catItem(k) || null : null; }
   function amPosText(g) {
     if (!AM_POS[g.type]) return (g.room && g.room !== 'ohne Raum' ? g.room + ': ' : '') + amName(g.type);
     var c = catItem(AM_POS[g.type][0]), t = AM_POS[g.type][1] ? c.text.replace(/^Fliesen/, AM_POS[g.type][1]) : c.text;
@@ -3528,7 +3564,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function angSumText(A, c) { return A.ckind === 'privat' || !(Number(A.vat) > 0) ? money(c.gross) + (Number(A.vat) > 0 ? ' brutto' : '') : money(c.net2) + ' netto'; }
   function renderAngForm() {
     var A = draft.a, c = calcAng(A), m = mailParts(A, c), st = draft.step || 1, a = auftrag(A.auftragId);
-    var opts = '<option value="">+ Leistung aus Preisliste …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + ' (' + esc(x.unit) + ')</option>'; }).join('');
+    var opts = '<option value="">+ Leistung aus Preisliste …</option>' + catOptions(true);
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
     function sec(n, html) { return '<section class="angstep" data-step="' + n + '"' + (n === st ? '' : ' hidden') + '>' + html + '</section>'; }
     var bsHint = draft.fromList ? (A.auftragId && a ? 'Verknüpft mit der Baustelle „' + a.title + '“.' : draft.bsName ? 'Neue Baustelle – wird beim Speichern unter „Baustellen & Material“ angelegt.' : 'Wähle eine vorhandene Baustelle oder gib einen neuen Namen ein.') : '';
@@ -4179,7 +4215,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var c = calcAng(A), m = reMailParts(A, c), T = RE_LABEL[reType(A)];
     var overdue = A.status === 'Gestellt' && A.due && A.due < today();
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
-    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + '</option>'; }).join('') + '<option value="__free">Freie Position</option>';
+    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + catOptions(false) + '<option value="__free">Freie Position</option>';
     var badge = A.status === 'Bezahlt' ? 'good' : A.status === 'Storniert' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '';
     var actions;
     if (!locked) actions = (draft.id ? '<button type="button" class="btn danger left" data-act="re-del">Löschen</button>' : '') +

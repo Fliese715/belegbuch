@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
   const p = await page.$$eval('#angBody .pos', e => e.map(x => x.querySelector('textarea').value.split(' (')[0] + ' = ' + x.querySelector('[data-pf="qty"]').value + ' ' + x.querySelector('[data-pf="unit"]').value));
   assert(p.join(' | ') === 'Bad: Bodenfliesen verlegen und verfugen = 7,65 m² | Bad: Abdichtung Boden = 7,65 m² | Bad: Abdichtung Wand = 2,28 m² | Bad: Bodenablauf = 1 Stk', 'Angebot: ' + p.join(' | '));
   const pr = await page.$$eval('#angBody .pos [data-pf="price"]', e => e.map(x => x.value));
-  assert(pr[1] !== '0,00' && pr[2] !== '0,00' && pr[3] === '0,00', 'Abdichtung mit Preis aus der Preisliste, Bodenablauf ohne Preis: ' + pr.join('|'));
+  assert(pr[1] !== '0,00' && pr[2] !== '0,00' && pr[3] === '105,00', 'Abdichtung und Bodenablauf mit Preis aus der Preisliste: ' + pr.join('|'));
   await page.click('[data-act="cancel"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
   // Löschen
   await page.click('#auftraegeList [data-act="aufmass"]'); await page.waitForSelector('#amBody .pos');

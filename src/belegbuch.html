@@ -333,6 +333,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .pcard .sub:empty { display: none; }
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
+.plzhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 10px; }
+.plzhint:empty { display: none; }
+.plzhint small { color: var(--muted); font-weight: 400; }
+.plzman { display: inline-flex; gap: 6px; align-items: center; }
+.plzman input { width: 92px; font-family: var(--font-mono); }
 .ampanel { border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin: 4px 0 6px; background: var(--accent-soft); display: flex; flex-direction: column; gap: 8px; }
 .ampanel .amp-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ampanel .amp-tot { font-family: var(--font-mono); font-size: 13px; }
@@ -3522,8 +3527,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         : (a ? '<p class="hint" style="margin:0 0 10px">Baustelle: <b>' + esc(a.title) + '</b></p>' : '')) +
       '<div class="field"><label for="a-name">Kunde</label><input id="a-name" type="text" data-h="name" list="a-klist" autocomplete="off" placeholder="Name oder Firma" value="' + esc(A.name || '') + '"><datalist id="a-klist">' + state.data.kunden.map(function (k) { return '<option value="' + esc(k.name) + '"></option>'; }).join('') + '</datalist></div>' +
       kindSelect(A) +
-      inp('a-address', 'address', 'Rechnungsadresse') +
-      inp('a-site', 'site', 'Adresse der Baustelle') +
+      inp('a-address', 'address', 'Rechnungsadresse') + '<div class="plzhint" id="plz-a-address" aria-live="polite"></div>' +
+      inp('a-site', 'site', 'Adresse der Baustelle') + '<div class="plzhint" id="plz-a-site" aria-live="polite"></div>' +
       inp('a-email', 'email', 'E-Mail des Kunden (für den Versand)', 'text', ' inputmode="email"') +
       inp('a-title', 'title', 'Betreff des Angebots');
     var s2 = amPanelHtml(A, a) + '<h3 class="section-h" style="margin-top:4px">Was bietest du an?</h3>' + reRows(A) +
@@ -3560,6 +3565,68 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="actions">' + (draft.id ? '<button type="button" class="btn danger left" data-act="ang-del">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn' + (st === 4 ? '' : ' primary') + '" data-act="ang-save">Speichern</button>' +
       (st === 4 ? '<button type="button" class="btn primary" data-act="ang-sent">Als versendet markieren</button>' : '') + '</div>';
+  }
+  /* ---------- Postleitzahl automatisch ergänzen ----------
+   * Fehlt in einer Adresse die PLZ („Lindenweg 2, Zarrendorf“), fragt die App sie online nach:
+   * in Claude über Mapbox, in der installierten App über das offene PLZ-Verzeichnis openplzapi.org
+   * (Ersatz: OpenStreetMap/Nominatim). Mehrere Treffer: zur Auswahl. Kein Treffer oder offline: Feld zum Selbsteintragen. */
+  /** Zerlegt eine Adresse ohne PLZ in Straße und Ort; null, wenn schon eine PLZ drin ist oder kein Ort erkennbar. */
+  function addrParts(s) {
+    s = String(s || '').trim(); if (!s || /\b\d{5}\b/.test(s)) return null;
+    var parts = s.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    if (parts.length >= 2) {
+      var town = parts[parts.length - 1], street = parts.slice(0, -1).join(', ');
+      if (/\d/.test(town) && !/\d/.test(parts[0])) { town = parts[0]; street = parts.slice(1).join(', '); }
+      return town && !/\d/.test(town) ? { street: street, town: town } : null;
+    }
+    var m = /^(.*?\d+\s*[a-zA-Z]?)\s+([A-Za-zÄÖÜäöüß][^\d]*)$/.exec(s);
+    return m ? { street: m[1].trim(), town: m[2].trim() } : (/^[A-Za-zÄÖÜäöüß][^\d]*$/.test(s) ? { street: '', town: s } : null);
+  }
+  function normTown(t) { return String(t || '').toLowerCase().replace(/ß/g, 'ss').replace(/[^a-zäöü]/g, ''); }
+  /** Sucht Postleitzahlen; Ergebnis [{plz, town, state}], Treffer im eigenen Bundesland zuerst. */
+  async function plzLookup(street, town) {
+    var out = [], seen = {}, nt = normTown(town);
+    function add(plz, t, st) { if (/^\d{5}$/.test(plz || '') && !seen[plz]) { seen[plz] = 1; out.push({ plz: plz, town: t || town, state: st || '' }); } }
+    if (mode === 'db' && MAP) {
+      var res = await mapCall('search_and_geocode_tool', { q: (street ? street + ', ' : '') + town, country: ['de'], language: 'de' }), t = mapText(res), re = /Address:\s*([^\n]+)/g, m;
+      while ((m = re.exec(t))) { var a = /(\d{5})\s+([^,\n]+)/.exec(m[1]); if (a && normTown(a[2]).indexOf(nt) === 0) add(a[1], a[2].trim()); }
+    } else {
+      var sname = String(street || '').replace(/\s*\d.*$/, '').trim(), list = [];
+      try {
+        if (sname) { var r1 = await fetch('https://openplzapi.org/de/Streets?name=' + encodeURIComponent(sname) + '&locality=' + encodeURIComponent(town)); if (r1.ok) list = await r1.json(); }
+        if (!list.length) { var r2 = await fetch('https://openplzapi.org/de/Localities?name=' + encodeURIComponent(town)); if (r2.ok) list = await r2.json(); }
+        (list || []).forEach(function (x) { add(x.postalCode, x.locality || x.name, x.federalState && x.federalState.name); });
+      } catch (e) { /* openplzapi nicht erreichbar – Ersatz unten */ }
+      if (!out.length) {
+        var r3 = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=de&limit=8&' + (street ? 'street=' + encodeURIComponent(street) + '&' : '') + 'city=' + encodeURIComponent(town));
+        if (r3.ok) (await r3.json()).forEach(function (x) { var ad = x.address || {}; add(ad.postcode, ad.city || ad.town || ad.village || ad.municipality || town, ad.state); });
+      }
+    }
+    var home = LAENDER[land()] || '';
+    out.sort(function (a, b) { return (b.state === home) - (a.state === home); });
+    return out;
+  }
+  function plzAddr(p, hit) { return (p.street ? p.street + ', ' : '') + hit.plz + ' ' + hit.town; }
+  function plzSet(id, v) { var el = $('#' + id); if (!el) return; el.value = v; el.dataset.plzSet = v; if (draft && draft.a && el.dataset.h) { draft.a[el.dataset.h] = v; updAng(); } }
+  async function plzFill(el) {
+    var box = $('#plz-' + el.id), p = addrParts(el.value), asked = el.value; if (!box) return;
+    if (!p) { if (el.value !== el.dataset.plzSet) box.innerHTML = ''; return; }
+    box.innerHTML = '<span class="hint">Postleitzahl für „' + esc(p.town) + '“ wird gesucht …</span>';
+    var hits = null, err = false;
+    try { hits = await plzLookup(p.street, p.town); } catch (e) { err = true; }
+    if (el.value !== asked) return; // inzwischen geändert
+    var manual = '<span class="plzman"><input type="text" inputmode="numeric" maxlength="5" id="plzin-' + el.id + '" placeholder="PLZ" aria-label="Postleitzahl selbst eintragen"><button type="button" class="btn small" data-act="plz-manual" data-f="' + el.id + '">Einfügen</button></span>';
+    if (err || !hits) { box.innerHTML = '<span class="hint">' + (navigator.onLine === false ? 'Ohne Internet keine Suche.' : 'Die PLZ-Suche ist gerade nicht erreichbar.') + ' PLZ selbst eintragen:</span>' + manual; return; }
+    if (!hits.length) { box.innerHTML = '<span class="hint">Keine PLZ für „' + esc(p.town) + '“ gefunden – bitte Ort prüfen oder selbst eintragen:</span>' + manual; return; }
+    var homeHits = hits.filter(function (h) { return h.state && h.state === (LAENDER[land()] || ''); });
+    if (hits.length === 1 || homeHits.length === 1) {
+      var best = hits.length === 1 ? hits[0] : homeHits[0], rest = hits.filter(function (h) { return h !== best; });
+      plzSet(el.id, plzAddr(p, best));
+      box.innerHTML = '<span class="hint">PLZ ' + best.plz + ' online ergänzt – bitte prüfen.' + (rest.length ? ' Andere Orte gleichen Namens:' : '') + '</span>' +
+        rest.slice(0, 4).map(function (h) { return '<button type="button" class="btn small" data-act="plz-pick" data-f="' + el.id + '" data-v="' + esc(plzAddr(p, h)) + '">' + h.plz + ' ' + esc(h.town) + (h.state ? ' <small>' + esc(h.state) + '</small>' : '') + '</button>'; }).join('');
+      return;
+    }
+    box.innerHTML = '<span class="hint">Mehrere Postleitzahlen – bitte wählen:</span>' + hits.slice(0, 6).map(function (h) { return '<button type="button" class="btn small" data-act="plz-pick" data-f="' + el.id + '" data-v="' + esc(plzAddr(p, h)) + '">' + h.plz + ' ' + esc(h.town) + (h.state ? ' <small>' + esc(h.state) + '</small>' : '') + '</button>'; }).join('') + manual;
   }
   /** Wechselt den Schritt; beim Verlassen von Schritt 1 wird geprüft, ob ein Kunde da ist. */
   function angStep(n) {
@@ -4316,6 +4383,12 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'angebot') { var ea = latestAngebot(a.dataset.id); if (ea) openAngebot(ea.id); else openAngebot(null, a.dataset.id); }
       else if (act === 'ang-suggest' || act === 'ang-am') { var nn = suggest(); renderAng(); toast(nn ? 'Aufmaß übernommen' : 'Kein Aufmaß vorhanden. Erfasse zuerst das Aufmaß.'); }
       else if (act === 'ang-am-mode') { draft.amMode = a.dataset.mode; renderAng(); }
+      else if (act === 'plz-pick') { plzSet(a.dataset.f, a.dataset.v); var pb = $('#plz-' + a.dataset.f); if (pb) pb.innerHTML = '<span class="hint">PLZ übernommen.</span>'; }
+      else if (act === 'plz-manual') {
+        var pf = $('#' + a.dataset.f), pv = val('plzin-' + a.dataset.f), pp = pf ? addrParts(pf.value) : null;
+        if (!/^\d{5}$/.test(pv)) { toast('Bitte eine fünfstellige PLZ eingeben'); }
+        else if (pp) { plzSet(a.dataset.f, plzAddr(pp, { plz: pv, town: pp.town })); $('#plz-' + a.dataset.f).innerHTML = '<span class="hint">PLZ eingefügt.</span>'; }
+      }
       else if (act === 'ang-free') { addPos('__free'); var fl = document.querySelectorAll('#angBody .pos textarea[data-pf="text"]'); if (fl.length) fl[fl.length - 1].focus(); }
       else if (act === 'ang-step') angStep(Number(a.dataset.step));
       else if (act === 'ang-del-pos') { draft.a.positions.splice(Number(a.dataset.i), 1); renderAng(); }
@@ -4391,6 +4464,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (e.target.id === 'f-endplan') renderDelays();
   });
   document.addEventListener('change', function (e) { if (draft && draft.coll === 'angebot' && e.target && (e.target.id === 'a-bs' || e.target.id === 'a-name')) angPick(e.target); });
+  document.addEventListener('change', function (e) { if (draft && draft.coll === 'angebot' && e.target && (e.target.id === 'a-address' || e.target.id === 'a-site')) plzFill(e.target); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pwDlgIn') { e.preventDefault(); pwDone(true); } });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t || !t.files || !t.files[0]) return;

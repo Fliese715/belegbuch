@@ -90,6 +90,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Angebot → Rechnung:** Knopf „In Rechnung übernehmen“ in der Angebotsliste und in Schritt 4 (`angToRe`): offener
   Rechnungsentwurf der Baustelle wird aus genau diesem Angebot aktualisiert, sonst entsteht eine neue Rechnung
   (Schlussrechnung, wenn Abschläge gestellt sind). Gibt es schon eine Rechnung, öffnet der Knopf sie.
+- **Rechnung prüfen, stellen, senden:** „PDF ansehen“ im Entwurf (Vorschau). „Rechnung prüfen und stellen“ zeigt erst
+  die Vorschau mit der künftigen Nummer (`reIssuePreview`); gestellt wird im Vorschaufenster, danach PDF mit „Senden“.
+  Ohne PDF-Bibliothek (offline) bleibt die bisherige Bestätigung am Knopf. Liste: „PDF ansehen (& senden)“ je Rechnung.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

@@ -580,7 +580,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   <div class="viewer-b" id="viewerBody"></div>
   <p class="hint" id="viewerMsg" style="margin:8px 0 0"></p>
   <div class="actions"><button type="button" class="btn" id="viewerShare" data-act="viewer-share" hidden>Mit anderer App öffnen</button><button type="button" class="btn cta" id="viewerSave" data-act="viewer-save">Auf dem Gerät speichern</button>
-    <button type="button" class="btn" id="viewerMark" data-act="viewer-mark" hidden>Als versendet markieren</button><button type="button" class="btn primary" id="viewerSend" data-act="viewer-send" hidden>Senden</button></div>
+    <button type="button" class="btn" id="viewerMark" data-act="viewer-mark" hidden>Als versendet markieren</button><button type="button" class="btn primary" id="viewerSend" data-act="viewer-send" hidden>Senden</button><button type="button" class="btn primary" id="viewerIssue" data-act="viewer-issue" hidden>✓ Rechnung jetzt stellen</button></div>
 </div></div>
 <div class="overlay" id="pwDlg" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pwDlgT">
   <h2 id="pwDlgT" style="margin:0 0 8px;font-size:18px">Passwort der Sicherung</h2>
@@ -1188,17 +1188,19 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function viewPdf(blob, name, label, opts) {
     if (!blob) { toast('PDF ist in dieser Ansicht nicht verfügbar'); return; }
     var url = URL.createObjectURL(blob);
-    viewing = { blob: blob, name: name, url: url, own: true, angId: opts && opts.angId };
+    viewing = { blob: blob, name: name, url: url, own: true, angId: opts && opts.angId, reId: opts && opts.reId, issue: opts && opts.issue };
     $('#viewerT').textContent = label;
     $('#viewerBody').innerHTML = '<p class="hint" style="padding:12px">PDF wird angezeigt …</p>';
     $('#viewerMsg').textContent = '';
     var canShare = false;
     try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: 'application/pdf' })] })); } catch (e) { }
     $('#viewerShare').hidden = true; $('#viewerMark').hidden = true;
-    $('#viewerSend').hidden = !viewing.angId;
+    $('#viewerSend').hidden = !(viewing.angId || viewing.reId); $('#viewerIssue').hidden = !viewing.issue;
     $('#viewer').hidden = false;
     var ok = await drawPdf(blob, $('#viewerBody'));
     if (!ok && viewing && viewing.url === url) { $('#viewerBody').innerHTML = '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>'; $('#viewerMsg').textContent = 'Bleibt die Fläche leer, speichere das PDF und öffne es auf dem Gerät.'; }
+    if (viewing && viewing.issue) $('#viewerMsg').textContent = 'Vorschau mit der Nummer, die die Rechnung beim Stellen bekommt. Stimmt alles, tippe auf „Rechnung jetzt stellen“ – danach lässt sie sich nicht mehr ändern. Sonst schließen und korrigieren.';
+    else if (viewing && viewing.reId) { var rg = state.data.rechnungen.find(function (x) { return x.id === viewing.reId; }); $('#viewerMsg').textContent = (rg && rg.email ? 'Senden an ' + rg.email + '. ' : 'Beim Kunden ist keine E-Mail-Adresse eingetragen. ') + (canShare ? '„Senden“ öffnet die Auswahl (E-Mail, WhatsApp …) mit dem PDF als Anhang.' : '„Senden“ speichert das PDF und öffnet deine E-Mail – hänge die Datei dort an.'); }
     if (viewing && viewing.angId) { var ag = state.data.angebote.find(function (x) { return x.id === viewing.angId; }); $('#viewerMsg').textContent = (ag && ag.email ? 'Senden an ' + ag.email + '. ' : 'Beim Kunden ist keine E-Mail-Adresse eingetragen. ') + (canShare ? '„Senden“ öffnet die Auswahl (E-Mail, WhatsApp …) mit dem PDF als Anhang.' : '„Senden“ speichert das PDF und öffnet deine E-Mail – hänge die Datei dort an.'); }
   }
   async function angView(id) {
@@ -1217,18 +1219,32 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   /** „Senden“: Teilen mit Anhang, wo das Gerät es kann (Android); sonst PDF speichern und E-Mail öffnen. */
   async function viewerSend() {
-    if (!viewing || !viewing.angId) return;
-    var x = state.data.angebote.find(function (g) { return g.id === viewing.angId; }); if (!x) return;
-    var m = mailParts(x, calcAng(x)), file = new File([viewing.blob], viewing.name, { type: 'application/pdf' }), shared = false;
+    if (!viewing || !(viewing.angId || viewing.reId)) return;
+    var isRe = !!viewing.reId, x = isRe ? state.data.rechnungen.find(function (g) { return g.id === viewing.reId; }) : state.data.angebote.find(function (g) { return g.id === viewing.angId; }); if (!x) return;
+    var m = isRe ? reMailParts(x, calcAng(x)) : mailParts(x, calcAng(x)), file = new File([viewing.blob], viewing.name, { type: 'application/pdf' }), shared = false;
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: m.sub, text: m.body }); shared = true; }
     } catch (e) { if (e && e.name === 'AbortError') return; }
-    if (shared) { await angMarkSent(x.id); closeViewer(); return; }
+    if (shared) { if (isRe) toast(RE_LABEL[reType(x)] + ' ' + (x.nr || '') + ' geteilt'); else await angMarkSent(x.id); closeViewer(); return; }
     try { await saveFile(viewing.name, viewing.blob, 'application/pdf'); } catch (e) { if (e && e.code === 'declined') return; }
     var href = 'mailto:' + encodeURIComponent(x.email || '') + '?subject=' + encodeURIComponent(m.sub) + '&body=' + encodeURIComponent(m.body);
     try { var w = window.open(href, '_blank'); if (!w) location.href = href; } catch (e) { try { location.href = href; } catch (e2) { } }
     $('#viewerMsg').textContent = 'PDF gespeichert (' + viewing.name + '). Im E-Mail-Programm die Datei anhängen und absenden' + (x.email ? '' : ' – die Adresse des Kunden fehlt noch') + '. Danach hier bestätigen. Öffnet sich keine E-Mail, kopiere die Adresse ' + (x.email || '') + ' von Hand.';
-    if (x.status === 'Entwurf') $('#viewerMark').hidden = false;
+    if (!isRe && x.status === 'Entwurf') $('#viewerMark').hidden = false;
+  }
+  /** PDF einer Rechnung: Entwurf (aus dem offenen Formular) als Vorschau, gestellte zum Senden. */
+  function reView(A, id) {
+    var issued = A.status === 'Gestellt' || A.status === 'Bezahlt' || reType(A) === 'storno';
+    viewPdf(pdfAng(A, setting('firma'), true, A.annex && A.amSnap ? A.amSnap : null), RE_LABEL[reType(A)] + '-' + safeName(A.nr || 'Entwurf') + '.pdf',
+      RE_LABEL[reType(A)] + ' ' + (A.nr || '(Entwurf)') + ' · ' + (A.name || ''), issued && id ? { reId: id } : null);
+  }
+  /** „Rechnung stellen“: erst prüfen, dann Vorschau mit der künftigen Nummer; gestellt wird im Vorschaufenster. */
+  function reIssuePreview(btn) {
+    var A = draft.a, msg = reCheck(A, true); if (msg) return formErr(msg);
+    var P = JSON.parse(JSON.stringify(A)); P.nr = nextReNr(); P.status = 'Gestellt'; P.issuedAt = today();
+    var blob = pdfAng(P, setting('firma'), true, P.annex && P.amSnap ? P.amSnap : null);
+    if (!blob) { issueRe(btn); return; } // ohne PDF-Bibliothek (offline): Bestätigung wie bisher am Knopf
+    viewPdf(blob, RE_LABEL[reType(P)] + '-' + safeName(P.nr) + '.pdf', 'Vorschau ' + RE_LABEL[reType(P)] + ' ' + P.nr, { issue: true });
   }
   function closeViewer() {
     if (viewing && viewing.own) { try { URL.revokeObjectURL(viewing.url); } catch (e) { } }
@@ -4305,13 +4321,13 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var badge = A.status === 'Bezahlt' ? 'good' : A.status === 'Storniert' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '';
     var actions;
     if (!locked) actions = (draft.id ? '<button type="button" class="btn danger left" data-act="re-del">Löschen</button>' : '') +
-      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-save">Speichern</button>' +
-      '<button type="button" class="btn primary cta" data-act="re-issue">✓ Rechnung stellen</button>';
-    else if (A.status === 'Gestellt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn primary cta" data-act="re-paid">✓ Als bezahlt markieren</button>' +
+      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-save">Speichern</button><button type="button" class="btn" data-act="re-view">PDF ansehen</button>' +
+      '<button type="button" class="btn primary cta" data-act="re-issue">✓ Rechnung prüfen und stellen</button>';
+    else if (A.status === 'Gestellt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-view">PDF ansehen & senden</button><button type="button" class="btn primary cta" data-act="re-paid">✓ Als bezahlt markieren</button>' +
       '<button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
-    else if (A.status === 'Bezahlt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
+    else if (A.status === 'Bezahlt') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-view">PDF ansehen</button><button type="button" class="btn danger stornobtn" data-act="re-storno">Rechnung stornieren</button>';
     else actions = '<button type="button" class="btn" data-act="cancel">Schließen</button>';
-    if (reType(A) === 'storno') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button>';
+    if (reType(A) === 'storno') actions = '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="re-view">PDF ansehen & senden</button>';
     var info = reType(A) === 'storno' ? '<p class="hint" style="margin-bottom:10px">Stornorechnung zur Rechnung ' + esc(A.stornoOfNr || '') + ' vom ' + fdate(A.stornoOfDate) + '. Sie hebt die ursprüngliche Rechnung vollständig auf.</p>' :
       A.status === 'Storniert' ? '<p class="hint" style="margin-bottom:10px">Storniert am ' + fdate(A.stornoAt) + (A.stornoNr ? ' durch Stornorechnung ' + esc(A.stornoNr) + ' <button type="button" class="btn small" data-act="re-open" data-id="' + esc(A.stornoBy) + '">Stornorechnung öffnen</button>' : '') + '</p>' : '';
     $('#angBody').innerHTML = '<h2 id="sheetTitle">' + (A.nr ? T + ' ' + esc(A.nr) : 'Neue ' + T) + ' <span class="badge ' + badge + '">' + esc(A.status) + '</span>' + (overdue ? ' <span class="badge bad">überfällig</span>' : '') + '</h2>' + info +
@@ -4382,7 +4398,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
   async function issueRe(btn) {
     var A = draft.a, msg = reCheck(A, true);
     if (msg) return formErr(msg);
-    if (!draft.confirmIssue) { draft.confirmIssue = true; btn.textContent = 'Wirklich stellen? Danach nicht mehr änderbar'; btn.classList.add('armed'); return; }
+    if (!draft.confirmIssue) { if (!btn) return; draft.confirmIssue = true; btn.textContent = 'Wirklich stellen? Danach nicht mehr änderbar'; btn.classList.add('armed'); return; }
     A.nr = nextReNr(); A.status = 'Gestellt'; A.issuedAt = today();
     if (!(await saveRe(true))) { A.nr = ''; A.status = 'Entwurf'; return; }
     try { var a = auftrag(A.auftragId); if (a && a.status !== 'Bezahlt' && reType(A) !== 'abschlag') await patch('auftraege', a.id, { status: 'Berechnet', amount: calcAng(A).net2 }); } catch (e) { /* Status der Baustelle bleibt */ }
@@ -4437,7 +4453,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         '<div class="meta">' + esc(x.title) + ' · ' + fdate(x.date) + (x.due && t !== 'storno' ? ' · fällig ' + fdate(x.due) : '') + '</div>' +
         '<div class="tools"><span class="badge ' + cls + '">' + esc(x.status) + '</span>' + (t !== 'rechnung' ? '<span class="badge">' + RE_LABEL[t] + '</span>' : '') + (od ? '<span class="badge bad">überfällig</span>' : '') +
         (lm ? '<span class="badge warn">' + MAHN_LABEL[lm.lvl] + ' ' + fdate(lm.date) + '</span>' : '') + (nm ? '<span class="badge bad">' + nm.label + ' fällig</span>' : '') +
-        ((x.status === 'Gestellt' || x.status === 'Bezahlt') && t !== 'storno' ? '<button type="button" class="btn small danger" data-act="re-storno-list" data-id="' + esc(x.id) + '">Stornieren</button>' : '') + '</div></article>';
+        ((x.status === 'Gestellt' || x.status === 'Bezahlt') && t !== 'storno' ? '<button type="button" class="btn small danger" data-act="re-storno-list" data-id="' + esc(x.id) + '">Stornieren</button>' : '') +
+        '<button type="button" class="btn small primary ang-pdfbtn" data-act="re-view-list" data-id="' + esc(x.id) + '">PDF ansehen' + (x.status === 'Gestellt' || t === 'storno' ? ' & senden' : '') + '</button></div></article>';
     }).join('');
   }
 
@@ -4560,7 +4577,10 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'goto-rechnungen') setTab('rechnungen');
       else if (act === 'rechnung') { var er = latestRechnung(a.dataset.id); if (er) openRechnung(er.id); else openRechnung(null, a.dataset.id); }
       else if (act === 're-save') { saveRe(false).then(function (ok) { if (ok) { closeSheet(false); toast('Rechnung gespeichert'); } }); }
-      else if (act === 're-issue') issueRe(a);
+      else if (act === 're-issue') reIssuePreview(a);
+      else if (act === 'viewer-issue') { closeViewer(); if (draft && draft.coll === 'rechnung') { draft.confirmIssue = true; issueRe(null).then(function () { if (draft && draft.a && draft.a.status === 'Gestellt' && window.jspdf) reView(draft.a, draft.id); }); } }
+      else if (act === 're-view') { if (draft && draft.coll === 'rechnung') reView(draft.a, draft.id); }
+      else if (act === 're-view-list') { var rx = state.data.rechnungen.find(function (q) { return q.id === a.dataset.id; }); if (rx) reView(rx, rx.id); }
       else if (act === 're-pdf') pdfReFile();
       else if (act === 're-paid') payRe();
       else if (act === 're-storno') stornoRe(a);

@@ -92,5 +92,16 @@ const fs = require('fs');
   assert(/ihr Aufmaß wird geöffnet/.test(await page.textContent('#ams-hint')) && await page.isHidden('#ams-party'), 'vorhandene Baustelle erkannt');
   await page.keyboard.press('Enter'); await page.waitForSelector('#amBody .pos');
   assert((await page.$$('#amBody .pos')).length === 4, 'Enter öffnet das vorhandene Aufmaß');
+  // Raum automatisch übernehmen
+  await page.click('[data-act="am-room"]');
+  assert(await page.inputValue('#amBody .pos[data-i="4"] [data-f="room"]') === '', 'neue Zeile zunächst ohne Raum');
+  await f(4, 'l', '3');
+  assert(await page.inputValue('#amBody .pos[data-i="4"] [data-f="room"]') === 'Flur', 'nach dem ersten Maß steht der Raum der Zeile darüber');
+  await f(4, 'room', 'Küche');
+  await page.click('[data-act="am-room"]'); await page.click('#amBody .pos[data-i="5"] [data-act="am-plus"][data-k="l"]'); await page.keyboard.type('2');
+  assert(await page.inputValue('#amBody .pos[data-i="5"] [data-f="room"]') === 'Küche', 'nach der Änderung wird der neue Name wiederholt (auch über den Plus-Knopf)');
+  await f(5, 'room', 'Abstellraum'); await f(5, 'l', '2,5');
+  assert(await page.inputValue('#amBody .pos[data-i="5"] [data-f="room"]') === 'Abstellraum', 'selbst eingetragener Name wird nicht überschrieben');
+  await page.click('[data-act="cancel"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
   console.log('Fehler:', errs.join('|') || 'keine'); await b.close();
 })();

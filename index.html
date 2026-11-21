@@ -334,7 +334,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px; }
 .amcard.newroom { margin-top: 10px; }
 .amcard .am-top { display: flex; gap: 8px; align-items: center; }
-.amcard .am-top input { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.amcard .am-top input { flex: 1 1 auto; min-width: 0; font-weight: 600; transition: background-color .4s; }
+.amcard .am-top input.auto { background: var(--accent-soft, var(--surface)); }
 .amcard .am-top select { flex: 0 0 auto; width: auto; }
 .amcard .pc-x { flex: none; border: 0; background: transparent; color: var(--bad); font-size: 22px; width: 40px; min-height: 44px; cursor: pointer; }
 .amcard .am-nums { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px; gap: 8px; margin-top: 8px; }
@@ -2961,7 +2962,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var roomNames = []; draft.rows.forEach(function (r) { var n = String(r.room || '').trim(); if (n && roomNames.indexOf(n) < 0) roomNames.push(n); });
     $('#amBody').innerHTML = '<h2 id="sheetTitle">Aufmaß: ' + esc(a ? a.title : '') + '</h2>' +
       '<p class="hint" style="margin-bottom:6px">' + esc(a ? a.party : '') + (a && a.site ? ' · ' + esc(a.site) : '') + '</p>' +
-      '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Unter jeder Zeile steht der Rechenweg.</p>' +
+      '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Unter jeder Zeile steht der Rechenweg. Den Raum trägt die App selbst ein, sobald du ein Maß eingibst – bis du einen neuen Namen schreibst.</p>' +
       '<datalist id="amRoomList">' + roomNames.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
       '<div class="amlist">' + cards + '</div>' +
       '<div class="addbar" style="margin-top:10px"><button type="button" class="btn small" data-act="am-add">+ Zeile im selben Raum</button><button type="button" class="btn small" data-act="am-room">+ Neuer Raum</button></div>' +
@@ -2982,12 +2983,26 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     $('#amSum').innerHTML = amSumHtml();
     var mb = $('#matBox'); if (mb) mb.innerHTML = matHtml();
   }
+  /** Raum automatisch: Sobald in einer Zeile ohne Raum ein Maß steht, übernimmt sie den Raum der Zeile darüber.
+   * Ändert man den Namen, wiederholen die folgenden neuen Zeilen den neuen Namen. */
+  function amAutoRoom(i) {
+    var r = draft.rows[i]; if (!r || String(r.room || '').trim()) return;
+    for (var j = i - 1; j >= 0; j--) {
+      var n = String(draft.rows[j].room || '').trim();
+      if (n) {
+        r.room = n;
+        var el = document.querySelector('#amBody .pos[data-i="' + i + '"] [data-f="room"]');
+        if (el) { el.value = n; el.classList.add('auto'); setTimeout(function () { el.classList.remove('auto'); }, 1200); }
+        return;
+      }
+    }
+  }
   /** „+“ am Maßfeld: hängt „ + “ an und setzt den Cursor ans Ende – das Handy-Zahlenfeld hat oft kein Plus. */
   function amPlus(i, k) {
     var r = draft.rows[i]; if (!r) return;
     var v = String(r[k] || '').replace(/\s+$/, '');
     if (v && !/[-+−x×*:\/(]$/.test(v)) v += ' + ';
-    r[k] = v;
+    r[k] = v; if (v) amAutoRoom(i);
     var inp = document.querySelector('#amBody .pos[data-i="' + i + '"] [data-f="' + k + '"]');
     if (inp) { inp.value = v; inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (e) { /* manche Felder erlauben das nicht */ } }
     updAm();
@@ -3240,6 +3255,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (t.id === 'am-abd') { draft.abd = t.value; updAm(); return; }
       var pos = t.closest('.pos'); if (!pos || !t.dataset.f) return;
       draft.rows[Number(pos.dataset.i)][t.dataset.f] = t.value;
+      if (t.dataset.f !== 'room' && t.value.trim()) amAutoRoom(Number(pos.dataset.i));
       if (t.dataset.f === 'type') renderAm(); else updAm();
     } else if (draft.coll === 'angebot' || draft.coll === 'rechnung') {
       var A = draft.a;

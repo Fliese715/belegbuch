@@ -66,6 +66,10 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß-Übersicht:** Baustellen & Material › Aufmaß (`renderAufmassList`): Karten mit Flächen gesamt und je Raum,
   Öffnen / PDF / → Angebot, darunter Baustellen ohne Aufmaß. „+ Aufmaß“ wählt eine Baustelle oder legt beim
   Speichern eine neue an (Status „Anfrage“, Kundendaten aus der Kartei).
+- **Angebot ansehen und senden:** In der Angebotsliste „PDF ansehen“ (`angView` → `viewPdf`): Seiten werden mit pdf.js
+  als Bilder gezeichnet (auch auf Android), sonst eingebettet. „Senden“ teilt das PDF mit Betreff und Text
+  (`navigator.share`, Android) und markiert das Angebot als versendet; ohne Teilen: PDF speichern, E-Mail öffnen,
+  danach „Als versendet markieren“. Schritt 4 im Formular hat eine Vorschau ohne Senden.
 - **Adresse der Baustelle:** `siteCandidates` sammelt alle bekannten Adressen (Rechnung, Angebot – bei Privatkunden
   auch die Rechnungsadresse –, Termine, Kundenkartei; Firmensitz nur als Vorschlag). Leeres Feld wird mit der besten
   gefüllt, die übrigen stehen als Knöpfe darunter. „Strecke ermitteln“ nimmt das Feld. Das Aufmaß hat ein eigenes

@@ -84,6 +84,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß-Bereiche aus der Preisliste:** `AM_CAT` (Kennung `k-…`) – Abdichtung Boden/Wand, Dichtband, Dichtecken,
   Manschetten, Entkopplung, Profile, Bohrungen, Treppe, Fensterbank, Bodenablauf, Duschrinne u. a. – stehen gruppiert in
   der Bereichsauswahl (`amTypeOptions`). Ein eigener Bereich gleichen Namens verdrängt den eingebauten.
+- **Rechnung ← Angebot:** Kasten „Aus dem Angebot“ in Rechnungs-Entwürfen (`reAngPanel`, `reFromAng`): Rechnung ohne
+  dieses Angebot → Kunde, Adressen, Positionen und Preise übernehmen; geändertes Angebot → Preise und neue Positionen
+  nachziehen (Zuordnung über amKey bzw. Leistung + Text). Mengen danach aus dem Aufmaß. Kleinunternehmer-Warnung bei USt.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

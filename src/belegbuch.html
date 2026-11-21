@@ -4237,6 +4237,42 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         '<div class="sub"><span data-pbadge>' + posBadge(p, A.region) + '</span>' + (diff ? ' <span class="hint">Aufmaß-Menge, im Angebot: ' + fmtQ(p.angQty) + '</span>' : '') + '</div></div>';
     }).join('');
   }
+  /* ---------- Rechnung ← Angebot ----------
+   * Eine Rechnung übernimmt beim Anlegen Kunde, Positionen und Preise aus dem besten Angebot der Baustelle.
+   * Gab es das Angebot damals noch nicht oder wurde es danach geändert, holt der Kasten „Aus dem Angebot“ es nach. */
+  function posMatch(p, list) { return list.find(function (q) { return p.amKey && q.amKey === p.amKey; }) || list.find(function (q) { return !p.amKey && !q.amKey && q.katId === p.katId && String(q.text) === String(p.text); }) || null; }
+  /** 'other' = Rechnung ohne dieses Angebot angelegt, 'prices' = Preise weichen ab, 'same' = stimmt überein. */
+  function reAngState(A, ang) {
+    if (A.angebotId !== ang.id) return 'other';
+    var diff = A.positions.some(function (p) { var q = posMatch(p, ang.positions || []); return q && Math.abs((Number(q.price) || 0) - (Number(p.price) || 0)) > 0.001; });
+    var missing = (ang.positions || []).some(function (q) { return !posMatch(q, A.positions); });
+    return diff || missing ? 'prices' : 'same';
+  }
+  function reAngPanel(A) {
+    if (reLocked(A) || ['rechnung', 'schluss'].indexOf(reType(A)) < 0) return '';
+    var ang = bestAngebot(A.auftragId); if (!ang) return '';
+    var st = reAngState(A, ang), c = calcAng(ang);
+    var btn = st === 'other' ? ['Kunde und Leistungen übernehmen', 're-fromang-all'] : st === 'prices' ? ['Preise und fehlende Positionen übernehmen', 're-fromang-prices'] : null;
+    return '<div class="ampanel"><div class="amp-h"><b>Aus dem Angebot ' + esc(ang.nr) + '</b><span class="hint">' + esc(ang.status) + (ang.date ? ' · ' + fdate(ang.date) : '') + '</span></div>' +
+      '<div class="amp-tot">' + esc(ang.name || '') + ' · ' + (ang.positions || []).length + ' Positionen · ' + angSumText(ang, c) + '</div>' +
+      (st === 'other' ? '<p class="hint" style="margin:0">Diese Rechnung wurde ohne dieses Angebot angelegt' + (A.name && A.name !== ang.name ? ' (Kunde hier: „' + esc(A.name) + '“)' : '') + '. Übernimmt Kunde, Adressen, Positionen und Preise; die Mengen kommen danach aus dem Aufmaß.</p>' :
+        st === 'prices' ? '<p class="hint" style="margin:0">Das Angebot wurde geändert: andere Preise oder neue Positionen.</p>' : '') +
+      (btn ? '<button type="button" class="btn small primary" data-act="' + btn[1] + '">' + btn[0] + '</button>' : '<button type="button" class="btn small" disabled>✓ Preise wie im Angebot</button>') + '</div>';
+  }
+  function reFromAng(all) {
+    var A = draft.a, ang = bestAngebot(A.auftragId); if (!ang) return;
+    if (all) {
+      ['name', 'email', 'address', 'site', 'title', 'region', 'ckind', 'discount'].forEach(function (k) { if (ang[k] !== undefined && ang[k] !== '') A[k] = ang[k]; });
+      A.rc = !!ang.rc; A.vat = Number(ang.vat) || 0; A.angebotId = ang.id;
+      A.positions = JSON.parse(JSON.stringify(ang.positions || [])); A.positions.forEach(function (p) { p.angQty = Number(p.qty) || 0; });
+    } else {
+      A.positions.forEach(function (p) { var q = posMatch(p, ang.positions || []); if (q) p.price = q.price; });
+      (ang.positions || []).forEach(function (q) { if (!posMatch(q, A.positions)) { var n = JSON.parse(JSON.stringify(q)); n.angQty = Number(n.qty) || 0; A.positions.push(n); } });
+    }
+    var n = applyAufmass(A); A.annex = !!A.amSnap;
+    renderRe();
+    toast(all ? 'Angebot ' + ang.nr + ' übernommen' + (n ? ', ' + n + ' Menge(n) aus dem Aufmaß' : '') : 'Preise aus ' + ang.nr + ' übernommen');
+  }
   function renderRe() {
     var A = draft.a, locked = reLocked(A), a = auftrag(A.auftragId);
     if (!locked && reType(A) === 'schluss') A.deduct = deductOf(A.auftragId);
@@ -4266,13 +4302,14 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       '<div class="grid2 stack">' + inp('r-email', 'email', 'E-Mail des Kunden', 'text', ' inputmode="email"') + inp('r-address', 'address', 'Rechnungsadresse') + '</div>' +
       inp('r-site', 'site', 'Baustelle / Adresse') + inp('r-title', 'title', 'Betreff') +
       '<div class="field"><label for="r-intro">Einleitung</label><textarea id="r-intro" data-h="intro" rows="4">' + esc(A.intro) + '</textarea></div>' +
-      '<h3 class="section-h">Leistungen</h3>' +
+      '<h3 class="section-h">Leistungen</h3>' + reAngPanel(A) +
       (a && a.aufmass ? '<div style="margin-bottom:10px"><button type="button" class="btn small" data-act="re-fromam">Mengen aus Aufmaß übernehmen</button></div>' : '<p class="hint" style="margin-bottom:10px">Zu dieser Baustelle gibt es noch kein Aufmaß.</p>') +
       reRows(A) +
       '<div class="addbar"><select id="angAdd" aria-label="Leistung hinzufügen">' + opts + '</select></div>' +
       '<div class="grid2 stack" style="margin-top:12px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
       '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
       (A.ckind !== 'privat' ? '<label class="check"><input type="checkbox" id="a-rc" data-h="rc"' + (A.rc ? ' checked' : '') + '> Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)</label>' : '') +
+      '<p class="warnline" id="kleinWarn"' + (setting('firma').kleinunt && Number(A.vat) > 0 && !locked ? '' : ' hidden') + '>Achtung: Du bist als Kleinunternehmer (§ 19 UStG) eingetragen. Weist du Umsatzsteuer aus, musst du sie ans Finanzamt zahlen (§ 14c UStG). Normal ist hier „0 %“.</p>' +
       '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
       '<label class="check" style="margin-top:8px"><input type="checkbox" id="r-annex" data-h="annex"' + (A.annex ? ' checked' : '') + (A.amSnap ? '' : ' disabled') + '> Aufmaßblatt als Anlage anhängen</label>' +
       '<div class="field" style="margin-top:12px"><label for="r-outro">Schlusstext</label><textarea id="r-outro" data-h="outro" rows="5">' + esc(A.outro) + '</textarea></div>' +
@@ -4507,6 +4544,8 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 're-storno') stornoRe(a);
       else if (act === 're-storno-list') { openRechnung(a.dataset.id); setTimeout(function () { var sb = document.querySelector('#sheet [data-act="re-storno"]'); if (sb) stornoRe(sb); }, 60); }
       else if (act === 're-del') delRe(a);
+      else if (act === 're-fromang-all') reFromAng(true);
+      else if (act === 're-fromang-prices') reFromAng(false);
       else if (act === 're-fromam') { var nr2 = applyAufmass(draft.a); draft.a.annex = !!draft.a.amSnap; renderRe(); toast(nr2 ? nr2 + ' Menge(n) aus dem Aufmaß übernommen' : 'Die Mengen stimmen schon mit dem Aufmaß überein'); }
       else if (act === 'export-belege') exportBelege();
       else if (act === 'export-auftraege') exportAuftraege();

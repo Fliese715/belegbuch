@@ -306,13 +306,44 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .sumtable td { padding: 4px 0; }
 .sumtable td:last-child { text-align: right; }
 .addbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.addbar select { flex: 1 1 220px; width: auto; }
+.addbar select { flex: 1 1 220px; width: auto; min-width: 0; max-width: 100%; }
 .prow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .prow .ptext { grid-column: 1 / -1; }
 .prow .field { margin-bottom: 0; }
 .sheet a { color: var(--accent); }
 .sheet a.btn { color: var(--ink); text-decoration: none; }
 .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-bottom: 10px; }
+.pcard { padding: 10px; }
+.pcard .pc-top { display: flex; gap: 8px; align-items: flex-start; }
+.pcard .pc-nr { flex: none; width: 26px; height: 26px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-top: 8px; }
+.pcard textarea { flex: 1; min-width: 0; min-height: 44px; resize: vertical; }
+.pcard .pc-x { flex: none; border: 0; background: transparent; color: var(--bad); font-size: 22px; width: 40px; min-height: 44px; cursor: pointer; }
+.pcard .pc-nums { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, .8fr) minmax(0, 1.1fr); gap: 8px; margin-top: 8px; align-items: end; }
+.pcard .pc-foot { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.pcard .pc-foot select { width: auto; min-height: 38px; font-size: 13px; padding: 0 8px; }
+.pcard .pc-nums label, .pcard .pc-art { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.pcard .pc-nums input { font-family: var(--font-mono); text-align: right; }
+.pcard .pc-nums input[data-pf="unit"] { text-align: left; font-family: inherit; }
+.pcard .pc-sum { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.pcard .pc-sum b { font-family: var(--font-mono); font-size: 15px; color: var(--ink); margin-left: 6px; }
+.pcard .sub { margin-top: 6px; font-size: 12px; }
+.pcard .sub:empty { display: none; }
+@media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.locked .pcard .pc-x { display: none; }
+.stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 14px; }
+.stepper button { border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); border-radius: 10px; min-height: 48px; padding: 4px 2px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1.15; }
+.stepper button b { font-size: 15px; }
+.stepper button[aria-current="step"] { background: var(--fab); border-color: var(--fab); color: var(--fab-ink); }
+.stepper button.done:not([aria-current]) { color: var(--ink); }
+.angsum { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: -6px 0 10px; font-size: 14px; color: var(--muted); }
+.angsum b { font-family: var(--font-mono); color: var(--ink); font-size: 16px; }
+.stepnav { display: flex; gap: 8px; justify-content: space-between; margin: 16px 0 6px; }
+.stepnav .btn { flex: 1; max-width: 220px; }
+.stepnav .btn.next { margin-left: auto; }
+.overview { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.overview dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+.overview dt { color: var(--muted); }
+.overview dd { margin: 0; overflow-wrap: anywhere; }
 .gt { border-collapse: collapse; width: 100%; font-size: 13px; }
 .gt th { padding: 7px 6px; }
 .gt .cell { padding: 0 6px; font-size: 12.5px; }
@@ -1290,9 +1321,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     TABS.forEach(function (t) { $('#v-' + t).hidden = state.tab !== t; });
-    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : state.tab === 'kunden' ? '+ Kunde' : state.tab === 'erledigen' ? '+ Termin' : '+ Beleg';
-    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : state.tab === 'erledigen' ? 'termin' : 'beleg';
-    $('#fab').hidden = ['belege', 'auftraege', 'kunden', 'erledigen'].indexOf(state.tab) < 0;
+    $('#fab').textContent = state.tab === 'auftraege' ? '+ Auftrag' : state.tab === 'kunden' ? '+ Kunde' : state.tab === 'erledigen' ? '+ Termin' : state.tab === 'angebote' ? '+ Angebot' : '+ Beleg';
+    $('#fab').dataset.kind = state.tab === 'auftraege' ? 'auftrag' : state.tab === 'kunden' ? 'kunde' : state.tab === 'erledigen' ? 'termin' : state.tab === 'angebote' ? 'angebot' : 'beleg';
+    $('#fab').hidden = ['belege', 'auftraege', 'kunden', 'erledigen', 'angebote'].indexOf(state.tab) < 0;
     $('#backBtn').hidden = state.tab === 'menu';
     var T = { menu: 'FFH Bau und Büro', erledigen: 'Termine & Erledigen', uebersicht: 'Zahlen & Auswertung', belege: 'Kosten & Fahrten', auftraege: 'Baustellen & Material', rechnungen: 'Rechnungen & Angebote', angebote: 'Rechnungen & Angebote', kunden: 'Kunden', ordner: ordnerTitle(), sicherung: 'Datensicherung' };
     $('#pageTitle').textContent = T[state.tab] || 'FFH Bau und Büro';
@@ -2889,16 +2920,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function openAngebot(id, aid) {
     var ex = id ? state.data.angebote.find(function (x) { return x.id === id; }) : null;
-    if (!ex && !aid) return;
     var a = auftrag(ex ? ex.auftragId : aid), f = setting('firma');
     var A = ex ? JSON.parse(JSON.stringify(ex)) : {
-      auftragId: aid, region: detectRegion(a), ckind: a && a.ckind === 'privat' ? 'privat' : 'firma', rc: false, nr: nextNr(), date: today(), valid: addDays(today(), 30),
+      auftragId: aid || '', region: detectRegion(a), ckind: a ? (a.ckind === 'privat' ? 'privat' : 'firma') : 'privat', rc: false, nr: nextNr(), date: today(), valid: addDays(today(), 30),
       name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || '' : '',
       title: 'Fliesenarbeiten ' + (a ? a.title : ''), positions: [], discount: 0, vat: f.kleinunt ? 0 : 19,
       intro: DEF_INTRO, outro: DEF_OUTRO, status: 'Entwurf'
     };
     if (!A.positions) A.positions = [];
-    draft = { coll: 'angebot', sticky: true, id: id || null, a: A, confirm: false, mailEdited: false };
+    draft = { coll: 'angebot', sticky: true, id: id || null, a: A, confirm: false, mailEdited: false, fromList: !ex && !aid, bsName: a ? a.title : '',
+      step: ex ? (ex.status === 'Entwurf' ? 2 : 4) : (a && a.party ? 2 : 1) };
     if (!ex) suggest();
     showSheet('<div id="angBody"></div>', true);
     renderAng();
@@ -2931,34 +2962,89 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     };
   }
   function renderAng() { if (draft && draft.coll === 'rechnung') renderRe(); else renderAngForm(); }
+  /* Das Angebot wird in vier Schritten bearbeitet: 1 Kunde, 2 Leistungen, 3 Texte, 4 Senden.
+   * Alle Schritte stehen im DOM (Eingaben bleiben erhalten), sichtbar ist nur draft.step. */
+  var ANG_STEPS = ['Kunde', 'Leistungen', 'Texte', 'Senden'];
+  function angSumText(A, c) { return A.ckind === 'privat' || !(Number(A.vat) > 0) ? money(c.gross) + (Number(A.vat) > 0 ? ' brutto' : '') : money(c.net2) + ' netto'; }
   function renderAngForm() {
-    var A = draft.a, c = calcAng(A), m = mailParts(A, c);
-    var rows = reRows(A);
-    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + '</option>'; }).join('') + '<option value="__free">Freie Position</option>';
+    var A = draft.a, c = calcAng(A), m = mailParts(A, c), st = draft.step || 1, a = auftrag(A.auftragId);
+    var opts = '<option value="">+ Leistung aus Preisliste …</option>' + CATALOG.map(function (x) { return '<option value="' + x.id + '">' + esc(x.text) + ' (' + esc(x.unit) + ')</option>'; }).join('');
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
-    $('#angBody').innerHTML = '<h2 id="sheetTitle">Angebot ' + esc(A.nr) + ' <span class="badge ' + (A.status === 'Angenommen' ? 'good' : A.status === 'Abgelehnt' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '') + '">' + esc(A.status) + '</span></h2>' +
-      '<div class="grid2 stack">' + inp('a-nr', 'nr', 'Angebotsnummer') + inp('a-date', 'date', 'Datum', 'date') + '</div>' +
-      '<div class="grid2 stack">' + inp('a-valid', 'valid', 'Gültig bis', 'date') + inp('a-name', 'name', 'Kunde') + '</div>' +
-      '<div class="grid2 stack">' + inp('a-email', 'email', 'E-Mail des Kunden', 'text', ' inputmode="email"') + inp('a-address', 'address', 'Rechnungsadresse') + '</div>' +
-      inp('a-site', 'site', 'Baustelle / Adresse') + inp('a-title', 'title', 'Betreff') +
-      '<div class="field"><label for="a-intro">Einleitung</label><textarea id="a-intro" data-h="intro" rows="4">' + esc(A.intro) + '</textarea></div>' +
-      '<h3 class="section-h">Leistungen</h3>' + kindSelect(A) + regionSelect(A) + standHtml(A.region) + rows +
-      '<div class="addbar"><select id="angAdd" aria-label="Leistung hinzufügen">' + opts + '</select><button type="button" class="btn small" data-act="ang-suggest">Aus Aufmaß vorschlagen</button></div>' +
-      '<div class="grid2 stack" style="margin-top:12px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
+    function sec(n, html) { return '<section class="angstep" data-step="' + n + '"' + (n === st ? '' : ' hidden') + '>' + html + '</section>'; }
+    var hasAm = a && a.aufmass && (a.aufmass.rows || []).length;
+    var bsHint = draft.fromList ? (A.auftragId && a ? 'Verknüpft mit der Baustelle „' + a.title + '“.' : draft.bsName ? 'Neue Baustelle – wird beim Speichern unter „Baustellen & Material“ angelegt.' : 'Wähle eine vorhandene Baustelle oder gib einen neuen Namen ein.') : '';
+    var s1 = '<h3 class="section-h" style="margin-top:4px">Für wen ist das Angebot?</h3>' +
+      (draft.fromList
+        ? '<div class="field"><label for="a-bs">Baustelle</label><input id="a-bs" type="text" list="a-bslist" autocomplete="off" placeholder="z. B. Bad EG Müller" value="' + esc(draft.bsName) + '"><datalist id="a-bslist">' + termSites().map(function (x) { return '<option value="' + esc(x.title) + '">' + esc(x.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="a-bshint" style="margin:4px 0 0">' + esc(bsHint) + '</p></div>'
+        : (a ? '<p class="hint" style="margin:0 0 10px">Baustelle: <b>' + esc(a.title) + '</b></p>' : '')) +
+      '<div class="field"><label for="a-name">Kunde</label><input id="a-name" type="text" data-h="name" list="a-klist" autocomplete="off" placeholder="Name oder Firma" value="' + esc(A.name || '') + '"><datalist id="a-klist">' + state.data.kunden.map(function (k) { return '<option value="' + esc(k.name) + '"></option>'; }).join('') + '</datalist></div>' +
+      kindSelect(A) +
+      inp('a-address', 'address', 'Rechnungsadresse') +
+      inp('a-site', 'site', 'Adresse der Baustelle') +
+      inp('a-email', 'email', 'E-Mail des Kunden (für den Versand)', 'text', ' inputmode="email"') +
+      inp('a-title', 'title', 'Betreff des Angebots');
+    var s2 = '<h3 class="section-h" style="margin-top:4px">Was bietest du an?</h3>' + reRows(A) +
+      '<div class="addbar" style="margin-top:4px"><select id="angAdd" aria-label="Leistung aus Preisliste hinzufügen">' + opts + '</select>' +
+      '<button type="button" class="btn small" data-act="ang-free">+ Freie Position</button>' +
+      (hasAm ? '<button type="button" class="btn small" data-act="ang-suggest">Aus Aufmaß übernehmen</button>' : '') + '</div>' +
+      '<div class="grid2 stack" style="margin-top:14px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" placeholder="0" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
       '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
       '<div id="angTotals">' + totalsHtml(A, c) + '</div>' +
-      '<div class="field" style="margin-top:12px"><label for="a-outro">Schlusstext</label><textarea id="a-outro" data-h="outro" rows="5">' + esc(A.outro) + '</textarea></div>' +
-      '<h3 class="section-h">Versand per E-Mail</h3>' +
-      '<p class="hint">Die App versendet nichts selbst. Speichere das PDF, öffne die E-Mail und hänge das PDF an.</p>' +
-      '<div class="field" style="margin-top:10px"><span class="lbl">An</span><div class="num" id="mailTo">' + esc(A.email || '(keine E-Mail-Adresse eingetragen)') + '</div></div>' +
-      '<div class="field"><label for="mailSubj">Betreff</label><input id="mailSubj" type="text" autocomplete="off" value="' + esc(m.sub) + '"></div>' +
-      '<div class="field"><label for="mailBody">Text</label><textarea id="mailBody" rows="9">' + esc(m.body) + '</textarea></div>' +
-      '<div class="actions" style="justify-content:flex-start;margin-bottom:12px"><button type="button" class="btn" data-act="ang-pdf">1. PDF speichern</button>' +
+      (regionsList().length ? '<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Preisregion und Richtwerte</summary>' + regionSelect(A) + standHtml(A.region) + '</details>' : standHtml(A.region));
+    var s3 = '<h3 class="section-h" style="margin-top:4px">Nummer, Datum und Texte</h3>' +
+      '<div class="grid2 stack">' + inp('a-nr', 'nr', 'Angebotsnummer') + inp('a-date', 'date', 'Datum', 'date') + '</div>' +
+      inp('a-valid', 'valid', 'Gültig bis', 'date') +
+      '<div class="field"><label for="a-intro">Einleitung (steht über den Leistungen)</label><textarea id="a-intro" data-h="intro" rows="4">' + esc(A.intro) + '</textarea></div>' +
+      '<div class="field"><label for="a-outro">Schlusstext (steht unter der Summe)</label><textarea id="a-outro" data-h="outro" rows="5">' + esc(A.outro) + '</textarea></div>';
+    var s4 = '<h3 class="section-h" style="margin-top:4px">Prüfen und versenden</h3>' +
+      '<div class="overview"><dl><dt>Kunde</dt><dd id="ovName">' + esc(A.name || '–') + '</dd><dt>Baustelle</dt><dd>' + esc((a ? a.title : draft.bsName) || '–') + (A.site ? ' · ' + esc(A.site) : '') + '</dd>' +
+      '<dt>Betreff</dt><dd>' + esc(A.title || '–') + '</dd><dt>Leistungen</dt><dd>' + A.positions.length + (A.positions.length === 1 ? ' Position' : ' Positionen') + '</dd><dt>Gültig bis</dt><dd>' + (A.valid ? fdate(A.valid) : '–') + '</dd></dl>' +
+      '<div id="angTotals4">' + totalsHtml(A, c) + '</div></div>' +
+      '<p class="hint" style="margin-top:12px">So versendest du: 1. PDF speichern, 2. E-Mail öffnen und das PDF anhängen. Die App verschickt nichts selbst.</p>' +
+      '<div class="actions" style="justify-content:flex-start;margin:8px 0 12px"><button type="button" class="btn" data-act="ang-pdf">1. PDF speichern</button>' +
       '<a class="btn" id="mailLink" href="#" target="_blank" rel="noopener">2. E-Mail öffnen</a><button type="button" class="btn" data-act="ang-copy">Text kopieren</button></div>' +
+      '<details><summary class="hint" style="cursor:pointer">E-Mail-Text ansehen oder ändern</summary>' +
+      '<div class="field" style="margin-top:10px"><span class="lbl">An</span><div class="num" id="mailTo">' + esc(A.email || '(keine E-Mail-Adresse eingetragen – Schritt 1)') + '</div></div>' +
+      '<div class="field"><label for="mailSubj">Betreff</label><input id="mailSubj" type="text" autocomplete="off" value="' + esc(m.sub) + '"></div>' +
+      '<div class="field"><label for="mailBody">Text</label><textarea id="mailBody" rows="9">' + esc(m.body) + '</textarea></div></details>';
+    $('#angBody').innerHTML = '<h2 id="sheetTitle">Angebot ' + esc(A.nr) + ' <span class="badge ' + (A.status === 'Angenommen' ? 'good' : A.status === 'Abgelehnt' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '') + '">' + esc(A.status) + '</span></h2>' +
+      '<div class="angsum"><span id="angHeadName">' + esc(A.name || 'Neuer Kunde') + '</span><span>Summe <b id="angSumHead">' + angSumText(A, c) + '</b></span></div>' +
+      '<nav class="stepper" aria-label="Schritte">' + ANG_STEPS.map(function (l, k) { var n = k + 1; return '<button type="button" data-act="ang-step" data-step="' + n + '"' + (n === st ? ' aria-current="step"' : '') + (n < st ? ' class="done"' : '') + '><b>' + (n < st ? '✓' : n) + '</b>' + l + '</button>'; }).join('') + '</nav>' +
+      sec(1, s1) + sec(2, s2) + sec(3, s3) + sec(4, s4) +
+      '<div class="stepnav">' + (st > 1 ? '<button type="button" class="btn" data-act="ang-step" data-step="' + (st - 1) + '">‹ Zurück</button>' : '') +
+      (st < 4 ? '<button type="button" class="btn primary next" data-act="ang-step" data-step="' + (st + 1) + '">Weiter: ' + ANG_STEPS[st] + ' ›</button>' : '') + '</div>' +
       '<p class="err" id="formErr" role="alert"></p>' +
       '<div class="actions">' + (draft.id ? '<button type="button" class="btn danger left" data-act="ang-del">Löschen</button>' : '') +
-      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn" data-act="ang-save">Speichern</button>' +
-      '<button type="button" class="btn primary" data-act="ang-sent">Als versendet markieren</button></div>';
+      '<button type="button" class="btn" data-act="cancel">Schließen</button><button type="button" class="btn' + (st === 4 ? '' : ' primary') + '" data-act="ang-save">Speichern</button>' +
+      (st === 4 ? '<button type="button" class="btn primary" data-act="ang-sent">Als versendet markieren</button>' : '') + '</div>';
+  }
+  /** Wechselt den Schritt; beim Verlassen von Schritt 1 wird geprüft, ob ein Kunde da ist. */
+  function angStep(n) {
+    var A = draft.a;
+    if (n > draft.step && draft.step === 1 && !String(A.name || '').trim()) { formErr('Bitte zuerst den Kunden eintragen.'); var nm = $('#a-name'); if (nm) nm.focus(); return; }
+    if (draft.step === 1 && n > 1 && draft.fromList && !A.auftragId && !A.positions.length) A.region = detectRegion({ site: A.site, title: draft.bsName, address: A.address });
+    draft.step = n; renderAng();
+    var sb = $('#sheetBody'); if (sb) sb.scrollTop = 0; var sh = $('#sheet'); if (sh) sh.scrollTop = 0;
+  }
+  /** Baustelle oder Kunde gewählt (change-Ereignis): passende Daten übernehmen. */
+  function angPick(t) {
+    var A = draft.a;
+    if (t.id === 'a-bs') {
+      draft.bsName = t.value.trim(); var x = siteByName(draft.bsName);
+      A.auftragId = x ? x.id : '';
+      if (x) {
+        if (!A.name) A.name = x.party || ''; if (!A.email) A.email = x.email || ''; if (!A.address) A.address = x.address || ''; if (!A.site) A.site = x.site || '';
+        if (x.ckind && x.ckind !== A.ckind) repriceKind(A, x.ckind === 'privat' ? 'privat' : 'firma');
+        if (!A.positions.length) A.region = detectRegion(x);
+        if (/^Fliesenarbeiten\s*$/.test(A.title || '')) A.title = 'Fliesenarbeiten ' + x.title;
+      } else if (/^Fliesenarbeiten\s*$/.test(A.title || '') && draft.bsName) A.title = 'Fliesenarbeiten ' + draft.bsName;
+      renderAng();
+    } else if (t.id === 'a-name') {
+      var k = kundeByName(t.value); if (!k) return;
+      A.name = k.name; if (!A.email) A.email = k.email || ''; if (!A.address) A.address = k.address || '';
+      if (k.ckind && k.ckind !== A.ckind) repriceKind(A, k.ckind === 'privat' ? 'privat' : 'firma');
+      renderAng();
+    }
   }
   function updAng() {
     var A = draft.a, c = calcAng(A);
@@ -2968,6 +3054,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       el.querySelector('[data-pbadge]').innerHTML = posBadge(p, A.region);
     });
     $('#angTotals').innerHTML = totalsHtml(A, c);
+    var t4 = $('#angTotals4'); if (t4) t4.innerHTML = totalsHtml(A, c);
+    var sh = $('#angSumHead'); if (sh) sh.textContent = angSumText(A, c);
+    var hn = $('#angHeadName'); if (hn) hn.textContent = A.name || 'Neuer Kunde';
     $('#mailTo').textContent = A.email || '(keine E-Mail-Adresse eingetragen)';
     if (!draft.mailEdited) { var m = mailParts(A, c); $('#mailSubj').value = m.sub; $('#mailBody').value = m.body; }
   }
@@ -2983,6 +3072,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     } else if (draft.coll === 'angebot' || draft.coll === 'rechnung') {
       var A = draft.a;
       if (t.id === 'angAdd') { if (t.value) addPos(t.value); return; }
+      if (t.id === 'a-bs') { draft.bsName = t.value.trim(); var bx = siteByName(draft.bsName), bh = $('#a-bshint'); A.auftragId = bx ? bx.id : ''; if (bh) bh.textContent = bx ? 'Verknüpft mit der Baustelle „' + bx.title + '“.' : draft.bsName ? 'Neue Baustelle – wird beim Speichern unter „Baustellen & Material“ angelegt.' : 'Wähle eine vorhandene Baustelle oder gib einen neuen Namen ein.'; return; }
       if (t.id === 'mailSubj' || t.id === 'mailBody') { draft.mailEdited = true; return; }
       if (t.dataset.h) {
         var k = t.dataset.h;
@@ -3004,13 +3094,23 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   async function saveAng() {
     var A = draft.a;
-    if (!String(A.nr || '').trim()) return formErr('Bitte eine Angebotsnummer eintragen.');
-    if (!String(A.name || '').trim()) return formErr('Bitte den Kunden eintragen.');
-    if (!A.positions.length) return formErr('Bitte mindestens eine Leistung hinzufügen.');
+    function bad(step, msg) { if (draft.coll === 'angebot' && draft.step !== step) { draft.step = step; renderAng(); } return formErr(msg); }
+    if (!String(A.name || '').trim()) return bad(1, 'Bitte den Kunden eintragen.');
+    if (!A.positions.length) return bad(2, 'Bitte mindestens eine Leistung hinzufügen.');
     for (var i = 0; i < A.positions.length; i++) {
       var p = A.positions[i];
-      if (!String(p.text || '').trim()) return formErr('Bei Position ' + (i + 1) + ' fehlt die Leistung.');
-      if (!(Number(p.qty) > 0)) return formErr('Bei Position ' + (i + 1) + ' fehlt die Menge.');
+      if (!String(p.text || '').trim()) return bad(2, 'Bei Position ' + (i + 1) + ' fehlt die Leistung.');
+      if (!(Number(p.qty) > 0)) return bad(2, 'Bei Position ' + (i + 1) + ' fehlt die Menge.');
+    }
+    if (!String(A.nr || '').trim()) return bad(3, 'Bitte eine Angebotsnummer eintragen.');
+    if (!A.auftragId) {
+      // Angebot ohne Baustelle (aus der Angebotsliste angelegt): Baustelle mit Status „Anfrage“ anlegen, Kunde in die Kartei.
+      var bt = draft.bsName || A.site || ('Anfrage ' + A.name);
+      try {
+        A.auftragId = await persist('auftraege', null, { kind: 'kunde', title: bt, party: A.name, amount: 0, status: 'Anfrage', site: A.site || '', email: A.email || '', ckind: A.ckind === 'privat' ? 'privat' : 'firma', address: A.address || '', area: '', date: today(), terms: 14, due: addDays(today(), 14), note: '' });
+        if (!kundeByName(A.name)) await persist('kunden', null, { name: A.name, ckind: A.ckind === 'privat' ? 'privat' : 'firma', address: A.address || '', phone: '', email: A.email || '', note: '' });
+        draft.fromList = false;
+      } catch (e) { return formErr('Die Baustelle ließ sich nicht anlegen. Versuche es noch einmal.'); }
     }
     var obj = JSON.parse(JSON.stringify(A)); delete obj.id;
     try { draft.id = await persist('angebote', draft.id, obj); return true; }
@@ -3201,7 +3301,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     var rows = state.data.angebote.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.nr || '').localeCompare(a.nr || ''); });
     var open = rows.filter(function (x) { return x.status === 'Versendet'; });
     $('#angeboteSum').innerHTML = rows.length + (rows.length === 1 ? ' Angebot' : ' Angebote') + ' · versendet, ohne Antwort: <span class="num">' + money(sum(open, function (x) { return calcAng(x).net2; })) + '</span> netto';
-    if (!rows.length) { el.innerHTML = '<div class="empty">Noch keine Angebote. Öffne unter „Baustellen & Materialeinkauf“ eine Baustelle und tippe auf „Angebot“.</div>'; return; }
+    if (!rows.length) { el.innerHTML = '<div class="empty">Noch keine Angebote. Tippe oben auf „+ Angebot“ – oder öffne unter „Baustellen & Material“ eine Baustelle und tippe dort auf „Angebot“.</div>'; return; }
     el.innerHTML = rows.map(function (x) {
       var cls = x.status === 'Angenommen' ? 'good' : x.status === 'Abgelehnt' ? 'bad' : x.status === 'Entwurf' ? 'warn' : '';
       var c = calcAng(x);
@@ -3397,23 +3497,23 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       body: 'Guten Tag' + (A.name ? ' ' + A.name : '') + ',\n\nvielen Dank für Ihren Auftrag. Im Anhang finden Sie meine Rechnung ' + (A.nr || '') + (A.title ? ' für „' + A.title + '“' : '') + ' über ' + money(payable(A)) + (Number(A.vat) > 0 ? ' brutto' : '') + '.\n\nBitte überweisen Sie den Betrag bis zum ' + fdate(A.due) + ' unter Angabe der Rechnungsnummer.\n\nMit freundlichen Grüßen\n' + [f.owner || f.name, f.owner && f.name ? f.name : '', f.phone].filter(Boolean).join('\n')
     };
   }
+  /** Positionen als Karten: Leistung oben, darunter Menge, Einheit, Einzelpreis und Gesamt.
+   * Gilt für Angebot und Rechnung; die Eingaben tragen data-pf (Feld) und sitzen in .pos[data-i]. */
   function reRows(A) {
-    var priv = A.ckind === 'privat', cols = priv ? 8 : 7;
-    var body = A.positions.map(function (p, i) {
+    var priv = A.ckind === 'privat';
+    if (!A.positions.length) return '<div class="empty" style="padding:18px 12px">Noch keine Leistung. Füge unten eine hinzu.</div>';
+    return A.positions.map(function (p, i) {
       var diff = p.angQty !== undefined && Math.abs((Number(p.angQty) || 0) - (Number(p.qty) || 0)) > 0.001;
-      return '<tbody class="pos" data-i="' + i + '"><tr>' +
-        '<td class="nr">' + (i + 1) + '</td>' +
-        '<td style="min-width:150px"><input type="text" data-pf="text" aria-label="Leistung" autocomplete="off" value="' + esc(p.text) + '"></td>' +
-        '<td class="r" style="min-width:64px"><input type="text" inputmode="decimal" data-pf="qty" aria-label="Menge" autocomplete="off" value="' + fmtQ(p.qty) + '"></td>' +
-        '<td style="min-width:56px"><input type="text" data-pf="unit" aria-label="Einheit" autocomplete="off" value="' + esc(p.unit) + '"></td>' +
-        '<td class="r" style="min-width:78px"><input type="text" inputmode="decimal" data-pf="price" aria-label="Einzelpreis netto" autocomplete="off" value="' + de(p.price) + '"></td>' +
-        '<td><div class="cell" data-psum>' + money(r2((Number(p.qty) || 0) * (Number(p.price) || 0))) + '</div></td>' +
-        (priv ? '<td style="min-width:110px"><select data-pf="art" aria-label="Art"><option value="lohn"' + (p.art !== 'material' ? ' selected' : '') + '>Arbeit / Fahrt</option><option value="material"' + (p.art === 'material' ? ' selected' : '') + '>Material</option></select></td>' : '') +
-        '<td class="xb"><button type="button" data-act="ang-del-pos" data-i="' + i + '" aria-label="Position entfernen">×</button></td></tr>' +
-        '<tr><td class="sub" colspan="' + cols + '"><span data-pbadge>' + posBadge(p, A.region) + '</span>' + (diff ? ' <span class="hint">Aufmaß-Menge, im Angebot: ' + fmtQ(p.angQty) + '</span>' : '') + '</td></tr></tbody>';
+      return '<div class="pos pcard" data-i="' + i + '">' +
+        '<div class="pc-top"><span class="pc-nr">' + (i + 1) + '</span><textarea data-pf="text" rows="' + Math.min(4, Math.max(2, Math.ceil(String(p.text || '').length / 30))) + '" aria-label="Leistung, Position ' + (i + 1) + '" placeholder="Was wird gemacht?">' + esc(p.text) + '</textarea>' +
+        '<button type="button" class="pc-x" data-act="ang-del-pos" data-i="' + i + '" aria-label="Position ' + (i + 1) + ' entfernen">×</button></div>' +
+        '<div class="pc-nums"><label>Menge<input type="text" inputmode="decimal" data-pf="qty" autocomplete="off" value="' + fmtQ(p.qty) + '"></label>' +
+        '<label>Einheit<input type="text" data-pf="unit" autocomplete="off" value="' + esc(p.unit) + '"></label>' +
+        '<label>Einzelpreis €<input type="text" inputmode="decimal" data-pf="price" autocomplete="off" value="' + de(p.price) + '"></label></div>' +
+        '<div class="pc-foot">' + (priv ? '<select data-pf="art" aria-label="Art der Position (für § 35a EStG)"><option value="lohn"' + (p.art !== 'material' ? ' selected' : '') + '>Arbeit / Fahrt</option><option value="material"' + (p.art === 'material' ? ' selected' : '') + '>Material</option></select>' : '') +
+        '<span class="pc-sum">Gesamt<b data-psum>' + money(r2((Number(p.qty) || 0) * (Number(p.price) || 0))) + '</b></span></div>' +
+        '<div class="sub"><span data-pbadge>' + posBadge(p, A.region) + '</span>' + (diff ? ' <span class="hint">Aufmaß-Menge, im Angebot: ' + fmtQ(p.angQty) + '</span>' : '') + '</div></div>';
     }).join('');
-    return '<div class="tw"><table class="gt" style="min-width:' + (priv ? 700 : 580) + 'px"><thead><tr><th class="nr">Pos.</th><th>Leistung</th><th class="r">Menge</th><th>Einheit</th><th class="r">Einzelpreis €</th><th class="r">Gesamt</th>' + (priv ? '<th>Art</th>' : '') + '<th class="xb"></th></tr></thead>' + body + '</table></div>' +
-      (priv ? '<p class="hint" style="margin-bottom:8px">Art: Arbeit/Fahrt wird als Arbeitskosten für § 35a EStG ausgewiesen.</p>' : '');
   }
   function renderRe() {
     var A = draft.a, locked = reLocked(A), a = auftrag(A.auftragId);
@@ -3580,7 +3680,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (a) {
       var act = a.dataset.act;
       if (act === 'tab') setTab(a.dataset.tab);
-      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : a.dataset.kind === 'termin' ? openTermin() : openBeleg(); }
+      else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : a.dataset.kind === 'termin' ? openTermin() : a.dataset.kind === 'angebot' ? openAngebot(null, null) : openBeleg(); }
       else if (act === 'term-ics') termIcs(a.dataset.id);
       else if (act === 'cancel') closeSheet(true);
       else if (act === 'delete') del(a);
@@ -3648,6 +3748,8 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'am-pdf') pdfAmFile();
       else if (act === 'angebot') { var ea = latestAngebot(a.dataset.id); if (ea) openAngebot(ea.id); else openAngebot(null, a.dataset.id); }
       else if (act === 'ang-suggest') { var nn = suggest(); renderAng(); if (!nn) toast('Kein Aufmaß vorhanden. Erfasse zuerst das Aufmaß.'); }
+      else if (act === 'ang-free') { addPos('__free'); var fl = document.querySelectorAll('#angBody .pos textarea[data-pf="text"]'); if (fl.length) fl[fl.length - 1].focus(); }
+      else if (act === 'ang-step') angStep(Number(a.dataset.step));
       else if (act === 'ang-del-pos') { draft.a.positions.splice(Number(a.dataset.i), 1); renderAng(); }
       else if (act === 'ang-save') { saveAng().then(function (ok) { if (ok) { closeSheet(false); toast('Angebot gespeichert'); } }); }
       else if (act === 'ang-sent') markSent();
@@ -3717,6 +3819,7 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
     if (e.target.id === 'kq') { state.kq = e.target.value; renderKunden(); }
     if (e.target.id === 'f-endplan') renderDelays();
   });
+  document.addEventListener('change', function (e) { if (draft && draft.coll === 'angebot' && e.target && (e.target.id === 'a-bs' || e.target.id === 'a-name')) angPick(e.target); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pwDlgIn') { e.preventDefault(); pwDone(true); } });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t || !t.files || !t.files[0]) return;

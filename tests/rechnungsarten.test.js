@@ -23,7 +23,7 @@ const days = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.t
   const issue = async () => { await page.click('[data-act="re-issue"]'); await page.click('[data-act="re-issue"]'); await page.waitForFunction(() => /gestellt|Gestellt/.test(document.querySelector('#sheetTitle').textContent)); };
   async function abschlag(price) {
     await nav(page, 'auftraege'); await page.click('#auftraegeList article:has-text("Bad EG") [data-act="abschlag"]'); await page.waitForSelector('#angBody');
-    await page.fill('#angBody tbody.pos input[data-pf="price"]', price); await page.press('#angBody tbody.pos input[data-pf="price"]', 'Tab');
+    await page.fill('#angBody .pos input[data-pf="price"]', price); await page.press('#angBody .pos input[data-pf="price"]', 'Tab');
     await issue(); const t = (await page.textContent('#sheetTitle')).replace(/\s+/g, ' '); await page.click('#sheet [data-act="cancel"]'); return t;
   }
   // 1. Abschlag ohne Betrag wird abgelehnt

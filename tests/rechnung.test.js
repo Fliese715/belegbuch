@@ -39,7 +39,7 @@ async function nav(p, t) {
   await card('Bad EG').locator('[data-act="angebot"]').click();
   console.log('Angebot Firma Preis:', await page.inputValue('#angBody .pos[data-i="0"] [data-pf="price"]'), '| Menge:', await page.inputValue('#angBody .pos[data-i="0"] [data-pf="qty"]'));
   console.log('Summen Firma:', (await page.textContent('#angTotals')).replace(/\s+/g, ' ').slice(0, 260));
-  await page.click('[data-act="ang-sent"]'); await closed();
+  await page.click('.stepper [data-step="4"]'); await page.click('[data-act="ang-sent"]'); await closed();
 
   // Aufmaß ändern
   await card('Bad EG').locator('[data-act="aufmass"]').click();
@@ -83,7 +83,7 @@ async function nav(p, t) {
   await card('Gäste-WC').locator('[data-act="angebot"]').click();
   console.log('Angebot Privat Preis:', await page.inputValue('#angBody .pos[data-i="0"] [data-pf="price"]'), '| Art-Feld:', await page.$$eval('#angBody [data-pf="art"]', e => e.length));
   console.log('Summen Privat:', (await page.textContent('#angTotals')).replace(/\s+/g, ' ').slice(0, 300));
-  await page.selectOption('#a-ckind', 'firma');
+  await page.click('.stepper [data-step="1"]'); await page.selectOption('#a-ckind', 'firma');
   console.log('Preis nach Wechsel auf Firma:', await page.inputValue('#angBody .pos[data-i="0"] [data-pf="price"]'));
   await page.selectOption('#a-ckind', 'privat');
   await page.click('[data-act="cancel"]'); await closed();

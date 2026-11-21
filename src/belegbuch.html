@@ -330,6 +330,29 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .pcard .sub:empty { display: none; }
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
+.amlist { display: flex; flex-direction: column; gap: 8px; }
+.amcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px; }
+.amcard.newroom { margin-top: 10px; }
+.amcard .am-top { display: flex; gap: 8px; align-items: center; }
+.amcard .am-top input { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.amcard .am-top select { flex: 0 0 auto; width: auto; }
+.amcard .pc-x { flex: none; border: 0; background: transparent; color: var(--bad); font-size: 22px; width: 40px; min-height: 44px; cursor: pointer; }
+.amcard .am-nums { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px; gap: 8px; margin-top: 8px; }
+.amcard .am-nums.lfm { grid-template-columns: minmax(0, 1fr) 72px; }
+.amcard label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.amcard .am-in { display: flex; gap: 4px; }
+.amcard .am-in input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); }
+.amcard .am-n input { font-family: var(--font-mono); text-align: right; }
+.amcard .am-plus { flex: none; width: 44px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--fab); border-radius: 8px; font-size: 22px; font-weight: 600; cursor: pointer; }
+.amcard .am-abz { margin-top: 8px; }
+.amcard .am-res { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13.5px; text-align: right; overflow-wrap: anywhere; }
+.amcard .am-res .way { font-family: var(--font-mono); color: var(--muted); font-size: 12.5px; }
+.amcard .am-res b { font-family: var(--font-mono); font-size: 15px; white-space: nowrap; }
+.amcard .am-res .bad { color: var(--bad); }
+@media (max-width: 520px) { .amcard .am-nums { grid-template-columns: minmax(0, 1fr) 72px; } .amcard .am-nums .am-b { grid-column: 1 / -1; order: 3; } }
+.amrooms { display: flex; flex-direction: column; gap: 6px; }
+.amroom { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.amroom span { font-family: var(--font-mono); font-size: 13px; text-align: right; margin-left: auto; }
 .stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 14px; }
 .stepper button { border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); border-radius: 10px; min-height: 48px; padding: 4px 2px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1.15; }
 .stepper button b { font-size: 15px; }
@@ -2756,29 +2779,79 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
 
   /* ---------- 8 Aufmaß ---------- */
-  function parseAbzug(t) {
-    var tot = 0;
-    String(t || '').split(';').forEach(function (tok) {
-      tok = tok.trim(); if (!tok) return;
-      var prod = 1, ok = true;
-      tok.split(/[x×*]/i).forEach(function (p) { var n = parseNum(p); if (isNaN(n)) ok = false; else prod *= n; });
-      if (ok) tot += prod;
-    });
-    return tot;
+  /** Wertet eine Maßangabe aus: Zahlen mit Komma oder Punkt, + − × (x, *) : / und Klammern.
+   * „2,45 + 1,80 + 2,45“ → 6,7. Leer → {v:0, empty:true}; Tippfehler → v = NaN. Kein eval(). */
+  function evalMass(src) {
+    var s0 = String(src == null ? '' : src).trim(); if (!s0) return { v: 0, empty: true };
+    var tk = [], re = /\s*(\d+(?:[.,]\d+)?|[.,]\d+|[-+−*x×X\/:()])/y, m, pos = 0;
+    while (pos < s0.length) {
+      re.lastIndex = pos; m = re.exec(s0);
+      if (!m) { if (/^\s+$/.test(s0.slice(pos))) break; return { v: NaN }; }
+      tk.push(m[1]); pos = re.lastIndex;
+    }
+    var k = 0;
+    function num(t) { return /^[\d.,]/.test(t); }
+    function factor() {
+      var t = tk[k];
+      if (t === '-' || t === '−') { k++; return -factor(); }
+      if (t === '+') { k++; return factor(); }
+      if (t === '(') { k++; var v = expr(); if (tk[k] !== ')') return NaN; k++; return v; }
+      if (t !== undefined && num(t)) { k++; return parseFloat(t.replace(',', '.')); }
+      return NaN;
+    }
+    function term() {
+      var v = factor();
+      while (k < tk.length && /^[*x×X\/:]$/.test(tk[k])) { var op = tk[k++], w = factor(); v = (op === '/' || op === ':') ? (w ? v / w : NaN) : v * w; }
+      return v;
+    }
+    function expr() {
+      var v = term();
+      while (k < tk.length && /^[-+−]$/.test(tk[k])) { var op = tk[k++], w = term(); v = op === '+' ? v + w : v - w; }
+      return v;
+    }
+    var v = expr();
+    // sum: + oder − auf oberster Ebene (nicht schon in Klammern) – dann braucht der Rechenweg Klammern.
+    var depth = 0, top = false;
+    for (var q = 1; q < tk.length; q++) { if (tk[q - 1] === '(') depth++; if (tk[q - 1] === ')') depth--; if (!depth && /^[-+−]$/.test(tk[q]) && /^[\d.,)]/.test(tk[q - 1])) top = true; }
+    return { v: k === tk.length && isFinite(v) ? v : NaN, sum: top };
   }
-  function amRes(r) {
-    var l = parseNum(r.l) || 0, b = parseNum(r.b) || 0, n = parseNum(r.n);
-    if (!(n > 0)) n = 1;
+  /** Maßangabe schön lesbar: Leerzeichen um Rechenzeichen, × statt x, − statt -. */
+  function massText(src) {
+    return String(src || '').trim().replace(/\s*([+\-−*x×X\/:])\s*/g, function (all, op, off) { return off === 0 ? (op === '-' ? '−' : op) : ' ' + ({ '-': '−', '*': '×', 'x': '×', 'X': '×', '/': ':' }[op] || op) + ' '; }).replace(/\.(?=\d)/g, ',');
+  }
+  /** Ergebnis einer Aufmaß-Zeile mit Rechenweg. lfm-Bereiche: Länge × Anzahl − Abzüge. */
+  function amCalc(r) {
     var lfm = r.type === 'sockel' || r.type === 'silikon';
-    return Math.max(0, (lfm ? l * n : l * b * n) - parseAbzug(r.abz));
+    var L = evalMass(r.l), B = lfm ? { v: 1 } : evalMass(r.b), N = evalMass(r.n), err = false;
+    if (N.empty) N = { v: 1 };
+    var abz = 0, abzT = [];
+    String(r.abz || '').split(';').forEach(function (tok) { if (!tok.trim()) return; var e = evalMass(tok); if (isNaN(e.v)) err = true; else { abz += e.v; abzT.push(massText(tok)); } });
+    if (isNaN(L.v) || isNaN(B.v) || isNaN(N.v)) err = true;
+    var gross = err ? 0 : (lfm ? L.v * N.v : L.v * B.v * N.v), res = err ? 0 : Math.max(0, gross - abz);
+    function part(src, e) { var t = massText(src) || '0'; return e && e.sum ? '(' + t + ')' : t; }
+    var way = part(r.l, L) + (lfm ? '' : ' × ' + part(r.b, B)) + (N.v !== 1 ? ' × ' + part(r.n, N) : '') +
+      abzT.map(function (t) { return ' − ' + (/[+−]/.test(t) ? '(' + t + ')' : t); }).join('');
+    return { res: res, err: err, empty: L.empty && (lfm || evalMass(r.b).empty), way: way, unit: AM[r.type][1] };
   }
+  function amRes(r) { return amCalc(r).res; }
+  /** Summen je Raum in der Reihenfolge des ersten Auftretens; Zeilen ohne Raum unter „ohne Raum“. */
+  function amRooms(rows) {
+    var map = {}, list = [];
+    (rows || []).forEach(function (r) {
+      var name = String(r.room || '').trim() || 'ohne Raum', key = name.toLowerCase();
+      if (!map[key]) { map[key] = { room: name, boden: 0, wand: 0, sockel: 0, silikon: 0, n: 0 }; list.push(map[key]); }
+      if (map[key][r.type] !== undefined) { map[key][r.type] += amRes(r); map[key].n++; }
+    });
+    return list;
+  }
+  function amRoomLine(x) { return Object.keys(AM).filter(function (k) { return x[k] > 0; }).map(function (k) { return AM[k][0] + ' ' + fmtQ(x[k]) + ' ' + AM[k][1]; }).join(' · ') || '–'; }
   function amTot(rows) {
     var t = { boden: 0, wand: 0, sockel: 0, silikon: 0 };
     (rows || []).forEach(function (r) { if (t[r.type] !== undefined) t[r.type] += amRes(r); });
     t.flaeche = t.boden + t.wand;
     return t;
   }
-  function newAmRow() { return { room: '', type: 'boden', l: '', b: '', n: '1', abz: '' }; }
+  function newAmRow(prev) { return { room: prev ? prev.room : '', type: prev ? prev.type : 'boden', l: '', b: '', n: '1', abz: '' }; }
   function openAufmass(id) {
     var a = auftrag(id); if (!a) return;
     var am = a.aufmass || {};
@@ -2789,32 +2862,46 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function amSumHtml() {
     var t = amTot(draft.rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 0;
+    var rooms = amRooms(draft.rows).filter(function (x) { return x.n; });
     function row(l, v, strong) { return '<tr><td>' + l + '</td><td class="num"' + (strong ? ' style="font-weight:600"' : '') + '>' + v + '</td></tr>'; }
-    return '<table class="sumtable">' + row('Boden', fmtQ(t.boden) + ' m²') + row('Wand', fmtQ(t.wand) + ' m²') + row('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true) +
+    return (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== 'ohne Raum') ? '<h3 class="section-h">Summe je Raum</h3><div class="amrooms">' + rooms.map(function (x) { return '<div class="amroom"><b>' + esc(x.room) + '</b><span>' + esc(amRoomLine(x)) + '</span></div>'; }).join('') + '</div>' : '') +
+      '<h3 class="section-h">Gesamt</h3><table class="sumtable" style="margin-top:0">' + row('Boden', fmtQ(t.boden) + ' m²') + row('Wand', fmtQ(t.wand) + ' m²') + row('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true) +
       row('Sockel', fmtQ(t.sockel) + ' lfm') + row('Silikonfugen', fmtQ(t.silikon) + ' lfm') +
       row('Fliesenbedarf inkl. ' + fmtQ(w) + ' % Verschnitt', fmtQ(t.flaeche * (1 + w / 100)) + ' m²', true) + '</table>';
   }
+  function amWayHtml(r) {
+    var c = amCalc(r);
+    if (c.err) return '<span class="bad">Eingabe prüfen – erlaubt sind Zahlen, + − × : und Klammern</span>';
+    if (c.empty) return '<span class="hint">Maße eintragen – mehrere Längen mit + addieren</span>';
+    return '<span class="way">' + esc(c.way) + ' =</span> <b>' + fmtQ(c.res) + ' ' + c.unit + '</b>';
+  }
+  function amField(r, i, k, label, ph) {
+    return '<label class="am-' + k + '">' + label + '<span class="am-in"><input type="text" inputmode="decimal" data-f="' + k + '" autocomplete="off" placeholder="' + ph + '" value="' + esc(r[k]) + '">' +
+      '<button type="button" class="am-plus" data-act="am-plus" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': weiteres Maß addieren">+</button></span></label>';
+  }
   function renderAm() {
     var a = auftrag(draft.id);
-    var rows = draft.rows.map(function (r, i) {
-      var lfm = r.type === 'sockel' || r.type === 'silikon';
-      return '<tbody class="pos" data-i="' + i + '"><tr>' +
-        '<td style="min-width:84px"><input type="text" data-f="room" aria-label="Raum / Bauteil" autocomplete="off" placeholder="z. B. Bad" value="' + esc(r.room) + '"></td>' +
-        '<td style="min-width:84px"><select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + AM[k][0] + '</option>'; }).join('') + '</select></td>' +
-        '<td class="r" style="min-width:52px"><input type="text" inputmode="decimal" data-f="l" aria-label="Länge" autocomplete="off" value="' + esc(r.l) + '"></td>' +
-        (lfm ? '<td class="c r" style="color:var(--muted)">–</td>' : '<td class="r" style="min-width:52px"><input type="text" inputmode="decimal" data-f="b" aria-label="' + (r.type === 'wand' ? 'Höhe' : 'Breite') + '" autocomplete="off" value="' + esc(r.b) + '"></td>') +
-        '<td class="r" style="min-width:40px"><input type="text" inputmode="decimal" data-f="n" aria-label="Anzahl" autocomplete="off" value="' + esc(r.n) + '"></td>' +
-        '<td style="min-width:84px"><input type="text" data-f="abz" aria-label="Abzüge" autocomplete="off" placeholder="' + (lfm ? '1,01; 0,9' : '1,01x2,10') + '" value="' + esc(r.abz) + '"></td>' +
-        '<td><div class="cell" data-res>' + fmtQ(amRes(r)) + ' ' + AM[r.type][1] + '</div></td>' +
-        '<td class="xb"><button type="button" data-act="am-del" data-i="' + i + '" aria-label="Zeile entfernen">×</button></td></tr></tbody>';
+    var cards = draft.rows.map(function (r, i) {
+      var lfm = r.type === 'sockel' || r.type === 'silikon', newRoom = i > 0 && String(r.room || '').trim().toLowerCase() !== String(draft.rows[i - 1].room || '').trim().toLowerCase();
+      return '<div class="pos amcard' + (newRoom ? ' newroom' : '') + '" data-i="' + i + '">' +
+        '<div class="am-top"><input type="text" data-f="room" aria-label="Raum / Bauteil" autocomplete="off" list="amRoomList" placeholder="Raum, z. B. Bad" value="' + esc(r.room) + '">' +
+        '<select data-f="type" aria-label="Bereich">' + Object.keys(AM).map(function (k) { return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' + AM[k][0] + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="pc-x" data-act="am-del" data-i="' + i + '" aria-label="Zeile entfernen">×</button></div>' +
+        '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', lfm ? 'Länge (m)' : 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
+        (lfm ? '' : amField(r, i, 'b', r.type === 'wand' ? 'Höhe (m)' : 'Breite (m)', r.type === 'wand' ? 'z. B. 2,50' : 'z. B. 1,80')) +
+        '<label class="am-n">Anzahl<input type="text" inputmode="decimal" data-f="n" autocomplete="off" value="' + esc(r.n) + '"></label></div>' +
+        '<label class="am-abz">Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Tür, Fenster: Breite x Höhe)') + '<input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 0,885 x 2,01; 0,6 x 0,6') + '" value="' + esc(r.abz) + '"></label>' +
+        '<div class="am-res" data-res>' + amWayHtml(r) + '</div></div>';
     }).join('');
+    var roomNames = []; draft.rows.forEach(function (r) { var n = String(r.room || '').trim(); if (n && roomNames.indexOf(n) < 0) roomNames.push(n); });
     $('#amBody').innerHTML = '<h2 id="sheetTitle">Aufmaß: ' + esc(a ? a.title : '') + '</h2>' +
-      '<p class="hint" style="margin-bottom:12px">' + esc(a ? a.party : '') + (a && a.site ? ' · ' + esc(a.site) : '') + '</p>' +
-      '<div class="tw"><table class="gt" style="min-width:540px"><thead><tr><th>Raum / Bauteil</th><th>Bereich</th><th class="r">Länge</th><th class="r">B / H</th><th class="r">Anz.</th><th>Abzüge</th><th class="r">Ergebnis</th><th class="xb"></th></tr></thead>' + rows + '</table></div>' +
-      '<p class="hint" style="margin-bottom:10px">Maße in m. Auf dem Handy die Tabelle seitlich wischen. Abzüge: bei Fläche „Breite x Höhe“, bei Sockel/Silikon die Türbreite in m, mehrere mit ; trennen.</p>' +
-      '<button type="button" class="btn small" data-act="am-add">+ Zeile</button>' +
-      '<div class="field" style="margin-top:14px;max-width:260px"><label for="am-waste">Verschnitt Fliesenmaterial (%)</label><input id="am-waste" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(draft.waste).replace('.', ',')) + '"></div>' +
+      '<p class="hint" style="margin-bottom:6px">' + esc(a ? a.party : '') + (a && a.site ? ' · ' + esc(a.site) : '') + '</p>' +
+      '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Unter jeder Zeile steht der Rechenweg.</p>' +
+      '<datalist id="amRoomList">' + roomNames.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
+      '<div class="amlist">' + cards + '</div>' +
+      '<div class="addbar" style="margin-top:10px"><button type="button" class="btn small" data-act="am-add">+ Zeile im selben Raum</button><button type="button" class="btn small" data-act="am-room">+ Neuer Raum</button></div>' +
       '<div id="amSum">' + amSumHtml() + '</div>' +
+      '<div class="field" style="margin-top:14px;max-width:260px"><label for="am-waste">Verschnitt Fliesenmaterial (%)</label><input id="am-waste" type="text" inputmode="decimal" autocomplete="off" value="' + esc(String(draft.waste).replace('.', ',')) + '"></div>' +
       '<h3 class="section-h">Materialbedarf</h3>' +
       '<div class="field" style="max-width:260px"><label for="am-abd">Abdichtungsfläche (m², Nassbereich)</label><input id="am-abd" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="' + esc(draft.abd) + '"></div>' +
       '<div id="matBox">' + matHtml() + '</div>' +
@@ -2825,10 +2912,20 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function updAm() {
     document.querySelectorAll('#amBody .pos').forEach(function (el) {
       var r = draft.rows[Number(el.dataset.i)]; if (!r) return;
-      el.querySelector('[data-res]').textContent = fmtQ(amRes(r)) + ' ' + AM[r.type][1];
+      el.querySelector('[data-res]').innerHTML = amWayHtml(r);
     });
     $('#amSum').innerHTML = amSumHtml();
     var mb = $('#matBox'); if (mb) mb.innerHTML = matHtml();
+  }
+  /** „+“ am Maßfeld: hängt „ + “ an und setzt den Cursor ans Ende – das Handy-Zahlenfeld hat oft kein Plus. */
+  function amPlus(i, k) {
+    var r = draft.rows[i]; if (!r) return;
+    var v = String(r[k] || '').replace(/\s+$/, '');
+    if (v && !/[-+−x×*:\/(]$/.test(v)) v += ' + ';
+    r[k] = v;
+    var inp = document.querySelector('#amBody .pos[data-i="' + i + '"] [data-f="' + k + '"]');
+    if (inp) { inp.value = v; inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (e) { /* manche Felder erlauben das nicht */ } }
+    updAm();
   }
   /* ---------- Materialrechner aus dem Aufmaß ----------
    * Verbrauchswerte (settings/material) sind Richtwerte; Herstellerangaben gehen vor.
@@ -2867,6 +2964,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     catch (e) { toast('Das ließ sich nicht speichern'); }
   }
 
+  function amFocusLast(k) { var el = document.querySelectorAll('#amBody .pos [data-f="' + k + '"]'); if (el.length) el[el.length - 1].focus(); }
   function amCleanRows() { return draft.rows.filter(function (r) { return amRes(r) > 0 || String(r.room || '').trim(); }); }
   async function saveAm() {
     var rows = amCleanRows(), t = amTot(rows), w = parseNum(String(draft.waste)); if (isNaN(w)) w = 10;
@@ -2876,8 +2974,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     catch (e) { toast('Speichern hat nicht geklappt'); }
   }
   function exportAm() {
-    var a = auftrag(draft.id), head = ['Raum', 'Bereich', 'Länge m', 'Breite/Höhe m', 'Anzahl', 'Abzüge', 'Ergebnis', 'Einheit'];
-    var body = amCleanRows().map(function (r) { return [r.room, AM[r.type][0], r.l, r.b, r.n, r.abz, de(amRes(r)), AM[r.type][1]]; });
+    var a = auftrag(draft.id), head = ['Raum', 'Bereich', 'Länge m', 'Breite/Höhe m', 'Anzahl', 'Abzüge', 'Rechenweg', 'Ergebnis', 'Einheit'];
+    var body = amCleanRows().map(function (r) { var c = amCalc(r); return [r.room, AM[r.type][0], r.l, r.b, r.n, r.abz, c.way, de(c.res), c.unit]; });
     exportCsv('aufmass-' + (a ? a.title.replace(/[^\wäöüÄÖÜß-]+/g, '-') : 'baustelle') + '.csv', [head].concat(body));
   }
 
@@ -3254,28 +3352,32 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     d.setFont('helvetica', 'normal'); d.setFontSize(10); d.setTextColor(60);
     [a.title, a.party, a.site, 'Datum: ' + fdate(today()) + '   ·   Maße in m'].forEach(function (s) { if (s) { d.text(String(s), 20, y); y += 4.8; } });
     y += 6;
-var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
+    var XS = [20, 54, 76, 160, 190], top = y - 4;
     function head() {
       pdfGrid(d, XS, top, 7, true);
-      d.setFont('helvetica', 'bold'); d.setFontSize(8.5); d.setTextColor(60);
+      d.setFont('helvetica', 'bold'); d.setFontSize(8); d.setTextColor(60);
       var ty = top + 4.8;
-      d.setFontSize(8); d.text('Raum / Bauteil', 22, ty); d.text('Bereich', 58, ty); d.text('Länge', 95, ty, { align: 'right' }); d.text('Breite/Höhe', 116, ty, { align: 'right' });
-      d.text('Anz.', 129, ty, { align: 'right' }); d.text('Abzüge', 133, ty); d.text('Ergebnis', 188, ty, { align: 'right' });
+      d.text('Raum / Bauteil', 22, ty); d.text('Bereich', 56, ty); d.text('Rechenweg (Länge × Breite/Höhe × Anzahl − Abzüge)', 78, ty); d.text('Ergebnis', 188, ty, { align: 'right' });
       top += 7; d.setFont('helvetica', 'normal'); d.setFontSize(9.5); d.setTextColor(20);
     }
     function needT(h) { if (top + h > 272) { d.addPage(); top = 25; head(); } }
     function need(h) { if (y + h > 272) { d.addPage(); y = 25; } }
     head();
     rows.forEach(function (r) {
-      var lfm = r.type === 'sockel' || r.type === 'silikon';
-      var lines = d.splitTextToSize(String(r.room || ''), 32), ab = d.splitTextToSize(String(r.abz || ''), 25), n = Math.max(lines.length, ab.length), h = Math.max(7, n * 4.5 + 2.6);
+      var c = amCalc(r);
+      var lines = d.splitTextToSize(String(r.room || ''), 31), way = d.splitTextToSize(c.err ? 'Eingabe fehlerhaft' : c.way, 80), n = Math.max(lines.length, way.length), h = Math.max(7, n * 4.5 + 2.6);
       needT(h); var ty = top + 4.8;
       pdfGrid(d, XS, top, h, false);
-      d.text(lines, 22, ty); d.text(AM[r.type][0], 58, ty); d.text(String(r.l || '0'), 95, ty, { align: 'right' });
-      d.text(lfm ? '–' : String(r.b || '0'), 116, ty, { align: 'right' }); d.text(String(parseNum(r.n) || 1), 129, ty, { align: 'right' });
-      d.text(ab, 133, ty); d.text(fmtQ(amRes(r)) + ' ' + AM[r.type][1], 188, ty, { align: 'right' });
+      d.text(lines, 22, ty); d.text(AM[r.type][0], 56, ty); d.text(way, 78, ty); d.text(fmtQ(c.res) + ' ' + c.unit, 188, ty, { align: 'right' });
       top += h;
     });
+    var rooms = amRooms(rows).filter(function (x) { return x.n; });
+    if (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== 'ohne Raum')) {
+      y = top + 8; need(12 + rooms.length * 5.5);
+      d.setFont('helvetica', 'bold'); d.setFontSize(10); d.text('Summe je Raum', 20, y); y += 6; d.setFont('helvetica', 'normal'); d.setFontSize(9.5);
+      rooms.forEach(function (x) { need(6); d.setFont('helvetica', 'bold'); d.text(String(x.room), 20, y); d.setFont('helvetica', 'normal'); d.text(amRoomLine(x), 190, y, { align: 'right' }); y += 5.5; });
+      top = y - 2;
+    }
     y = top + 4; need(40);
     function tot(l, v, bold) { d.setFont('helvetica', bold ? 'bold' : 'normal'); d.text(l, 110, y); d.text(v, 190, y, { align: 'right' }); y += 5.5; }
     tot('Boden', fmtQ(t.boden) + ' m²'); tot('Wand', fmtQ(t.wand) + ' m²'); tot('Fläche gesamt', fmtQ(t.flaeche) + ' m²', true);
@@ -3741,7 +3843,9 @@ var XS = [20, 56, 80, 97, 118, 131, 160, 190], top = y - 4;
       else if (act === 'settings') openSettings();
       else if (act === 'set-save') saveSettings();
       else if (act === 'aufmass') openAufmass(a.dataset.id);
-      else if (act === 'am-add') { draft.rows.push(newAmRow()); renderAm(); }
+      else if (act === 'am-add') { draft.rows.push(newAmRow(draft.rows[draft.rows.length - 1])); renderAm(); amFocusLast('l'); }
+      else if (act === 'am-room') { draft.rows.push(newAmRow()); renderAm(); amFocusLast('room'); }
+      else if (act === 'am-plus') amPlus(Number(a.dataset.i), a.dataset.k);
       else if (act === 'am-del') { draft.rows.splice(Number(a.dataset.i), 1); if (!draft.rows.length) draft.rows.push(newAmRow()); renderAm(); }
       else if (act === 'am-save') saveAm();
       else if (act === 'am-csv') exportAm();

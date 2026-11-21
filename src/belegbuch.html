@@ -334,6 +334,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 @media (max-width: 340px) { .pcard .pc-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .locked .pcard .pc-x { display: none; }
 .catg { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+.docsite { margin-top: 6px; width: 100%; font-size: 13px; min-height: 38px; }
 .warnline { border: 1px solid var(--warn); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .warnline .btn { margin-left: auto; }
 .plzhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 10px; }
@@ -1725,14 +1726,20 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function clock(ms) { return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
   /** Rechnet eine Baustelle nach. @returns {{erloes:number, src:string, material:number, nBelege:number,
    *  km:number, fahrt:number, roh:number, hours:number, perHour:?number, target:number}} */
+  /** Belege einer Baustelle: direkt zugeordnet oder über eine Bestellung „für“ diese Baustelle. */
+  function siteBelege(aid) {
+    var ords = {}; state.data.auftraege.forEach(function (o) { if (o.kind === 'lieferant' && o.forId === aid) ords[o.id] = 1; });
+    return state.data.belege.filter(function (b) { return b.orderId === aid || ords[b.orderId]; });
+  }
   function nachkalk(a) {
-    var inv = latestRechnung(a.id), klein = isKlein();
+    // Erlös: zuerst eine gestellte Rechnung/Schlussrechnung, sonst gestellte Abschläge, sonst der Auftragswert.
+    var inv = state.data.rechnungen.filter(function (x) { return x.auftragId === a.id && issued(x) && ['rechnung', 'schluss'].indexOf(reType(x)) >= 0; }).sort(function (x, y) { return String(y.date || '').localeCompare(String(x.date || '')); })[0], klein = isKlein();
     var erloes, src;
     var abs = abschlaege(a.id);
     if (inv && issued(inv)) { var c = calcAng(inv); erloes = klein ? c.gross : c.net2; src = RE_LABEL[reType(inv)] + ' ' + (inv.nr || ''); }
     else if (abs.length) { erloes = sum(abs, function (x) { var cc = calcAng(x); return klein ? cc.gross : cc.net2; }); src = plural(abs.length, 'Abschlagsrechnung', 'Abschlagsrechnungen') + ', noch keine Schlussrechnung'; }
     else { erloes = Number(a.amount) || 0; src = 'Auftragswert, noch keine Rechnung'; }
-    var lb = state.data.belege.filter(function (b) { return b.orderId === a.id; });
+    var lb = siteBelege(a.id);
     var material = sum(lb, function (b) { return klein ? b.gross : b.gross - vatPart(b.gross, b.vat); });
     var km = siteKmTotal(a) + sum(lb, function (b) { return Number(b.km) || 0; });
     var fahrt = r2(km * kmRate()), roh = r2(erloes - material - fahrt), hours = hoursOf(a);
@@ -2142,7 +2149,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       ang: state.data.angebote.filter(function (x) { return ids[x.auftragId]; }).sort(byDate),
       re: state.data.rechnungen.filter(function (x) { return ids[x.auftragId]; }).sort(byDate),
       tm: state.data.termine.filter(function (t) { return ids[t.auftragId] || (t.baustelle && titles[String(t.baustelle).trim().toLowerCase()]); }).sort(termSort),
-      bel: state.data.belege.filter(function (b) { return ids[b.orderId]; }).sort(byDate)
+      bel: A.reduce(function (l, a) { return l.concat(siteBelege(a.id)); }, []).sort(byDate),
+      dok: (state.data.dokumente || []).filter(function (d) { return ids[d.auftragId]; }).sort(byDate)
     };
   }
   function openKundeAkte(id) {
@@ -2171,6 +2179,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       sec('Aufmaß', d.am.length, d.am.map(function (a) { var t = amTot(a.aufmass.rows); return row('aufmass:' + esc(a.id), a.title, Object.keys(AM).filter(function (x) { return t[x] > 0; }).map(function (x) { return AM[x][0] + ' ' + fmtQ(t[x]) + ' ' + AM[x][1]; }).join(' · '), a.aufmass.date ? fdate(a.aufmass.date) : '', ''); }).join(''), 'Noch kein Aufmaß.') +
       sec('Angebote', d.ang.length, d.ang.map(function (x) { return row('angebote:' + esc(x.id), x.nr + ' · ' + site(x.auftragId), x.date ? fdate(x.date) : '', angSumText(x, calcAng(x)), stBadge(x.status)); }).join(''), 'Noch kein Angebot.') +
       sec('Rechnungen', d.re.length, d.re.map(function (x) { return row('rechnungen:' + esc(x.id), (RE_LABEL[reType(x)] || 'Rechnung') + ' ' + (x.nr || '(Entwurf)'), [site(x.auftragId), x.date ? fdate(x.date) : ''].filter(Boolean).join(' · '), money(payable(x)), stBadge(x.status)); }).join(''), 'Noch keine Rechnung.') +
+      sec('Verträge / PDF', d.dok.length, d.dok.map(function (x) { return '<article class="akrow" tabindex="0" role="button" data-act="file-open" data-id="' + esc(x.fileId) + '" data-kind="pdf" data-label="' + esc(x.name || 'PDF') + '"><div class="ak-l"><b>' + esc(x.name || 'PDF') + '</b><span>' + (x.date ? fdate(x.date) : '') + (site(x.auftragId) ? ' · ' + esc(site(x.auftragId)) : '') + '</span></div></article>'; }).join(''), 'Keine PDFs zugeordnet – im Ordner „Verträge / PDF“ einer Baustelle zuordnen.') +
       sec('Kosten (Belege der Baustellen)', d.bel.length, d.bel.map(function (b) { return row('belege:' + esc(b.id), b.vendor || 'Beleg', [b.date ? fdate(b.date) : '', site(b.orderId), b.cat].filter(Boolean).join(' · '), money(Number(b.gross) || 0), ''); }).join('') + (d.bel.length > 1 ? '<div class="aksum">Summe <b class="num">' + money(kosten) + '</b></div>' : ''), 'Keine Belege zugeordnet.') +
       '<div class="actions" style="margin-top:16px"><button type="button" class="btn" data-act="cancel">Schließen</button></div>';
     showSheet(h);
@@ -2197,6 +2206,30 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (noAm.length === 1) { $('#ams-site').value = noAm[0].title; amStartHint(); }
     });
     else if (what === 'termin') fromAkte(kid, function () { openTermin(); var tp = $('#t-place'); if (tp && k.address) tp.value = k.address; var tt = $('#t-title'); if (tt) tt.value = 'Termin ' + k.name; });
+  }
+  /** Kunde geändert: Baustellen (Kundenname = Verknüpfung) und offene Entwürfe mitziehen.
+   * E-Mail/Adresse/Kundenart nur dort, wo noch die alten Werte des Kunden standen. Gestellte Rechnungen bleiben unverändert. */
+  async function kundePropagate(old, neu) {
+    var on = String(old.name || '').trim().toLowerCase(), n = 0; if (!on) return;
+    function same(a, b) { return String(a || '').trim() === String(b || '').trim(); }
+    var sites = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' && String(a.party || '').trim().toLowerCase() === on; });
+    for (var i = 0; i < sites.length; i++) {
+      var a = sites[i], f = {};
+      if (!same(a.party, neu.name)) f.party = neu.name;
+      if (same(a.email, old.email) && !same(old.email, neu.email)) f.email = neu.email;
+      if (same(a.address, old.address) && !same(old.address, neu.address)) f.address = neu.address;
+      if (old.ckind !== neu.ckind && (a.ckind === old.ckind || !a.ckind)) f.ckind = neu.ckind;
+      if (Object.keys(f).length) { await patch('auftraege', a.id, f); n++; }
+      var docs = [['angebote', state.data.angebote.filter(function (x) { return x.auftragId === a.id && x.status === 'Entwurf'; })], ['rechnungen', state.data.rechnungen.filter(function (x) { return x.auftragId === a.id && x.status === 'Entwurf'; })]];
+      for (var d = 0; d < docs.length; d++) for (var j = 0; j < docs[d][1].length; j++) {
+        var x = docs[d][1][j], g = {};
+        if (same(x.name, old.name) && !same(old.name, neu.name)) g.name = neu.name;
+        if (same(x.email, old.email) && !same(old.email, neu.email)) g.email = neu.email;
+        if (same(x.address, old.address) && !same(old.address, neu.address)) g.address = neu.address;
+        if (Object.keys(g).length) await patch(docs[d][0], x.id, g);
+      }
+    }
+    if (n) setTimeout(function () { toast(plural(n, 'Baustelle', 'Baustellen') + ' mit den neuen Kundendaten aktualisiert'); }, 1500);
   }
   async function kundenImport() {
     var miss = missingKunden();
@@ -2327,6 +2360,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var ask = state.docDel === d.id;
       return '<article class="row"><span class="thumb pdf">PDF</span><div class="main"><input class="docname" type="text" autocomplete="off" aria-label="Dateiname" data-doc="' + esc(d.id) + '" value="' + esc(d.name || '') + '">' +
         '<div class="meta">' + (d.date ? fdate(d.date) : '') + (d.note ? ' · ' + esc(d.note) : '') + '</div>' +
+        '<select class="docsite" data-docsite="' + esc(d.id) + '" aria-label="Baustelle zu ' + esc(d.name || 'Datei') + '"><option value="">Keiner Baustelle zugeordnet</option>' + state.data.auftraege.filter(function (x) { return x.kind === 'kunde'; }).map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === d.auftragId ? ' selected' : '') + '>' + esc(x.title + (x.party ? ' · ' + x.party : '')) + '</option>'; }).join('') + '</select>' +
         '<div class="tools" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + (fileSrc(d.fileId) ? '<button type="button" class="btn small" data-act="file-open" data-id="' + esc(d.fileId) + '" data-kind="pdf" data-label="' + esc(String(d.name || 'Dokument').replace(/\.pdf$/i, '')) + '">Öffnen</button>' : '<span class="badge warn">Datei fehlt auf diesem Gerät</span>') +
         '<button type="button" class="btn small' + (ask ? ' danger' : '') + '" data-act="doc-del" data-id="' + esc(d.id) + '">' + (ask ? 'Wirklich entfernen?' : 'Entfernen') + '</button></div></div></article>';
     }).join('');
@@ -2712,6 +2746,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<div class="field"><label for="f-kind">Art</label><select id="f-kind"><option value="kunde"' + (k === 'kunde' ? ' selected' : '') + '>Baustelle / Kundenauftrag</option><option value="lieferant"' + (k === 'lieferant' ? ' selected' : '') + '>Materialbestellung beim Händler</option></select></div>' +
       '<div class="field"><label for="f-title">Bezeichnung</label><input id="f-title" type="text" autocomplete="off" placeholder="z. B. Bad EG, Wand- und Bodenfliesen" value="' + esc(v.title) + '"></div>' +
       '<div class="field"><label for="f-party" id="partyLbl">' + (k === 'kunde' ? 'Kunde' : 'Händler / Lieferant') + '</label><input id="f-party" type="text" autocomplete="off" list="parties" value="' + esc(v.party) + '"><datalist id="parties">' + Object.keys(parties).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist></div>' +
+      '<div class="field" id="forWrap"' + (k === 'lieferant' ? '' : ' hidden') + '><label for="f-for">Für Baustelle (optional)</label><select id="f-for"><option value="">– keine –</option>' + state.data.auftraege.filter(function (x) { return x.kind === 'kunde' && (x.status !== 'Bezahlt' || x.id === v.forId); }).map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === v.forId ? ' selected' : '') + '>' + esc(x.title + (x.party ? ' · ' + x.party : '')) + '</option>'; }).join('') + '</select><p class="hint" style="margin:4px 0 0">Belege zu dieser Bestellung zählen dann in der Nachkalkulation der Baustelle.</p></div>' +
       '<div class="field" id="siteWrap"' + (k === 'kunde' ? '' : ' hidden') + '><label for="f-site">Adresse der Baustelle</label><input id="f-site" type="text" autocomplete="off" placeholder="Straße Nr., PLZ Ort" value="' + esc(v.site || (siteFill ? siteFill.addr : '')) + '">' +
         (siteFill ? '<p class="hint" id="siteFillHint" style="margin:4px 0 0">Übernommen aus ' + esc(siteFill.src) + ' – bitte prüfen und speichern.</p>' : '') + '<div class="sitechips" id="siteChips"></div></div>' +
       '<div class="field trip" id="siteTripWrap"' + (k === 'kunde' ? '' : ' hidden') + '><span class="lbl">Fahrten zur Baustelle (optional)</span><div class="grid2 stack"><div class="field"><label for="f-skm">Strecke einfach (km)</label><input id="f-skm" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 12,5" value="' + (Number(v.siteKm) > 0 ? String(v.siteKm).replace('.', ',') : '') + '"></div><div class="field"><label for="f-svis">Anzahl Fahrten (hin und zurück)</label><input id="f-svis" type="text" inputmode="numeric" autocomplete="off" value="' + (Number(v.visits) > 0 ? Number(v.visits) : 1) + '"></div></div><p class="hint" id="siteTotal" style="margin:6px 0 0"></p><button type="button" class="btn small" data-act="site-calc" style="margin-top:8px">Strecke zur Baustelle ermitteln</button><p class="hint" id="siteMsg" style="margin-top:6px"></p></div>' +
@@ -2786,10 +2821,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (obj.kind === 'kunde' && draft.photos && draft.photos.length) obj.photos = draft.photos;
       if (obj.kind === 'kunde') { if (draft.delays && draft.delays.length) obj.delays = draft.delays; if (val('f-endplan')) obj.endPlan = val('f-endplan'); if ($('#f-vob') && $('#f-vob').checked) obj.vob = true; }
       if (prevA && prevA.abnahme) obj.abnahme = prevA.abnahme;
+      obj.forId = obj.kind === 'lieferant' ? val('f-for') : '';
+      // Felder, die das Formular nicht kennt (z. B. Beispiel-Kennung), bleiben erhalten; Formularfelder gelten wie eingegeben.
+      if (prevA) { var keep = Object.assign({}, prevA); ['id', '_t', 'siteKm', 'visits', 'hours', 'photos', 'delays', 'endPlan', 'vob', 'forId'].forEach(function (k) { delete keep[k]; }); obj = Object.assign(keep, obj); }
     }
     var btn = $('#form [data-act="save"]'); if (btn) btn.disabled = true;
+    var prevK = draft.coll === 'kunden' && draft.id ? Object.assign({}, state.data.kunden.find(function (x) { return x.id === draft.id; }) || {}) : null;
     try {
       await persist(draft.coll, draft.id, obj);
+      if (prevK && prevK.name) await kundePropagate(prevK, obj);
       if (draft.coll === 'auftraege' && draft.droppedPhotos) { for (var dp = 0; dp < draft.droppedPhotos.length; dp++) await dropAsset(draft.droppedPhotos[dp]); }
       if (draft.coll === 'auftraege' && obj.kind === 'kunde' && obj.party && !kundeByName(obj.party)) {
         try { await persist('kunden', null, { name: obj.party, ckind: obj.ckind === 'privat' ? 'privat' : 'firma', address: obj.address || '', phone: '', email: obj.email || '', note: '' }); } catch (e) { /* Kunde bleibt ungespeichert */ }
@@ -2806,7 +2846,19 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 
   async function del(btn) {
     if (!draft || !draft.id) return;
-    if (!draft.confirm) { draft.confirm = true; btn.textContent = 'Wirklich löschen?'; btn.classList.add('armed'); return; }
+    if (draft.coll === 'auftraege') {
+      // Gestellte Rechnungen müssen erhalten bleiben (Aufbewahrungspflicht) und brauchen ihre Baustelle.
+      var issuedRe = state.data.rechnungen.filter(function (x) { return x.auftragId === draft.id && (issued(x) || reType(x) === 'storno' || x.status === 'Storniert'); });
+      if (issuedRe.length) return formErr('Diese Baustelle hat ' + plural(issuedRe.length, 'gestellte Rechnung', 'gestellte Rechnungen') + ' (' + issuedRe.map(function (x) { return x.nr; }).join(', ') + '). Rechnungen müssen aufbewahrt werden – setze die Baustelle stattdessen auf „Bezahlt“.');
+    }
+    if (!draft.confirm) {
+      var what = [];
+      if (draft.coll === 'auftraege') {
+        var nA = state.data.angebote.filter(function (x) { return x.auftragId === draft.id; }).length, nR = state.data.rechnungen.filter(function (x) { return x.auftragId === draft.id && x.status === 'Entwurf'; }).length;
+        if (nA) what.push(plural(nA, 'Angebot', 'Angebote')); if (nR) what.push(plural(nR, 'Rechnungsentwurf', 'Rechnungsentwürfe'));
+      }
+      draft.confirm = true; btn.textContent = 'Wirklich löschen?' + (what.length ? ' Mit ' + what.join(' und ') : ''); btn.classList.add('armed'); return;
+    }
     try {
       var c = draft.coll, id = draft.id;
       if (c === 'belege') {
@@ -2820,6 +2872,17 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         for (var q = 0; q < offers.length; q++) await removeDoc('angebote', offers[q].id);
         var reDrafts = state.data.rechnungen.filter(function (x) { return x.auftragId === id && x.status === 'Entwurf'; });
         for (var w = 0; w < reDrafts.length; w++) await removeDoc('rechnungen', reDrafts[w].id);
+        if (c === 'auftraege') {
+          var gone = auftrag(id) || {};
+          // Termine behalten den Namen der Baustelle, Bestellungen und PDFs verlieren nur die Zuordnung, Fotos werden entfernt.
+          var tms = state.data.termine.filter(function (x) { return x.auftragId === id; });
+          for (var t = 0; t < tms.length; t++) await patch('termine', tms[t].id, { auftragId: '', baustelle: gone.title || '' });
+          var ords = state.data.auftraege.filter(function (x) { return x.forId === id; });
+          for (var o = 0; o < ords.length; o++) await patch('auftraege', ords[o].id, { forId: '' });
+          var dks = (state.data.dokumente || []).filter(function (x) { return x.auftragId === id; });
+          for (var dk = 0; dk < dks.length; dk++) await patch('dokumente', dks[dk].id, { auftragId: '' });
+          (gone.photos || []).forEach(function (ph) { if (ph && ph.id) dropAsset(ph.id); });
+        }
         await removeDoc(c, id);
       }
       await closeSheet(true);
@@ -3408,7 +3471,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   async function matCopy() { var txt = matText(); try { await navigator.clipboard.writeText(txt); toast('Materialliste kopiert'); } catch (e) { toast('Kopieren ging nicht'); } }
   async function matOrder() {
     var a = amSite(), txt = matText();
-    try { await persist('auftraege', null, { kind: 'lieferant', title: 'Material für ' + (a ? a.title : 'Baustelle'), party: 'Händler eintragen', amount: 0, status: STAT.lieferant[0], date: today(), due: addDays(today(), 14), terms: 14, note: txt.split('\n').slice(1).join('; ').replace(/- /g, '') }); toast('Bestellung angelegt – Händler und Betrag ergänzen'); }
+    try { await persist('auftraege', null, { kind: 'lieferant', forId: draft && draft.id ? draft.id : '', title: 'Material für ' + (a ? a.title : 'Baustelle'), party: 'Händler eintragen', amount: 0, status: STAT.lieferant[0], date: today(), due: addDays(today(), 14), terms: 14, note: txt.split('\n').slice(1).join('; ').replace(/- /g, '') }); toast('Bestellung angelegt – Händler und Betrag ergänzen'); }
     catch (e) { toast('Das ließ sich nicht speichern'); }
   }
 
@@ -4401,6 +4464,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (!draft.confirmIssue) { if (!btn) return; draft.confirmIssue = true; btn.textContent = 'Wirklich stellen? Danach nicht mehr änderbar'; btn.classList.add('armed'); return; }
     A.nr = nextReNr(); A.status = 'Gestellt'; A.issuedAt = today();
     if (!(await saveRe(true))) { A.nr = ''; A.status = 'Entwurf'; return; }
+    try { var ag = A.angebotId ? state.data.angebote.find(function (x) { return x.id === A.angebotId; }) : null; if (ag && (ag.status === 'Entwurf' || ag.status === 'Versendet')) await patch('angebote', ag.id, { status: 'Angenommen' }); } catch (e) { /* Angebot bleibt */ }
     try { var a = auftrag(A.auftragId); if (a && a.status !== 'Bezahlt' && reType(A) !== 'abschlag') await patch('auftraege', a.id, { status: 'Berechnet', amount: calcAng(A).net2 }); } catch (e) { /* Status der Baustelle bleibt */ }
     draft.confirmIssue = false;
     renderRe();
@@ -4675,6 +4739,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var t = e.target;
     if (draft && draft.sticky) return;
     if (t.id === 'ordnerName') { persist('settings', 'ordner', { name: String(t.value).trim() }).then(function () { toast('Ordnername gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
+    if (t.dataset && t.dataset.docsite !== undefined) { patch('dokumente', t.dataset.docsite, { auftragId: t.value }).then(function () { toast(t.value ? 'Der Baustelle zugeordnet' : 'Zuordnung entfernt'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
     if (t.dataset && t.dataset.doc) { patch('dokumente', t.dataset.doc, { name: String(t.value).trim() }).then(function () { toast('Name gespeichert'); }, function () { toast('Das ließ sich nicht speichern'); }); return; }
     if (t.id === 'f-party' && draft && draft.coll === 'auftraege' && val('f-kind') === 'kunde') {
       var kk = kundeByName(t.value);
@@ -4699,7 +4764,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       var kd = t.value === 'kunde';
       $('#partyLbl').textContent = kd ? 'Kunde' : 'Händler / Lieferant';
       $('#amountLbl').textContent = kd ? 'Auftragswert netto (€)' : 'Betrag netto (€)';
-      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#hoursWrap').hidden = !kd; $('#photosWrap').hidden = !kd; $('#delaysWrap').hidden = !kd; $('#planWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd;
+      $('#siteWrap').hidden = !kd; $('#siteTripWrap').hidden = !kd; $('#hoursWrap').hidden = !kd; $('#photosWrap').hidden = !kd; $('#delaysWrap').hidden = !kd; $('#planWrap').hidden = !kd; $('#areaWrap').hidden = !kd; $('#kundeWrap').hidden = !kd; if ($('#forWrap')) $('#forWrap').hidden = kd;
     }
     else if (draft && draft.coll === 'auftraege' && (t.id === 'f-date' || t.id === 'f-terms')) {
       var tm = $('#f-terms').value;

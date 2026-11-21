@@ -93,6 +93,12 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Rechnung prüfen, stellen, senden:** „PDF ansehen“ im Entwurf (Vorschau). „Rechnung prüfen und stellen“ zeigt erst
   die Vorschau mit der künftigen Nummer (`reIssuePreview`); gestellt wird im Vorschaufenster, danach PDF mit „Senden“.
   Ohne PDF-Bibliothek (offline) bleibt die bisherige Bestätigung am Knopf. Liste: „PDF ansehen (& senden)“ je Rechnung.
+- **Verknüpfungen (Prüfung 21.11.2026):** Kunde umbenennen zieht Baustellen und Entwürfe mit (`kundePropagate`);
+  Baustelle mit gestellten Rechnungen ist nicht löschbar, beim Löschen bleiben Termine (mit Namen) und PDFs erhalten;
+  Bestellung „für Baustelle“ (`forId`) – deren Belege zählen in Nachkalkulation und Kundenakte (`siteBelege`);
+  gestellte Rechnung setzt ihr Angebot auf „Angenommen“; PDFs im Ordner lassen sich einer Baustelle zuordnen
+  (Kundenakte „Verträge / PDF“); Speichern einer Baustelle erhält Felder, die das Formular nicht kennt;
+  Nachkalkulation nimmt die gestellte Rechnung, nicht einen späteren Entwurf.
 - **Kundenakte:** Klick auf einen Kunden (`openKundeAkte`): Kennzahlen, Baustellen, Termine, Aufmaß, Angebote,
   Rechnungen, Kosten (Belege der Baustellen); Zuordnung über die Baustellen des Kunden. Aus der Akte geöffnete
   Einträge tragen `draft.backKunde`, `closeSheet` führt dann zurück in die Akte. + Baustelle / + Angebot / + Aufmaß / + Termin

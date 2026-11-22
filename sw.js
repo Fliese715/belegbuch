@@ -1,6 +1,6 @@
 /* Belegbuch – Service Worker: hält die App-Dateien für den Betrieb ohne Internet vor.
    Erzeugt von tools/build.py – nicht von Hand ändern. */
-var VERSION = 'belegbuch-ca6ba5c846';
+var VERSION = 'belegbuch-f1ca1756c5';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 var EXTRA = ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 

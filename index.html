@@ -2296,7 +2296,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     draft = { coll: 'termine', id: id || null, confirm: false, uploaded: [] };
     var sites = termSites(v.auftragId);
     showSheet('<h2 id="sheetTitle">' + (t ? 'Termin bearbeiten' : 'Neuer Termin') + '</h2><form id="form" novalidate>' +
-      '<div class="field"><label for="t-title">Was</label><input id="t-title" type="text" autocomplete="off" placeholder="z. B. Aufmaß, Besichtigung, Material abholen" value="' + esc(v.title) + '"></div>' +
+      '<div class="field"><label for="t-title">Worum geht es? (optional)</label><input id="t-title" type="text" autocomplete="off" placeholder="z. B. Aufmaß, Besichtigung, Material abholen" value="' + esc(v.title) + '"><p class="hint" style="margin:4px 0 0">Leer lassen geht auch – dann heißt der Termin nach Baustelle oder Ort.</p></div>' +
       '<div class="grid2"><div class="field"><label for="t-date">Datum</label><input id="t-date" type="date" value="' + esc(v.date) + '"></div><div class="field"><label for="t-time">Uhrzeit (leer = ganztägig)</label><input id="t-time" type="time" value="' + esc(v.time || '') + '"></div></div>' +
       '<p class="hint" id="t-warn" style="margin:-4px 0 10px;color:var(--warn)"></p>' +
       '<div class="field"><label for="t-site">Baustelle (optional)</label><input id="t-site" type="text" autocomplete="off" list="t-sites" placeholder="Name wählen oder neu eintragen, z. B. Bad Müller" value="' + esc(termSiteName(v)) + '"><datalist id="t-sites">' + sites.map(function (a) { return '<option value="' + esc(a.title) + '">' + esc(a.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="t-sitehint" style="margin:4px 0 0"></p></div>' +
@@ -2791,8 +2791,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var dup = kundeByName(val('k-name')); if (dup && dup.id !== draft.id) return formErr('Diesen Kunden gibt es schon.');
       obj = { name: val('k-name'), ckind: val('k-ckind'), address: val('k-addr'), phone: val('k-phone'), email: val('k-email'), note: val('k-note') };
     } else if (draft.coll === 'termine') {
-      if (!val('t-title')) return formErr('Bitte eintragen, worum es geht.');
-      if (!val('t-date')) return formErr('Bitte ein Datum angeben.');
+      if (!val('t-date')) { var td = $('#t-date'); if (td) td.focus(); return formErr('Bitte ein Datum für den Termin wählen.'); }
+      // Ohne Angabe „Worum geht es?“ bekommt der Termin einen Namen aus Baustelle oder Ort.
+      if (!val('t-title')) $('#t-title').value = val('t-site') ? 'Termin ' + val('t-site') : val('t-place') ? 'Termin ' + val('t-place') : 'Termin';
       var tsa = siteByName(val('t-site'));
       obj = { title: val('t-title'), date: val('t-date'), time: val('t-time'), place: val('t-place'), auftragId: tsa ? tsa.id : '', baustelle: tsa ? '' : val('t-site'), remind: val('t-remind') || 'beides', note: val('t-note') };
     } else if (draft.coll === 'belege') {

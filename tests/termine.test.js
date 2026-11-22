@@ -39,6 +39,13 @@ const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.ge
   assert(rows.join('|') === 'Aufmaß Bad|Besichtigung|Fugen|Fliesen abholen', 'anstehende Termine nach Datum sortiert: ' + rows.join('|'));
   assert(/Vergangene Termine \(1\)/.test(await page.textContent('#termBox summary')), 'vergangener Termin eingeklappt');
   assert(/Morgen: 8:30 Aufmaß Bad/.test(await page.textContent('#remindBox')), 'Kachel zeigt die Termine von morgen neben der Belege-Erinnerung');
+  // Ohne „Worum geht es?“: Termin heißt nach Baustelle bzw. „Termin“
+  await page.click('#fab'); await page.fill('#t-date', iso(6)); await page.fill('#t-site', 'Gäste-WC Lange'); await page.click('#form [data-act="save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  assert(await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).some(t => t.title === 'Termin Gäste-WC Lange')), 'ohne Titel gespeichert: „Termin Gäste-WC Lange“');
+  await page.click('#fab'); await page.fill('#t-date', ''); await page.click('#form [data-act="save"]');
+  assert(/Datum/.test(await page.textContent('#formErr')), 'ohne Datum: verständliche Meldung');
+  await page.click('#form [data-act="cancel"]');
+  await page.evaluate(() => { const t = JSON.parse(localStorage.getItem('belegbuch:termine')).filter(x => x.title !== 'Termin Gäste-WC Lange'); localStorage.setItem('belegbuch:termine', JSON.stringify(t)); });
   // Hinweis Feiertag + Urlaub
   const y = new Date().getFullYear() + 1;
   await page.evaluate(y => { const a = JSON.parse(localStorage.getItem('belegbuch:abwesenheit') || '[]'); a.push({ id: 'u1', type: 'urlaub', from: y + '-12-24', to: y + '-12-31', _t: 1 }); localStorage.setItem('belegbuch:abwesenheit', JSON.stringify(a)); }, y);

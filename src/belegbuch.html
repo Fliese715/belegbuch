@@ -337,6 +337,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .docsite { margin-top: 6px; width: 100%; font-size: 13px; min-height: 38px; }
 .warnline { border: 1px solid var(--warn); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .warnline .btn { margin-left: auto; }
+.t-own { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .plzhint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 10px; }
 .plzhint:empty { display: none; }
 .plzhint small { color: var(--muted); font-weight: 400; }
@@ -2246,7 +2247,18 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
    * morgens um 6:40 (Termine von heute). In der installierten App ohne Claude-Datenbank
    * übernimmt der Handy-Kalender die Erinnerung (ICS-Datei oder Google-Kalender-Link). */
   var WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-  var REMIND = { beides: 'Vorabend 21 Uhr und am Morgen', abend: 'Nur am Vorabend um 21 Uhr', morgen: 'Nur am Morgen um 6:40', keine: 'Keine Erinnerung' };
+  var REMIND = { beides: 'Vorabend 21 Uhr und am Morgen', abend: 'Nur am Vorabend um 21 Uhr', morgen: 'Nur am Morgen um 6:40', eigen: 'Eigene Zeit wählen …', keine: 'Keine Erinnerung' };
+  /* Eigene Erinnerung: remindBefore = Minuten vor Beginn (ganztägig: vor 8 Uhr) oder 'abs' mit remindAt ('JJJJ-MM-TTTHH:MM'). */
+  var REMIND_BEFORE = [['15', '15 Minuten vorher'], ['30', '30 Minuten vorher'], ['60', '1 Stunde vorher'], ['120', '2 Stunden vorher'], ['180', '3 Stunden vorher'], ['1440', '1 Tag vorher'], ['2880', '2 Tage vorher'], ['10080', '1 Woche vorher'], ['abs', 'Genauer Zeitpunkt …']];
+  function localIso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  /** Zeitpunkt der eigenen Erinnerung als lokale Zeit 'JJJJ-MM-TTTHH:MM' (oder ''). */
+  function termRemindAt(t) {
+    if (t.remind !== 'eigen' || !t.date) return '';
+    if (t.remindBefore === 'abs') return t.remindAt || '';
+    var min = Number(t.remindBefore) || 60, p = t.date.split('-'), h = (t.time || '08:00').split(':');
+    return localIso(new Date(+p[0], p[1] - 1, +p[2], +h[0], +h[1] - min));
+  }
+  function remindText(at) { if (!at) return ''; var d = at.slice(0, 10); return (d === today() ? 'heute' : d === addDays(today(), 1) ? 'morgen' : wdOf(d) + ' ' + fdate(d).slice(0, 6)) + ' um ' + at.slice(11).replace(/^0/, '') + ' Uhr'; }
   function wdOf(iso) { var p = iso.split('-'); return WD[new Date(+p[0], p[1] - 1, +p[2], 12).getDay()]; }
   function nowHM() { var d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   function termSort(a, b) { return (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')); }
@@ -2267,7 +2279,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function termRow(t) {
     var sn = termSiteName(t);
     return '<article class="row order term' + (t.date === today() ? ' today' : '') + '" tabindex="0" role="button" data-edit="termine:' + esc(t.id) + '"><div class="top1"><span class="vendor">' + esc(t.title) + '</span><span class="when">' + esc(termWhen(t, true)) + '</span></div>' +
-      '<div class="meta">' + [t.place, sn ? 'Baustelle ' + sn : '', t.note].filter(Boolean).map(esc).join(' · ') + (t.remind === 'keine' ? (t.place || sn || t.note ? ' · ' : '') + 'ohne Erinnerung' : '') + '</div></article>';
+      '<div class="meta">' + [t.place, sn ? 'Baustelle ' + sn : '', t.note].filter(Boolean).map(esc).join(' · ') + (t.remind === 'keine' ? (t.place || sn || t.note ? ' · ' : '') + 'ohne Erinnerung' : t.remind === 'eigen' && termRemindAt(t) ? (t.place || sn || t.note ? ' · ' : '') + '⏰ ' + esc(remindText(termRemindAt(t))) : '') + '</div></article>';
   }
   function renderTermine() {
     var box = $('#termBox'); if (!box) return;
@@ -2290,6 +2302,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (same.length) msg.push('an dem Tag schon: ' + same.map(termShort).join(', '));
     el.textContent = msg.length ? 'Achtung: ' + msg.join(' · ') : '';
   }
+  /** Zeigt/versteckt die Felder der eigenen Erinnerung und nennt den Zeitpunkt. */
+  function termRemindUi() {
+    var own = $('#t-own'); if (!own) return;
+    var eig = val('t-remind') === 'eigen'; own.hidden = !eig; if (!eig) return;
+    var abs = val('t-rbefore') === 'abs', rat = $('#t-rat'); rat.hidden = !abs;
+    if (abs && !rat.value && val('t-date')) rat.value = val('t-date') + 'T' + (val('t-time') || '08:00');
+    var at = termRemindAt({ remind: 'eigen', date: val('t-date'), time: val('t-time'), remindBefore: val('t-rbefore'), remindAt: rat.value });
+    $('#t-rtext').textContent = at ? 'Erinnerung ' + remindText(at) + (at < localIso(new Date()) ? ' – liegt schon in der Vergangenheit' : '') + (val('t-time') || abs ? '' : ' (ganztägig: gerechnet ab 8 Uhr)') + '. Kommt per Push von Claude (stündlich geprüft, daher bis zu einer Stunde früher) und minutengenau im Handy-Kalender, wenn du den Termin mit „In den Kalender“ übernimmst.' : '';
+  }
   function openTermin(id) {
     var t = id ? state.data.termine.find(function (x) { return x.id === id; }) : null;
     var v = t || { title: '', date: addDays(today(), 1), time: '', place: '', auftragId: '', remind: 'beides', note: '' };
@@ -2301,12 +2322,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       '<p class="hint" id="t-warn" style="margin:-4px 0 10px;color:var(--warn)"></p>' +
       '<div class="field"><label for="t-site">Baustelle (optional)</label><input id="t-site" type="text" autocomplete="off" list="t-sites" placeholder="Name wählen oder neu eintragen, z. B. Bad Müller" value="' + esc(termSiteName(v)) + '"><datalist id="t-sites">' + sites.map(function (a) { return '<option value="' + esc(a.title) + '">' + esc(a.party || '') + '</option>'; }).join('') + '</datalist><p class="hint" id="t-sitehint" style="margin:4px 0 0"></p></div>' +
       '<div class="field"><label for="t-place">Ort</label><input id="t-place" type="text" autocomplete="off" placeholder="Straße, PLZ Ort" value="' + esc(v.place || '') + '"></div>' +
-      '<div class="field"><label for="t-remind">Erinnerung aufs Handy</label><select id="t-remind">' + Object.keys(REMIND).map(function (k) { return '<option value="' + k + '"' + ((v.remind || 'beides') === k ? ' selected' : '') + '>' + REMIND[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="t-remind">Erinnerung aufs Handy</label><select id="t-remind">' + Object.keys(REMIND).map(function (k) { return '<option value="' + k + '"' + ((v.remind || 'beides') === k ? ' selected' : '') + '>' + REMIND[k] + '</option>'; }).join('') + '</select>' +
+        '<div id="t-own"' + (v.remind === 'eigen' ? '' : ' hidden') + ' class="t-own"><select id="t-rbefore" aria-label="Wann erinnern">' + REMIND_BEFORE.map(function (o) { return '<option value="' + o[0] + '"' + (String(v.remindBefore || '60') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+        '<input id="t-rat" type="datetime-local" aria-label="Erinnerung am"' + (v.remindBefore === 'abs' ? '' : ' hidden') + ' value="' + esc(v.remindAt || '') + '">' +
+        '<p class="hint" id="t-rtext" style="margin:4px 0 0"></p></div></div>' +
       '<div class="field"><label for="t-note">Notiz</label><input id="t-note" type="text" autocomplete="off" value="' + esc(v.note || '') + '"></div>' +
       (t ? '<div class="field"><span class="lbl">In den Kalender</span><div class="calrow"><button type="button" class="btn small" data-act="term-ics" data-id="' + esc(t.id) + '">Kalender-Datei (.ics)</button><a class="btn small" href="' + esc(termGoogle(t)) + '" target="_blank" rel="noopener">Google Kalender</a></div><p class="hint" style="margin:6px 0 0">Damit erinnert dich auch der Kalender deines Handys oder Laptops.</p></div>' : '') +
       '<p class="err" id="formErr" role="alert"></p><div class="actions">' + (t ? '<button type="button" class="btn danger left" data-act="delete">Löschen</button>' : '') +
       '<button type="button" class="btn" data-act="cancel">Abbrechen</button><button type="submit" class="btn primary" data-act="save">Speichern</button></div></form>');
-    termWarn(); termSiteHint();
+    termWarn(); termSiteHint(); termRemindUi();
   }
   /** Zeigt unter dem Feld, ob der Name zu einer vorhandenen Baustelle gehört oder neu ist. */
   function termSiteHint() {
@@ -2325,7 +2349,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     else L.push('DTSTART;VALUE=DATE:' + t.date.replace(/-/g, ''), 'DTEND;VALUE=DATE:' + addDays(t.date, 1).replace(/-/g, ''));
     L.push('SUMMARY:' + icsText(t.title)); if (t.place) L.push('LOCATION:' + icsText(t.place)); if (desc) L.push('DESCRIPTION:' + icsText(desc));
     var p = t.date.split('-'), alarm = function (d, txt) { L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(txt), 'TRIGGER;VALUE=DATE-TIME:' + utcStamp(d), 'END:VALARM'); };
-    if (t.remind !== 'keine') {
+    if (t.remind === 'eigen' && termRemindAt(t)) {
+      var ra = termRemindAt(t).split(/[-T:]/); alarm(new Date(+ra[0], ra[1] - 1, +ra[2], +ra[3], +ra[4]), 'Termin: ' + t.title);
+    } else if (t.remind !== 'keine') {
       if (t.remind !== 'morgen') alarm(new Date(+p[0], p[1] - 1, +p[2] - 1, 21, 0), 'Morgen: ' + t.title);
       if (t.remind !== 'abend') alarm(new Date(+p[0], p[1] - 1, +p[2], 6, 40), 'Heute: ' + t.title);
       if (t.time) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(t.title), 'TRIGGER:-PT1H', 'END:VALARM');
@@ -2796,6 +2822,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       if (!val('t-title')) $('#t-title').value = val('t-site') ? 'Termin ' + val('t-site') : val('t-place') ? 'Termin ' + val('t-place') : 'Termin';
       var tsa = siteByName(val('t-site'));
       obj = { title: val('t-title'), date: val('t-date'), time: val('t-time'), place: val('t-place'), auftragId: tsa ? tsa.id : '', baustelle: tsa ? '' : val('t-site'), remind: val('t-remind') || 'beides', note: val('t-note') };
+      if (obj.remind === 'eigen') {
+        obj.remindBefore = val('t-rbefore') || '60';
+        if (obj.remindBefore === 'abs') { if (!val('t-rat')) { $('#t-rat').focus(); return formErr('Bitte den Zeitpunkt der Erinnerung wählen.'); } obj.remindAt = val('t-rat'); }
+        obj.remindAt = termRemindAt(obj);
+      }
     } else if (draft.coll === 'belege') {
       var gross = parseNum(val('f-gross'));
       if (!val('f-date')) return formErr('Bitte ein Datum angeben.');
@@ -4705,6 +4736,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (e.target.id === 'f-skm' || e.target.id === 'f-svis') renderSiteTotal();
     if (e.target.id === 'f-site' || e.target.id === 'f-addr') renderSiteChips();
     if (e.target.id === 't-date') termWarn();
+    if (['t-remind', 't-rbefore', 't-rat', 't-date', 't-time'].indexOf(e.target.id) >= 0) termRemindUi();
     if (e.target.id === 'ams-site') amStartHint();
     if (e.target.id === 't-site') { termSiteHint(); var ta = siteByName(e.target.value); if (ta && ta.site && !val('t-place')) $('#t-place').value = ta.site; }
     if (e.target.id === 'fb-q') { state.fb.q = e.target.value; renderBelege(); }

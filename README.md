@@ -110,6 +110,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Aufmaß → Angebot:** Kasten „Aus dem Aufmaß“ in Schritt 2 (`amPanelHtml`, `amApply`). „Je Raum“ (Boden/Wand
   getrennt) oder „Zusammengefasst“; Positionen tragen `amKey`. Erneutes Übernehmen aktualisiert nur Mengen
   (Text/Preis bleiben), ergänzt neue und entfernt weggefallene Räume. Die Rechnung holt Mengen über `amKey`.
+- **Eigene Termin-Erinnerung:** remind 'eigen' mit remindBefore (Minuten vor Beginn, ganztägig ab 8 Uhr) oder 'abs' +
+  remindAt ('JJJJ-MM-TTTHH:MM', lokal). Push über die geplante Aufgabe „Termin-Erinnerung zur eigenen Zeit“
+  (stündlich 5:40–22:40, Fenster je eine Stunde, 22:40 bis 5:40), minutengenau über den ICS-Alarm.
 - **Angebot in vier Schritten:** 1 Kunde (Baustelle wählen oder neu benennen, Kunde aus der Kartei),
   2 Leistungen (Positionen als Karten, Preisliste, freie Position, Aufmaß), 3 Texte, 4 Prüfen und Senden.
   Ein Angebot aus der Angebotsliste legt beim Speichern die Baustelle (Status „Anfrage“) an.

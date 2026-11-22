@@ -45,7 +45,30 @@ const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.ge
   await page.click('#fab'); await page.fill('#t-date', ''); await page.click('#form [data-act="save"]');
   assert(/Datum/.test(await page.textContent('#formErr')), 'ohne Datum: verständliche Meldung');
   await page.click('#form [data-act="cancel"]');
-  await page.evaluate(() => { const t = JSON.parse(localStorage.getItem('belegbuch:termine')).filter(x => x.title !== 'Termin Gäste-WC Lange'); localStorage.setItem('belegbuch:termine', JSON.stringify(t)); });
+  await page.click('#termBox article:has-text("Termin Gäste-WC Lange")'); await page.click('#form [data-act="delete"]'); await page.click('#form [data-act="delete"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  // Eigene Erinnerung: 2 Stunden vorher, genauer Zeitpunkt, ICS-Alarm
+  await page.click('#fab'); await page.fill('#t-title', 'Fliesen anliefern'); await page.fill('#t-date', iso(2)); await page.fill('#t-time', '10:00');
+  await page.selectOption('#t-remind', 'eigen');
+  assert(await page.isVisible('#t-rbefore'), '„Eigene Zeit wählen …“ zeigt die Auswahl');
+  await page.selectOption('#t-rbefore', '120');
+  assert(/um 8:00 Uhr/.test(await page.textContent('#t-rtext')), 'Zeitpunkt wird genannt: ' + await page.textContent('#t-rtext'));
+  await page.click('#form [data-act="save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  let tx = await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).find(t => t.title === 'Fliesen anliefern'));
+  assert(tx.remind === 'eigen' && tx.remindBefore === '120' && /T08:00$/.test(tx.remindAt), 'gespeichert: 2 Stunden vorher → ' + tx.remindAt);
+  assert(/⏰/.test(await page.textContent('#termBox article:has-text("Fliesen anliefern")')), 'Liste zeigt die eigene Erinnerung');
+  await page.click('#termBox article:has-text("Fliesen anliefern")'); await page.waitForSelector('#t-rbefore');
+  await page.selectOption('#t-rbefore', 'abs');
+  assert(await page.isVisible('#t-rat') && /T08:00$/.test(await page.inputValue('#t-rat')), 'genauer Zeitpunkt: Feld mit dem bisherigen Zeitpunkt vorbelegt');
+  await page.fill('#t-rat', iso(1) + 'T18:30'); await page.dispatchEvent('#t-rat', 'input');
+  assert(/18:30 Uhr/.test(await page.textContent('#t-rtext')), 'freier Zeitpunkt angezeigt');
+  await page.click('#form [data-act="save"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
+  tx = await page.evaluate(() => JSON.parse(localStorage.getItem('belegbuch:termine')).find(t => t.title === 'Fliesen anliefern'));
+  assert(tx.remindBefore === 'abs' && /T18:30$/.test(tx.remindAt), 'gespeichert: ' + tx.remindAt);
+  await page.click('#termBox article:has-text("Fliesen anliefern")'); await page.waitForSelector('[data-act="term-ics"]');
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="term-ics"]')]);
+  const ics2 = fs.readFileSync(await dl2.path(), 'utf8');
+  assert((ics2.match(/BEGIN:VALARM/g) || []).length === 1 && /TRIGGER;VALUE=DATE-TIME:\d{8}T\d{6}Z/.test(ics2), 'Kalender-Datei: genau ein Alarm zur gewählten Zeit');
+  await page.click('#form [data-act="delete"]'); await page.click('#form [data-act="delete"]'); await page.waitForSelector('#sheet', { state: 'hidden' });
   // Hinweis Feiertag + Urlaub
   const y = new Date().getFullYear() + 1;
   await page.evaluate(y => { const a = JSON.parse(localStorage.getItem('belegbuch:abwesenheit') || '[]'); a.push({ id: 'u1', type: 'urlaub', from: y + '-12-24', to: y + '-12-31', _t: 1 }); localStorage.setItem('belegbuch:abwesenheit', JSON.stringify(a)); }, y);

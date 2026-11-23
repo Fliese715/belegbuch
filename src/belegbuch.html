@@ -1054,7 +1054,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   /** Startet die Texterkennung für die Datei des offenen Beleg-Formulars und füllt leere Felder. */
   async function ocrBeleg(blob, pdf) {
-    if (mode !== 'local' || !draft || draft.coll !== 'belege') return;
+    if (!draft || draft.coll !== 'belege') return;
     var run = ++ocrRun, stillOpen = function () { return run === ocrRun && draft && draft.coll === 'belege' && $('#photoBox'); };
     var say = function (t) { if (stillOpen()) renderPhotoBox(t); };
     if (navigator.onLine === false && !window.Tesseract) { say('Datei übernommen. Ohne Internet gibt es keine Texterkennung, bitte die Felder von Hand ausfüllen.'); return; }
@@ -2747,11 +2747,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         (draft.photoId && src ? '<button type="button" class="btn small" data-act="file-open" data-id="' + esc(draft.photoId) + '" data-kind="' + esc(draft.photoKind || 'img') + '" data-label="' + esc('Beleg ' + (val('f-vendor') || '')) + '">Öffnen</button>' : '') +
         (draft.photoId && !src ? '<span class="badge warn">Datei fehlt auf diesem Gerät</span>' : '') +
         '<button type="button" class="btn small" data-act="photo-remove">Foto entfernen</button></div>';
-    } else if (mode !== 'local') {
+    } else if (mode !== 'local' && !ASSETS) {
       html += '<p class="hint" style="margin:0">Noch kein Foto. Schick den Beleg im Chat an Claude, dann wird er samt Foto angelegt.</p>';
     }
-    if (mode === 'local' && draft.photoId && src && draft.photoKind !== 'xml') html += '<button type="button" class="btn small" data-act="ocr-again" style="margin-top:8px">Text aus dem Beleg lesen</button>';
-    if (mode === 'local') html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Foto, PDF oder E-Rechnung (XML) des Belegs hinzufügen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf,.xml,application/xml,text/xml"></div>';
+    if ((mode === 'local' || ASSETS) && draft.photoId && src && draft.photoKind !== 'xml') html += '<button type="button" class="btn small" data-act="ocr-again" style="margin-top:8px">Text aus dem Beleg lesen</button>';
+    if (mode === 'local' || ASSETS) html += '<div class="field" style="margin:8px 0 0"><label for="photoFile">' + (has ? 'Foto oder PDF ersetzen' : 'Rechnung als PDF, Foto oder E-Rechnung (XML) einlesen') + '</label><input type="file" id="photoFile" accept="image/*,application/pdf,.pdf,.xml,application/xml,text/xml">' +
+      (has ? '' : '<p class="hint" style="margin:4px 0 0">Die App liest Lieferant, Datum, Betrag, MwSt und Adresse aus und füllt leere Felder.' + (mode === 'local' ? '' : ' In der Claude-App klappt das mit PDF-Rechnungen und E-Rechnungen; Fotos liest die installierte App – oder schick sie im Chat an Claude.') + '</p>') + '</div>';
     if (msg) html += '<p class="hint" style="margin:6px 0 0">' + esc(msg) + '</p>';
     box.innerHTML = html;
   }
@@ -4605,7 +4606,10 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'hrs-del') { draft.hours.splice(Number(a.dataset.i), 1); renderHours(); }
       else if (act === 'sync-save') syncSave();
       else if (act === 'backup-save') backupSave();
-      else if (act === 'ocr-again') { if (draft && draft.photoId) idbGet('files', draft.photoId).then(function (rec) { if (rec) ocrBeleg(rec.blob, draft.photoKind === 'pdf'); }); }
+      else if (act === 'ocr-again') {
+        if (draft && draft.photoId) (mode === 'local' ? idbGet('files', draft.photoId).then(function (rec) { return rec && rec.blob; }) : fetch(fileSrc(draft.photoId)).then(function (r) { return r.ok ? r.blob() : null; }))
+          .then(function (bl) { if (bl) ocrBeleg(bl, draft.photoKind === 'pdf'); else renderPhotoBox('Die Datei ließ sich nicht laden.'); }, function () { renderPhotoBox('Die Datei ließ sich nicht laden.'); });
+      }
       else if (act === 'file-open') openFile(a.dataset.id, a.dataset.kind, a.dataset.label);
       else if (act === 'viewer-close') closeViewer();
       else if (act === 'viewer-save') viewerSave();
@@ -4752,14 +4756,17 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       var xf = t.files[0];
       xf.text().then(function (txt) {
         var er = parseEInvoice(txt); if (!er) { renderPhotoBox('Diese XML-Datei ist keine lesbare E-Rechnung.'); return; }
-        return addFile(new Blob([txt], { type: 'application/xml' }), xf.name).then(function (id) { if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = 'xml'; fillFromEInv(er); });
+        return storeFile(new Blob([txt], { type: 'application/xml' }), xf.name).then(function (id) { if (!draft) return; draft.uploaded.push(id); draft.photoId = id; draft.photoData = null; draft.photoKind = 'xml'; fillFromEInv(er); });
       }).catch(function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
     } else if (t.id === 'photoFile' && draft && draft.coll === 'belege') {
       var f = t.files[0], pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-      (pdf ? Promise.resolve(f) : shrinkImage(f)).then(function (blob) { return addFile(blob, f.name); }).then(function (id) {
-        if (!draft) return; draft.photoId = id; draft.photoData = null; draft.photoKind = pdf ? 'pdf' : 'img'; renderPhotoBox('Datei übernommen. Sie wird mit dem Beleg gespeichert.');
-        return idbGet('files', id).then(function (rec) { return ocrBeleg(rec.blob, pdf); });
-      }).catch(function () { renderPhotoBox('Die Datei ließ sich nicht übernehmen.'); });
+      var fb = null;
+      renderPhotoBox('Datei wird übernommen …');
+      (pdf ? Promise.resolve(f) : shrinkImage(f)).then(function (blob) { fb = blob; return storeFile(blob, f.name); }).then(function (id) {
+        if (!draft) return; draft.uploaded.push(id); draft.photoId = id; draft.photoData = null; draft.photoKind = pdf ? 'pdf' : 'img'; renderPhotoBox('Datei übernommen. Sie wird mit dem Beleg gespeichert.');
+        if (pdf || mode === 'local') return ocrBeleg(fb, pdf);
+        renderPhotoBox('Foto übernommen. Fotos liest in der Claude-App niemand automatisch aus – bitte die Felder ausfüllen oder den Beleg im Chat an Claude schicken.');
+      }).catch(function (e) { renderPhotoBox(e && e.code === 'nofiles' ? 'Dateien lassen sich hier nicht speichern.' : 'Die Datei ließ sich nicht übernehmen.'); });
     } else if (t.id === 'ph-file') { photoAdd(t.files[0]).then(function () { t.value = ''; });
     } else if (t.id === 'ordnerFile') {
       var g = t.files[0];

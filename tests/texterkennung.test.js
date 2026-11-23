@@ -88,5 +88,14 @@ const fields = p => p.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 
   assert(/nicht sicher lesen/.test(await p.textContent('#photoBox')) && (await fields(p)).startsWith(' |  |'), 'unlesbarer Text: nichts eingetragen');
   p = await open(b, null); await p.setInputFiles('#photoFile', TMP + '/bon.png'); await p.waitForFunction(() => /Internet|geklappt/.test(document.querySelector('#photoBox').textContent), null, { timeout: 40000 });
   assert(/Internet/.test(await p.textContent('#photoBox')) && await p.$('#photoBox img.thumb'), 'ohne Netz: Hinweis, Foto bleibt am Beleg');
+  // PDF-Rechnung bei „+ Beleg“: Text aus dem PDF (pdf.js nachgebaut, liefert die Textzeilen der Würth-Rechnung)
+  p = await open(b, null);
+  await p.evaluate(t => { window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 1, getAttachments: async () => null,
+    getPage: async () => ({ getTextContent: async () => ({ items: t.split('\n').map((l, i) => ({ str: l, transform: [1, 0, 0, 1, 0, 800 - i * 12] })) }) }) }) }) }; }, RECHNUNG);
+  fs.writeFileSync(TMP + '/rechnung.pdf', '%PDF-1.4 Testdatei');
+  assert(/Rechnung als PDF/.test(await p.textContent('#photoBox')), '„+ Beleg“ bietet „Rechnung als PDF … einlesen“ an');
+  await p.setInputFiles('#photoFile', TMP + '/rechnung.pdf'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
+  const fr = await fields(p);
+  assert(/^(Adolf )?Würth.* \| 1\.?329,52 \| 2026-09-21 \| 19 \| Werftstraße 10, 18439 Stralsund/.test(fr) && /PDF/.test(await p.textContent('#photoBox .thumb')), 'PDF-Rechnung eingelesen: ' + fr);
   console.log('Fehler: ' + (p.errs.join('|') || 'keine')); await b.close();
 })();

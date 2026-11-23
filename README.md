@@ -113,6 +113,9 @@ App öffnen: https://fliese715.github.io/belegbuch/
 - **Eigene Termin-Erinnerung:** remind 'eigen' mit remindBefore (Minuten vor Beginn, ganztägig ab 8 Uhr) oder 'abs' +
   remindAt ('JJJJ-MM-TTTHH:MM', lokal). Push über die geplante Aufgabe „Termin-Erinnerung zur eigenen Zeit“
   (stündlich 5:40–22:40, Fenster je eine Stunde, 22:40 bis 5:40), minutengenau über den ICS-Alarm.
+- **Beleg aus PDF-Rechnung:** „+ Beleg“ nimmt PDF, Foto oder E-Rechnung (XML) auch in der Claude-App an (Ablage über
+  `storeFile`/Assets). PDF: eingebettete E-Rechnung, sonst Text über pdf.js → `parseReceipt`. Fotos liest nur die
+  installierte App (Tesseract-Sprachdaten lassen sich im Artifact nicht laden).
 - **Angebot in vier Schritten:** 1 Kunde (Baustelle wählen oder neu benennen, Kunde aus der Kartei),
   2 Leistungen (Positionen als Karten, Preisliste, freie Position, Aufmaß), 3 Texte, 4 Prüfen und Senden.
   Ein Angebot aus der Angebotsliste legt beim Speichern die Baustelle (Status „Anfrage“) an.

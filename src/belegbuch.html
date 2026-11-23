@@ -1017,6 +1017,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       lines.forEach(function (l, idx) {
         if (!ranks[r].test(l) || (r > 0 && skip.test(l))) return;
         var am = ocrAmount(l); if (!am.length && lines[idx + 1] && !skip.test(lines[idx + 1])) am = ocrAmount(lines[idx + 1]).slice(0, 1);
+        // PDF-Text: der Betrag steht oft in der Zeile davor („73,29“ / „Gesamtbetrag EUR“)
+        if (!am.length && r === 0 && lines[idx - 1] && /^[\d.,\s€]+$/.test(lines[idx - 1])) am = ocrAmount(lines[idx - 1]).slice(-1);
         if (am.length) { var v = am[am.length - 1]; if (best === null || v > best) best = v; }
       });
     }
@@ -1031,7 +1033,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     if (kv) out.vendor = kv;
     else for (i = 0; i < Math.min(6, lines.length); i++) { var l = lines[i], letters = (l.match(/[A-Za-zÄÖÜäöüß]/g) || []).length; if (letters >= 3 && letters >= l.length * 0.5 && !/rechnung|quittung|kassenbon|beleg|datum|seite|kunde|steuer|tel\b|www\.|@/i.test(l)) { out.vendor = l.slice(0, 60); break; } }
     // Adresse: Zeile mit Postleitzahl und Ort, davor oder darin die Straße; die eigene Adresse zählt nicht
-    var f = setting('firma') || {}, ownPlz = (String(f.city || '').match(/\d{5}/) || [''])[0], ownStreet = String(f.street || '').toLowerCase().replace(/\s/g, '');
+    var f = setting('firma') || {}, ownPlz = (String(f.city || '').match(/\d{5}/) || [''])[0], normSt = function (x) { return String(x || '').toLowerCase().replace(/stra(ß|ss)e|str\./g, 'str').replace(/[\s.]/g, ''); }, ownStreet = normSt(f.street);
     var streetRe = /([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\- ]*?(?:stra(?:ß|ss)e|str\.|weg|platz|allee|bogen|chaussee|damm|ring|gasse|ufer|hof|markt)\s?\d+(?:\s?[a-z](?![a-zäöü]))?(?:\s?-\s?\d+)?)/i;
     // Absenderzeilen wie „Firma - Straße 1 - 12345 Ort“ in Teile zerlegen; Beschriftungen („Rechnungsdatum:“) abschneiden
     var segs = [];
@@ -1041,7 +1043,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       var sg = segs[i].replace(label, '').trim();
       m = sg.match(/(?:^|[\s,])(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?: (?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+|am|an|im|in|ob|der|bei|vor)){0,3})\s*$/); if (!m) continue;
       var st = (sg.match(streetRe) || (i > 0 ? segs[i - 1].replace(label, '').match(streetRe) : null) || [])[1] || '';
-      if (st && ownStreet && st.toLowerCase().replace(/\s/g, '').indexOf(ownStreet) >= 0) continue;
+      if (st && ownStreet && normSt(st).indexOf(ownStreet) >= 0) continue;
       if (!st && m[1] === ownPlz) continue;
       out.place = m[2].trim(); if (st) out.vaddr = st.trim() + ', ' + m[1] + ' ' + out.place; break;
     }
@@ -1056,7 +1058,15 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return out;
   }
   /** Startet die Texterkennung für die Datei des offenen Beleg-Formulars und füllt leere Felder. */
-  async function ocrBeleg(blob, pdf) {
+  /** Trägt einen erkannten Wert ein. Normal nur in leere Felder; bei „Text aus dem Beleg lesen“
+   * (force) werden abweichende Werte überschrieben, die Notiz bekommt die Rechnungsnummer nur dazu. */
+  function ocrPut(got, force, id, v, label) {
+    var el = $('#' + id); if (!el || v == null || v === '') return;
+    var cur = String(el.value).trim();
+    if (id === 'f-note') { if (!cur) { el.value = v; got.push(label); } else if (force && cur.indexOf(v) < 0) { el.value = v + ', ' + cur; got.push(label); } return; }
+    if (!cur || (force && cur !== String(v))) { el.value = v; got.push(label); }
+  }
+  async function ocrBeleg(blob, pdf, force) {
     if (!draft || draft.coll !== 'belege') return;
     var run = ++ocrRun, stillOpen = function () { return run === ocrRun && draft && draft.coll === 'belege' && $('#photoBox'); };
     var say = function (t) { if (stillOpen()) renderPhotoBox(t); };
@@ -1064,21 +1074,24 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     say('Text wird gelesen …');
     try {
       var onPct = function (p) { say('Text wird gelesen … ' + p + ' %'); };
-      if (pdf) { var emb = null; try { emb = await pdfXml(blob); } catch (e) { } var er = emb && parseEInvoice(emb); if (er) { if (stillOpen()) fillFromEInv(er); return; } }
+      if (pdf) { var emb = null; try { emb = await pdfXml(blob); } catch (e) { } var er = emb && parseEInvoice(emb); if (er) { if (stillOpen()) fillFromEInv(er, force); return; } }
       var text = pdf ? await pdfText(blob, onPct) : await ocrImage(blob, onPct);
       if (!stillOpen()) return;
       var r = parseReceipt(text), got = [];
-      var put = function (id, v, label) { var el = $('#' + id); if (el && v != null && v !== '' && !String(el.value).trim()) { el.value = v; got.push(label); } };
+      var put = function (id, v, label) { ocrPut(got, force, id, v, label); };
       put('f-vendor', r.vendor, 'Lieferant');
       put('f-gross', r.gross != null ? String(r.gross.toFixed(2)).replace('.', ',') : '', 'Betrag');
-      if (r.date && !draft.id && $('#f-date') && $('#f-date').value === today() && r.date !== today()) { $('#f-date').value = r.date; got.push('Datum'); }
-      if (r.vat != null && !draft.id && $('#f-vat') && Number($('#f-vat').value) !== r.vat) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
+      if (r.date && $('#f-date') && $('#f-date').value !== r.date && (force || (!draft.id && $('#f-date').value === today() && r.date !== today()))) { $('#f-date').value = r.date; got.push('Datum'); }
+      if (r.vat != null && (force || !draft.id) && $('#f-vat') && Number($('#f-vat').value) !== r.vat) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
       put('f-vaddr', r.vaddr, 'Adresse');
       if (!r.versand) put('f-place', r.place, 'Ort');
-      if (r.pay && !draft.id && $('#f-pay') && PAYS.indexOf(r.pay) >= 0 && $('#f-pay').value !== r.pay) { $('#f-pay').value = r.pay; got.push('Zahlungsart'); }
+      if (r.pay && (force || !draft.id) && $('#f-pay') && PAYS.indexOf(r.pay) >= 0 && $('#f-pay').value !== r.pay) { $('#f-pay').value = r.pay; got.push('Zahlungsart'); }
       put('f-note', r.nr ? 'Rechnung ' + r.nr : '', 'Rechnungsnummer');
       if (!r.versand && (r.vaddr || r.place)) { try { fillTrip(true); } catch (e) { } }
-      say(got.length ? 'Erkannt und eingetragen: ' + got.join(', ') + '.' + (r.versand ? ' Versandrechnung: keine Fahrt eingetragen.' : '') + ' Bitte mit dem Beleg vergleichen, die Erkennung macht Fehler.' : 'Der Text ließ sich nicht sicher lesen. Bitte die Felder von Hand ausfüllen.');
+      var any = r.vendor || r.gross != null || r.date;
+      say(got.length ? (force ? 'Neu gelesen und geändert: ' : 'Erkannt und eingetragen: ') + got.join(', ') + '.' + (r.versand ? ' Versandrechnung: keine Fahrt eingetragen.' : '') + ' Bitte mit dem Beleg vergleichen, die Erkennung macht Fehler.' + (force ? ' Speichern nicht vergessen.' : '') :
+        any ? 'Gelesen: ' + [r.vendor, r.gross != null ? money(r.gross) : '', r.date ? fdate(r.date) : ''].filter(Boolean).join(' · ') + ' – ' + (force ? 'stimmt mit den Feldern überein.' : 'die Felder waren schon ausgefüllt. „Text aus dem Beleg lesen“ überschreibt sie.') :
+        'Der Text ließ sich nicht sicher lesen. Bitte die Felder von Hand ausfüllen.');
     } catch (e) {
       say(e && e.code === 'offline' ? 'Datei übernommen. Die Texterkennung braucht beim ersten Mal Internet; bitte die Felder von Hand ausfüllen.' : 'Datei übernommen. Die Texterkennung hat nicht geklappt; bitte die Felder von Hand ausfüllen.');
     }
@@ -1128,16 +1141,16 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     return k ? new TextDecoder().decode(at[k].content) : null;
   }
   /** Trägt die Werte einer E-Rechnung ins offene Beleg-Formular ein (nur leere Felder; Datum/MwSt wie bei der Texterkennung). */
-  function fillFromEInv(r) {
-    var got = [], put = function (id, v, label) { var el = $('#' + id); if (el && v != null && v !== '' && !String(el.value).trim()) { el.value = v; got.push(label); } };
+  function fillFromEInv(r, force) {
+    var got = [], put = function (id, v, label) { ocrPut(got, force, id, v, label); };
     put('f-vendor', r.vendor, 'Lieferant');
     put('f-gross', r.gross > 0 ? r.gross.toFixed(2).replace('.', ',') : '', 'Betrag');
-    if (r.date && !draft.id && $('#f-date') && $('#f-date').value === today()) { $('#f-date').value = r.date; got.push('Datum'); }
-    if (!isNaN(r.vat) && !draft.id && $('#f-vat')) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
+    if (r.date && $('#f-date') && $('#f-date').value !== r.date && (force || (!draft.id && $('#f-date').value === today()))) { $('#f-date').value = r.date; got.push('Datum'); }
+    if (!isNaN(r.vat) && (force || !draft.id) && $('#f-vat') && Number($('#f-vat').value) !== r.vat) { $('#f-vat').value = String(r.vat); got.push('MwSt'); }
     put('f-vaddr', [r.street, [r.plz, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), 'Adresse'); put('f-place', r.city, 'Ort');
     put('f-note', r.nr ? 'Rechnung ' + r.nr : '', 'Rechnungsnummer');
     if (r.street || r.city) { try { fillTrip(true); } catch (e) { } }
-    renderPhotoBox('E-Rechnung gelesen (' + r.format + '): ' + (got.length ? got.join(', ') + ' eingetragen.' : 'die Felder waren schon ausgefüllt.') + ' Die Werte stammen direkt aus der Rechnung.');
+    renderPhotoBox('E-Rechnung gelesen (' + r.format + '): ' + (got.length ? got.join(', ') + (force ? ' geändert. Speichern nicht vergessen.' : ' eingetragen.') : force ? 'alles stimmt mit den Feldern überein.' : 'die Felder waren schon ausgefüllt.') + ' Die Werte stammen direkt aus der Rechnung.');
   }
   function einvHtml(r) {
     return '<div style="padding:12px"><table class="nk"><tbody>' + [['Format', r.format], ['Rechnungssteller', r.vendor], ['Adresse', [r.street, [r.plz, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')], ['Rechnungsnummer', r.nr], ['Datum', r.date ? fdate(r.date) : ''], ['Betrag brutto', r.gross > 0 ? money(r.gross) : ''], ['Steuersatz', isNaN(r.vat) ? '' : r.vat + ' %']].filter(function (x) { return x[1]; }).map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="num">' + esc(x[1]) + '</td></tr>'; }).join('') + '</tbody></table>' +
@@ -4616,7 +4629,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'backup-save') backupSave();
       else if (act === 'ocr-again') {
         if (draft && draft.photoId) (mode === 'local' ? idbGet('files', draft.photoId).then(function (rec) { return rec && rec.blob; }) : fetch(fileSrc(draft.photoId)).then(function (r) { return r.ok ? r.blob() : null; }))
-          .then(function (bl) { if (bl) ocrBeleg(bl, draft.photoKind === 'pdf'); else renderPhotoBox('Die Datei ließ sich nicht laden.'); }, function () { renderPhotoBox('Die Datei ließ sich nicht laden.'); });
+          .then(function (bl) { if (bl) ocrBeleg(bl, draft.photoKind === 'pdf', true); else renderPhotoBox('Die Datei ließ sich nicht laden.'); }, function () { renderPhotoBox('Die Datei ließ sich nicht laden.'); });
       }
       else if (act === 'file-open') openFile(a.dataset.id, a.dataset.kind, a.dataset.label);
       else if (act === 'viewer-close') closeViewer();

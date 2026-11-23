@@ -58,12 +58,12 @@ Betrag dankend erhalten !
 Hypertrade 24 e. K. - Inh. Stefan Bahrami - Baumschulweg 1 - 47877 Willich -
 Bankverbindung : Commerzbank Düsseldorf, IBAN: DE98 3004 0000 0101 4786 00`;
 const assert = (ok, msg) => { console.log((ok ? 'ok   ' : 'FALSCH ') + msg); if (!ok) process.exitCode = 1; };
-async function open(b, text) {
+async function open(b, text, firma) {
   const page = await (await b.newContext({ viewport: { width: 400, height: 800 } })).newPage(); page.errs = []; page.on('pageerror', e => page.errs.push(e.message));
   await page.route('**/*', r => /^(file|blob):/.test(r.request().url()) ? r.continue() : r.abort());
   await page.addInitScript(text => { if (text != null) window.Tesseract = { createWorker: async (lang, oem, o) => ({ recognize: async () => { o.logger({ status: 'recognizing text', progress: 0.5 }); return { data: { text } }; } }) }; }, text);
   await page.goto(APP); await page.waitForSelector('#backupInfo', { state: 'attached' });
-  await page.evaluate(() => { localStorage.setItem('belegbuch:settings', JSON.stringify([{ id: 'firma', street: 'Musterweg 1', city: '18439 Stralsund' }])); localStorage.setItem('belegbuch:belege', JSON.stringify([{ id: 'x1', date: '2026-01-05', vendor: 'Würth', gross: 10, vat: 19, cat: 'Material', pay: 'Bar' }])); });
+  await page.evaluate(firma => { localStorage.setItem('belegbuch:settings', JSON.stringify([firma || { id: 'firma', street: 'Musterweg 1', city: '18439 Stralsund' }])); localStorage.setItem('belegbuch:belege', JSON.stringify([{ id: 'x1', date: '2026-01-05', vendor: 'Würth', gross: 10, vat: 19, cat: 'Material', pay: 'Bar' }])); }, firma || null);
   await page.reload(); await page.waitForSelector('#backupInfo', { state: 'attached' });
   await nav(page, 'belege'); await page.click('#fab'); return page;
 }
@@ -97,5 +97,21 @@ const fields = p => p.evaluate(() => ['f-vendor', 'f-gross', 'f-date', 'f-vat', 
   await p.setInputFiles('#photoFile', TMP + '/rechnung.pdf'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
   const fr = await fields(p);
   assert(/^(Adolf )?Würth.* \| 1\.?329,52 \| 2026-09-21 \| 19 \| Werftstraße 10, 18439 Stralsund/.test(fr) && /PDF/.test(await p.textContent('#photoBox .thumb')), 'PDF-Rechnung eingelesen: ' + fr);
+  // Echte Würth-Rechnung 6087408201 (Text von Seite 1–2), dann gespeicherten Beleg ändern und „Text aus dem Beleg lesen“
+  const W = fs.readFileSync(__dirname + '/daten/wuerth-6087408201.txt', 'utf8');
+  const mock = t => { window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 1, getAttachments: async () => null,
+    getPage: async () => ({ getTextContent: async () => ({ items: t.split('\n').map((l, i) => ({ str: l, transform: [1, 0, 0, 1, 0, 800 - i * 12] })) }) }) }) }) }; };
+  p = await open(b, null, { id: 'firma', name: 'FFH Fliesenleger Fachbetrieb Hinz', street: 'Kirchstraße 40', city: '18510 Zarrendorf' }); await p.evaluate(mock, W);
+  await p.setInputFiles('#photoFile', TMP + '/rechnung.pdf'); await p.waitForFunction(() => /Erkannt|nicht/.test(document.querySelector('#photoBox').textContent));
+  const fw = await fields(p);
+  assert(/Würth.* \| 73,29 \| 2026-07-28 \| 19 \|/.test(fw), 'echte Würth-Rechnung 6087408201 gelesen: ' + fw);
+  await p.click('[data-act="save"]'); await p.waitForTimeout(300);
+  await p.click('#v-belege [data-act="edit"], #v-belege article'); await p.waitForSelector('#f-gross');
+  await p.evaluate(mock, W); await p.fill('#f-gross', '1,00'); await p.fill('#f-date', '2026-01-01');
+  await p.click('[data-act="ocr-again"]'); await p.waitForFunction(() => /geändert|überein|nicht/.test(document.querySelector('#photoBox').textContent));
+  const fa = await fields(p);
+  assert(/\| 73,29 \| 2026-07-28 \|/.test(fa) && /Neu gelesen und geändert: .*Betrag/.test(await p.textContent('#photoBox')), '„Text aus dem Beleg lesen“ überschreibt abweichende Werte: ' + fa);
+  await p.click('[data-act="ocr-again"]'); await p.waitForFunction(() => /überein/.test(document.querySelector('#photoBox').textContent));
+  assert(true, 'nochmal lesen: „stimmt mit den Feldern überein“');
   console.log('Fehler: ' + (p.errs.join('|') || 'keine')); await b.close();
 })();

@@ -120,6 +120,8 @@ App öffnen: https://fliese715.github.io/belegbuch/
   2 Leistungen (Positionen als Karten, Preisliste, freie Position, Aufmaß), 3 Texte, 4 Prüfen und Senden.
   Ein Angebot aus der Angebotsliste legt beim Speichern die Baustelle (Status „Anfrage“) an.
   Fehler beim Speichern springen zum passenden Schritt. Die Positionskarten gelten auch für Rechnungen.
+- **„Text aus dem Beleg lesen“:** liest die Datei neu und überschreibt abweichende Felder (beim ersten Einlesen nur leere).
+  Betrag auch, wenn er im PDF-Text vor „Gesamtbetrag“ steht; die eigene Adresse wird auch als „Kirchstr.“ erkannt.
 - **Belege-Erinnerung:** Kachel in „Termine & Erledigen“ öffnet beim Antippen „+ Beleg“; grün wird sie, wenn heute
   ein neuer Beleg gespeichert oder sie mit „✓ Abhaken“ von Hand abgehakt wurde (settings/erinnerung.done). Link `#beleg-neu` öffnet „+ Beleg“ direkt (Abend-Push).
 - **Termine:** Sammlung `termine` (Datum, Uhrzeit, Ort, Baustelle, Erinnerung). Liste in „Termine & Erledigen“

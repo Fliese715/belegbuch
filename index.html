@@ -1176,8 +1176,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     viewing = { blob: blob, name: name, url: url, own: !!blob };
     $('#viewerT').textContent = label || (pdf ? 'PDF' : 'Foto');
     var er = xml && blob ? parseEInvoice(await blob.text()) : null;
-    $('#viewerBody').innerHTML = xml ? (er ? einvHtml(er) : '<p class="hint" style="padding:12px">Die E-Rechnung ließ sich nicht lesen.</p>') : pdf ? '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>' : '<img alt="' + esc(label || 'Foto') + '" data-act="viewer-zoom" src="' + esc(url) + '">';
-    if (pdf) msg = 'Bleibt die Fläche leer, kann dieser Browser PDFs nicht in der App anzeigen. Nimm dann einen der Knöpfe unten.';
+    $('#viewerBody').innerHTML = xml ? (er ? einvHtml(er) : '<p class="hint" style="padding:12px">Die E-Rechnung ließ sich nicht lesen.</p>') : pdf ? '<p class="hint" style="padding:12px">PDF wird angezeigt …</p>' : '<img alt=""' + esc(label || 'Foto') + '" data-act="viewer-zoom" src="' + esc(url) + '">';
+    if (pdf) msg = '';
     else if (xml) msg = 'Lesbare Ansicht der E-Rechnung. „Auf dem Gerät speichern“ speichert die Original-XML.';
     else msg = 'Tippe auf das Bild, um es zu vergrößern.';
     $('#viewerMsg').textContent = msg;
@@ -1185,6 +1185,11 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     try { canShare = !!(blob && navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: blob.type })] })); } catch (e) { }
     $('#viewerShare').hidden = !canShare;
     $('#viewer').hidden = false;
+    // PDFs selbst zeichnen (pdf.js): Android-Browser zeigen PDFs in einem Rahmen nicht an
+    if (pdf && blob) {
+      var ok = await drawPdf(blob, $('#viewerBody'));
+      if (!ok && viewing && viewing.url === url) { $('#viewerBody').innerHTML = '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>'; $('#viewerMsg').textContent = 'Das PDF ließ sich hier nicht zeichnen (beim ersten Mal braucht die App Internet dafür). Bleibt die Fläche leer, nimm einen der Knöpfe unten.'; }
+    } else if (pdf) { $('#viewerBody').innerHTML = '<iframe title="PDF-Anzeige" src="' + esc(url) + '"></iframe>'; }
   }
   /** Zeichnet alle Seiten eines PDFs als Bilder in el. Gibt false zurück, wenn pdf.js nicht geladen werden kann. */
   async function drawPdf(blob, el) {

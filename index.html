@@ -1432,13 +1432,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var inc = file.data, tomb = Object.assign({}, setting('geloescht').map || {});
     var it = ((inc.settings || []).find(function (x) { return x.id === 'geloescht'; }) || {}).map || {};
     Object.keys(it).forEach(function (k) { if (!(tomb[k] >= it[k])) tomb[k] = it[k]; });
-    var n = { add: 0, upd: 0, del: 0 };
+    var n = { add: 0, upd: 0, del: 0, skip: 0 };
     for (var ci = 0; ci < COLS.length; ci++) {
       var c = COLS[ci], rows = Array.isArray(inc[c]) ? inc[c] : [];
       for (var i = 0; i < rows.length; i++) {
         var d = rows[i]; if (!d || !d.id || (c === 'settings' && d.id === 'geloescht')) continue;
         var t = Number(d._t) || 0, k = c + '/' + d.id;
-        if (tomb[k] != null && tomb[k] >= t) continue;
+        if (tomb[k] != null && tomb[k] >= t) { if (!state.data[c].some(function (x) { return x.id === d.id; })) n.skip++; continue; }
         var loc = state.data[c].find(function (x) { return x.id === d.id; });
         if (!loc) { await rawSet(c, d.id, d); n.add++; }
         else if (t > (Number(loc._t) || 0)) { await rawSet(c, d.id, d); n.upd++; }
@@ -1455,7 +1455,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     n.files = nf;
     return n;
   }
-  function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt' + (n.files ? ', ' + plural(n.files, 'Datei', 'Dateien') + ' übernommen' : '') + '.'; }
+  function syncMsg(n) { return 'Abgleich: ' + n.add + ' neu, ' + n.upd + ' aktualisiert, ' + n.del + ' entfernt' + (n.files ? ', ' + plural(n.files, 'Datei', 'Dateien') + ' übernommen' : '') + '.' + (n.skip ? ' ' + plural(n.skip, 'Eintrag', 'Einträge') + ' nicht übernommen, weil ' + (n.skip === 1 ? 'er' : 'sie') + ' hier inzwischen gelöscht ' + (n.skip === 1 ? 'wurde' : 'wurden') + ' (z. B. durch „Sicherung wiederherstellen“).' : ''); }
   function stamp() { var d = new Date(); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
   /** Übergibt eine Datei an den Nutzer: in Claude über den Speichern-Dialog,
    * sonst als normaler Browser-Download. */

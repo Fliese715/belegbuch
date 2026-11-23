@@ -120,6 +120,8 @@ App öffnen: https://fliese715.github.io/belegbuch/
   2 Leistungen (Positionen als Karten, Preisliste, freie Position, Aufmaß), 3 Texte, 4 Prüfen und Senden.
   Ein Angebot aus der Angebotsliste legt beim Speichern die Baustelle (Status „Anfrage“) an.
   Fehler beim Speichern springen zum passenden Schritt. Die Positionskarten gelten auch für Rechnungen.
+- **Belege-Erinnerung:** Kachel in „Termine & Erledigen“ öffnet beim Antippen „+ Beleg“; grün wird sie erst, wenn heute
+  ein neuer Beleg gespeichert wurde (settings/erinnerung.done). Link `#beleg-neu` öffnet „+ Beleg“ direkt (Abend-Push).
 - **Termine:** Sammlung `termine` (Datum, Uhrzeit, Ort, Baustelle, Erinnerung). Liste in „Termine & Erledigen“
   neben der Belege-Erinnerung; Export als ICS-Datei (mit Alarmen) oder Google-Kalender-Link. Push-Erinnerungen
   kommen von zwei geplanten Aufgaben bei Claude, die die Artifact-Datenbank lesen: 21 Uhr (Belege + Termine

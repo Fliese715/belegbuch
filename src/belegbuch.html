@@ -1525,7 +1525,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var offers = A.filter(function (a) { return a.kind === 'kunde' && a.status === 'Angebot'; });
     var sitesY = A.filter(function (a) { return a.kind === 'kunde' && (a.date || '').indexOf(y) === 0; });
     var doneToday = setting('erinnerung').done === today(), nToday = B.filter(function (b) { return b.date === today(); }).length;
-    var remind = '<button type="button" class="tile go wide remind' + (doneToday ? ' done' : '') + '" data-act="ov" data-go="remind" aria-pressed="' + doneToday + '"><div class="t1">' + (doneToday ? '✓ Belege-Erinnerung erledigt' : 'Belege eingeben – noch offen') + '</div><div class="t2">' + (nToday ? nToday + (nToday === 1 ? ' Beleg' : ' Belege') + ' heute' : 'Noch kein Beleg heute') + ' · ' + (doneToday ? 'Tippen: zurücknehmen' : 'Tippen: abhaken') + '</div></button>';
+    var remind = '<button type="button" class="tile go wide remind' + (doneToday ? ' done' : '') + '" data-act="remind-beleg"><div class="t1">' + (doneToday ? '✓ Belege eingegeben' : 'Belege eingeben – noch offen') + '</div><div class="t2">' + (nToday ? nToday + (nToday === 1 ? ' Beleg' : ' Belege') + ' heute' : 'Noch kein Beleg heute') + ' · Tippen: + Beleg</div></button>';
     var tmw = termineOn(addDays(today(), 1)), tdy = termineOn(today()).filter(function (t) { return !t.time || t.time >= nowHM(); });
     remind += '<div class="tile wide termtile' + (tdy.length ? ' on' : '') + '"><div class="t1" style="font-size:14px;font-weight:600">' + (tdy.length ? 'Heute noch: ' + tdy.map(termShort).join(', ') : 'Heute keine Termine mehr') + '</div><div class="t2" style="font-size:12px;color:var(--muted)">' + (tmw.length ? 'Morgen: ' + tmw.map(termShort).join(', ') : 'Morgen keine Termine') + ' · kommt auch in der Abend-Erinnerung um 21 Uhr</div></div>';
     $('#remindBox').innerHTML = remind;
@@ -2708,9 +2708,9 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     el.innerHTML = c.length ? '<span class="hint">' + (cur ? 'Andere Adresse übernehmen:' : 'Adresse übernehmen:') + '</span>' + c.slice(0, 4).map(function (x) { return '<button type="button" class="btn small" data-act="site-pick" data-addr="' + esc(x.addr) + '" data-src="' + esc(x.src) + '"><span>' + esc(x.addr) + '</span><small>' + esc(x.src) + '</small></button>'; }).join('') : '';
   }
   /** Öffnet das Beleg-Formular (id = null: neuer Beleg). */
-  function openBeleg(id) {
+  function openBeleg(id, fromRemind) {
     var b = id ? state.data.belege.find(function (x) { return x.id === id; }) : null;
-    draft = { coll: 'belege', id: id || null, photoId: b && b.photoId || null, photoData: b && b.photoData || null, photoKind: b && b.photoKind || null, orig: b && b.photoId || null, uploaded: [], confirm: false };
+    draft = { coll: 'belege', fromRemind: !!(fromRemind && !id), id: id || null, photoId: b && b.photoId || null, photoData: b && b.photoData || null, photoKind: b && b.photoKind || null, orig: b && b.photoId || null, uploaded: [], confirm: false };
     var vendors = {};
     state.data.belege.forEach(function (x) { if (x.vendor) vendors[x.vendor] = 1; });
     var orders = state.data.auftraege.filter(function (a) { return a.kind === 'kunde' || (b && a.id === b.orderId); }).sort(function (a, c) { return (c.date || '').localeCompare(a.date || ''); });
@@ -2870,8 +2870,10 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
       }
       for (i = 0; i < ids.length; i++) await dropAsset(ids[i]);
       draft.uploaded = [];
+      var remDone = draft.coll === 'belege' && !draft.id && setting('erinnerung').done !== today();
       await closeSheet(false);
-      toast('Gespeichert');
+      if (remDone) { try { await persist('settings', 'erinnerung', { done: today() }); } catch (e) { /* bleibt offen */ } }
+      toast(remDone ? 'Gespeichert · Belege für heute erledigt' : 'Gespeichert');
     } catch (e) {
       if (btn) btn.disabled = false;
       formErr(e && e.code === 'quota_exceeded' ? 'Der Speicher ist voll. Lösche alte Einträge.' : 'Speichern hat nicht geklappt. Versuche es noch einmal.');
@@ -4576,6 +4578,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (a) {
       var act = a.dataset.act;
       if (act === 'tab') setTab(a.dataset.tab);
+      else if (act === 'remind-beleg') { setTab('belege'); openBeleg(null, true); }
       else if (act === 'new') { a.dataset.kind === 'auftrag' ? openAuftrag() : a.dataset.kind === 'kunde' ? openKunde() : a.dataset.kind === 'termin' ? openTermin() : a.dataset.kind === 'angebot' ? openAngebot(null, null) : a.dataset.kind === 'aufmass' ? openAufmassStart() : openBeleg(); }
       else if (act === 'term-ics') termIcs(a.dataset.id);
       else if (act === 'cancel') closeSheet(true);
@@ -4835,8 +4838,15 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
   });
 
   /* ---------- 10 Start ---------- */
-  function readHash() { var h = (location.hash || '').replace('#', ''); state.tab = TABS.indexOf(h) >= 0 ? h : 'menu'; }
-  window.addEventListener('hashchange', function () { readHash(); render(); window.scrollTo(0, 0); });
+  var wantBeleg = false;
+  /** #beleg-neu (Link aus der Abend-Erinnerung) öffnet direkt „+ Beleg“. */
+  function readHash() {
+    var h = (location.hash || '').replace('#', '');
+    if (h === 'beleg-neu') { wantBeleg = true; h = 'belege'; try { history.replaceState(null, '', '#belege'); } catch (e) { /* egal */ } }
+    state.tab = TABS.indexOf(h) >= 0 ? h : 'menu';
+  }
+  function openWanted() { if (!wantBeleg || draft) return; wantBeleg = false; openBeleg(null, true); }
+  window.addEventListener('hashchange', function () { readHash(); render(); window.scrollTo(0, 0); openWanted(); });
   window.addEventListener('popstate', function () { readHash(); render(); window.scrollTo(0, 0); });
 
   /** Start: Dienste der Claude-Umgebung anfragen; wenn keine Datenbank da ist, lokal arbeiten. */
@@ -4857,13 +4867,14 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         DB.collection(c).onSnapshot(function (snap) {
           state.data[c] = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
           state.loaded[c] = true; if (allLoaded()) state.slow = false;
-          render();
+          render(); if (allLoaded()) openWanted();
         }, function () { state.err = true; render(); });
       });
     } else {
       mode = 'local'; loadLocal();
     }
     render();
+    if (mode === 'local') openWanted();
     initBackup();
   }
   init();

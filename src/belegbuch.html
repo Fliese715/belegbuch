@@ -4331,7 +4331,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         name: a ? a.party : '', email: a ? a.email || '' : '', address: a ? a.address || '' : '', site: a ? a.site || (ang && ang.site) || ((siteSource(aid) || {}).addr || '') : '',
         title: 'Fliesenarbeiten ' + (a ? a.title : ''), region: ang ? ang.region || '' : detectRegion(a),
         ckind: a && a.ckind === 'privat' ? 'privat' : 'firma', rc: ang ? !!ang.rc : false,
-        vat: ang ? Number(ang.vat) : (f.kleinunt ? 0 : 19), discount: ang ? Number(ang.discount) || 0 : 0,
+        vat: f.kleinunt ? 0 : ang ? Number(ang.vat) : 19, discount: ang ? Number(ang.discount) || 0 : 0,
         positions: ang ? JSON.parse(JSON.stringify(ang.positions || [])) : [],
         intro: DEF_RE_INTRO, outro: DEF_RE_OUTRO, annex: false, status: 'Entwurf'
       };
@@ -4406,7 +4406,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var A = draft.a, ang = angX || reAng(A); if (!ang) return;
     if (all) {
       ['name', 'email', 'address', 'site', 'title', 'region', 'ckind', 'discount'].forEach(function (k) { if (ang[k] !== undefined && ang[k] !== '') A[k] = ang[k]; });
-      A.rc = !!ang.rc; A.vat = Number(ang.vat) || 0; A.angebotId = ang.id;
+      A.rc = !!ang.rc; A.vat = setting('firma').kleinunt ? 0 : Number(ang.vat) || 0; A.angebotId = ang.id;
       A.positions = JSON.parse(JSON.stringify(ang.positions || [])); A.positions.forEach(function (p) { p.angQty = Number(p.qty) || 0; });
     } else {
       A.positions.forEach(function (p) { var q = posMatch(p, ang.positions || []); if (q) p.price = q.price; });
@@ -4507,6 +4507,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     if (!A.date || !A.servFrom || !A.servTo) return 'Bitte Rechnungsdatum und Leistungszeitraum eintragen.';
     if (A.servTo < A.servFrom) return 'Das Ende der Leistung liegt vor dem Beginn.';
     if (!A.due) return 'Bitte ein Fälligkeitsdatum eintragen.';
+    if (f.kleinunt && Number(A.vat) > 0) return 'Du bist als Kleinunternehmer (§ 19 UStG) eingetragen, die Rechnung weist aber ' + fmtQ(A.vat) + ' % Umsatzsteuer aus. Stelle die Umsatzsteuer auf 0 % – sonst musst du sie ans Finanzamt zahlen (§ 14c UStG).';
     return '';
   }
   async function saveRe(strict) {

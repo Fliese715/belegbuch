@@ -299,6 +299,19 @@ input[type="text"], input[type="date"], select {
 .photo .thumb { width: 64px; height: 64px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; }
 
+.calcbtn { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); z-index: 25; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); display: grid; place-items: center; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.calcbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+header.top .brand { padding-right: 52px; }
+#calc { z-index: 40; }
+.sheet.calc { max-width: 420px; }
+.calc-disp { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px; text-align: right; background: var(--bg); }
+.calc-expr { font-family: var(--font-mono); font-size: 15px; min-height: 22px; overflow-wrap: anywhere; color: var(--muted); }
+.calc-res { display: block; font-family: var(--font-mono); font-size: 32px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.calc-keys button { min-height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 22px; font-weight: 600; cursor: pointer; }
+.calc-keys button.op { color: var(--accent); }
+.calc-keys button.eq { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.calc-keys button:active { transform: scale(0.97); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: no-preference) { .row, .btn { transition: border-color 0.15s, background-color 0.15s; } }
 .sheet.wide { max-width: 760px; }
@@ -457,6 +470,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     <div class="mode" id="mode">Lädt …</div>
   </header>
   <button type="button" class="fab" id="fab" data-act="new">+ Beleg</button>
+  <button type="button" class="calcbtn" id="calcBtn" data-act="calc-open" aria-label="Rechner" title="Rechner"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01M8.5 15h.01M12 15h.01M15.5 15v3M8.5 18h.01M12 18h.01"/></svg></button>
 
   <main>
     <div class="banner" id="banner" hidden>
@@ -586,6 +600,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   <p class="hint" id="viewerMsg" style="margin:8px 0 0"></p>
   <div class="actions"><button type="button" class="btn" id="viewerShare" data-act="viewer-share" hidden>Mit anderer App öffnen</button><button type="button" class="btn cta" id="viewerSave" data-act="viewer-save">Auf dem Gerät speichern</button>
     <button type="button" class="btn" id="viewerMark" data-act="viewer-mark" hidden>Als versendet markieren</button><button type="button" class="btn primary" id="viewerSend" data-act="viewer-send" hidden>Senden</button><button type="button" class="btn primary" id="viewerIssue" data-act="viewer-issue" hidden>✓ Rechnung jetzt stellen</button></div>
+</div></div>
+<div class="overlay" id="calc" hidden><div class="sheet calc" role="dialog" aria-modal="true" aria-labelledby="calcT">
+  <div class="viewer-h"><h2 id="calcT">Rechner</h2><button type="button" class="btn small" data-act="calc-close">Schließen</button></div>
+  <div class="calc-disp"><div class="calc-expr" id="calcExpr"></div><output class="calc-res" id="calcRes" aria-live="polite">0</output></div>
+  <div class="calc-keys" id="calcKeys"></div>
+  <div class="actions"><button type="button" class="btn" data-act="calc-copy">Ergebnis kopieren</button><button type="button" class="btn primary" id="calcUse" data-act="calc-use" hidden>Übernehmen</button></div>
 </div></div>
 <div class="overlay" id="pwDlg" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pwDlgT">
   <h2 id="pwDlgT" style="margin:0 0 8px;font-size:18px">Passwort der Sicherung</h2>
@@ -3245,6 +3265,50 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   /* ---------- 8 Aufmaß ---------- */
   /** Wertet eine Maßangabe aus: Zahlen mit Komma oder Punkt, + − × (x, *) : / und Klammern.
    * „2,45 + 1,80 + 2,45“ → 6,7. Leer → {v:0, empty:true}; Tippfehler → v = NaN. Kein eval(). */
+  /* ---------- Rechner ----------
+   * Einfacher Taschenrechner (+ − × ÷, Klammern, Komma). Rechnet mit evalMass.
+   * War vorher ein Zahlenfeld im Formular aktiv, lässt sich das Ergebnis dort übernehmen. */
+  var calc = { expr: '', target: null };
+  var CALC_KEYS = [['C', 'clr'], ['(', 'op'], [')', 'op'], ['÷', 'op'], ['7'], ['8'], ['9'], ['×', 'op'], ['4'], ['5'], ['6'], ['−', 'op'], ['1'], ['2'], ['3'], ['+', 'op'], ['⌫', 'clr'], ['0'], [','], ['=', 'eq']];
+  document.addEventListener('focusin', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'INPUT' && t.type === 'text' && t.closest('#sheet') && (t.inputMode === 'decimal' || /^(qty|price|l|b|n|abz)$/.test(t.dataset.pf || t.dataset.f || ''))) calc.target = t;
+  });
+  function calcNum(v) { var r = Math.round(v * 1000) / 1000; return String(r).replace('.', ','); }
+  function calcLabel(t) {
+    var l = t.closest('label'), txt = l ? l.childNodes[0] && l.childNodes[0].textContent : '';
+    if (!txt && t.id) { var lb = document.querySelector('label[for="' + t.id + '"]'); txt = lb ? lb.textContent : ''; }
+    return String(txt || t.getAttribute('aria-label') || 'Feld').replace(/\s*\(.*$/, '').trim();
+  }
+  function calcShow() {
+    var e = calc.expr.replace(/\*/g, '×').replace(/\//g, '÷'), r = evalMass(calc.expr.replace(/÷/g, ':'));
+    $('#calcExpr').textContent = e;
+    $('#calcRes').textContent = !calc.expr ? '0' : isNaN(r.v) ? (calc.err ? 'Fehler' : '…') : calcNum(r.v);
+    var ok = calc.target && calc.target.isConnected && !isNaN(r.v) && calc.expr;
+    $('#calcUse').hidden = !ok; if (ok) $('#calcUse').textContent = 'In „' + calcLabel(calc.target) + '“ übernehmen';
+  }
+  function calcOpen() {
+    if (!$('#calcKeys').children.length) $('#calcKeys').innerHTML = CALC_KEYS.map(function (k) { return '<button type="button" class="' + (k[1] || '') + '" data-act="calc-key" data-k="' + k[0] + '">' + k[0] + '</button>'; }).join('');
+    if (calc.target && (!calc.target.isConnected || $('#sheet').hidden)) calc.target = null;
+    if (calc.target && !calc.expr && calc.target.value.trim()) calc.expr = calc.target.value.trim().replace(/x|X|\*/g, '×').replace(/-/g, '−').replace(/\//g, '÷');
+    calc.err = false; $('#calc').hidden = false; calcShow();
+  }
+  function calcKey(k) {
+    calc.err = false;
+    if (k === 'C') calc.expr = '';
+    else if (k === '⌫') calc.expr = calc.expr.replace(/\s+$/, '').slice(0, -1).replace(/\s+$/, '');
+    else if (k === '=') { var r = evalMass(calc.expr.replace(/÷/g, ':')); if (isNaN(r.v)) calc.err = true; else calc.expr = calcNum(r.v).replace(/^-/, '−'); }
+    else if (/^[+−×÷]$/.test(k)) { calc.expr = calc.expr.replace(/\s*[+−×÷]\s*$/, '') + ' ' + k + ' '; if (calc.expr.trim() === k && k !== '−') calc.expr = ''; }
+    else calc.expr += k;
+    calcShow();
+  }
+  function calcUse() {
+    var r = evalMass(calc.expr.replace(/÷/g, ':')), t = calc.target; if (isNaN(r.v) || !t || !t.isConnected) return;
+    t.value = calcNum(r.v);
+    t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true }));
+    $('#calc').hidden = true; calc.expr = ''; try { t.focus(); } catch (e) { }
+    toast('Ergebnis übernommen');
+  }
   function evalMass(src) {
     var s0 = String(src == null ? '' : src).trim(); if (!s0) return { v: 0, empty: true };
     var tk = [], re = /\s*(\d+(?:[.,]\d+)?|[.,]\d+|[-+−*x×X\/:()])/y, m, pos = 0;
@@ -4613,6 +4677,11 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var a = e.target.closest('[data-act]');
     if (a) {
       var act = a.dataset.act;
+      if (act === 'calc-open') { calcOpen(); return; }
+      if (act === 'calc-close') { $('#calc').hidden = true; return; }
+      if (act === 'calc-key') { calcKey(a.dataset.k); return; }
+      if (act === 'calc-use') { calcUse(); return; }
+      if (act === 'calc-copy') { var cr = $('#calcRes').textContent; try { navigator.clipboard.writeText(cr).then(function () { toast('Kopiert: ' + cr); }, function () { toast(cr); }); } catch (e2) { toast(cr); } return; }
       if (act === 'tab') {
         // „Baustellen & Material“ zeigt die Liste, nicht das Aufmaß (dafür gibt es die eigene Kachel)
         if (a.dataset.tab === 'auftraege' && a.closest('#menuGrid') && state.fa.kind === 'aufmass') { state.fa.kind = state.fa.prev || 'kunde'; faSave(); }
@@ -4771,6 +4840,13 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
   });
   document.addEventListener('submit', function (e) { e.preventDefault(); if (draft && draft.coll === 'amstart') amStartGo(); else save(); });
   document.addEventListener('keydown', function (e) {
+    if (!$('#calc').hidden) {
+      if (e.key === 'Escape') { $('#calc').hidden = true; return; }
+      var km = { '*': '×', 'x': '×', '/': '÷', ':': '÷', '-': '−', '.': ',', 'Enter': '=', 'Backspace': '⌫', 'Delete': 'C' };
+      var kk = km[e.key] || e.key;
+      if (/^[0-9,+−×÷()=⌫C]$/.test(kk)) { e.preventDefault(); calcKey(kk); }
+      return;
+    }
     if (e.key === 'Escape' && !$('#pwDlg').hidden) { pwDone(false); return; }
     if (e.key === 'Escape' && !$('#viewer').hidden) { closeViewer(); return; }
     if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(true); return; }

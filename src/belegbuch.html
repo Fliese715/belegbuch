@@ -378,7 +378,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amcard .am-in { display: flex; gap: 4px; }
 .amcard .am-in input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); }
 .amcard .am-n input { font-family: var(--font-mono); text-align: right; }
-.amcard .am-plus { flex: none; width: 36px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--fab); border-radius: 8px; font-size: 22px; font-weight: 600; cursor: pointer; }
+.amcard .am-plus { flex: none; width: 34px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--fab); border-radius: 8px; font-size: 22px; font-weight: 600; cursor: pointer; }
 .amcard .am-abz { margin-top: 8px; }
 .amcard .am-res { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13.5px; text-align: right; overflow-wrap: anywhere; }
 .amcard .am-res .way { font-family: var(--font-mono); color: var(--muted); font-size: 12.5px; }
@@ -3496,7 +3496,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function amField(r, i, k, label, ph) {
     return '<label class="am-' + k + '">' + label + '<span class="am-in"><input type="text" inputmode="decimal" data-f="' + k + '" autocomplete="off" placeholder="' + ph + '" value="' + esc(r[k]) + '">' +
       '<button type="button" class="am-plus" data-act="am-plus" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': weiteres Maß addieren">+</button>' +
-      '<button type="button" class="am-plus" data-act="am-plus" data-op="−" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': Maß abziehen">−</button></span></label>';
+      '<button type="button" class="am-plus" data-act="am-plus" data-op="−" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': Maß abziehen">−</button>' +
+      (k === 'n' ? '' : '<button type="button" class="am-plus" data-act="am-plus" data-op="×" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': malnehmen">×</button>') + '</span></label>';
   }
   function renderAm() {
     var a = amSite();
@@ -3509,7 +3510,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         (stk ? '<div class="am-nums stk">' + amField(r, i, 'n', 'Anzahl (Stück)', 'z. B. 2 + 1') + '</div>' :
         '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
         (lfm ? '' : amField(r, i, 'b', /wand/i.test(amName(r.type)) ? 'Höhe (m)' : 'Breite (m)', /wand/i.test(amName(r.type)) ? 'z. B. 2,50' : 'z. B. 1,80')) +
-        '<label class="am-n">Anzahl<input type="text" inputmode="decimal" data-f="n" autocomplete="off" value="' + esc(r.n) + '"></label></div>' +
+        '<label class="am-n">Anzahl ×<input type="text" inputmode="decimal" data-f="n" autocomplete="off" title="Anzahl gleicher Flächen, z. B. 3 gleiche Bäder" value="' + esc(r.n) + '"></label></div>' +
         '<label class="am-abz">− Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Fläche in m² oder Breite x Höhe, z. B. Tür, Fenster, Dusche)') + '<span class="am-in"><input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 1,2 oder 0,885 x 2,01') + '" value="' + esc(r.abz) + '">' +
         '<button type="button" class="am-plus am-abzadd" data-act="am-plus" data-i="' + i + '" data-k="abz" aria-label="weiteren Abzug eintragen">+</button></span></label>') +
         '<div class="am-res" data-res>' + amWayHtml(r) + '</div></div>';
@@ -3518,7 +3519,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     $('#amBody').innerHTML = '<h2 id="sheetTitle">Aufmaß: ' + esc(a ? a.title : '') + '</h2>' +
       (a && a.party ? '<p class="hint" style="margin-bottom:6px">' + esc(a.party) + '</p>' : '') +
       '<div class="field" style="margin-bottom:10px"><label for="am-site">Adresse der Baustelle</label><input id="am-site" type="text" autocomplete="off" placeholder="Straße Nr., PLZ Ort" value="' + esc(draft.site) + '"></div>' +
-      '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Unter jeder Zeile steht der Rechenweg. Den Raum trägt die App selbst ein, sobald du ein Maß eingibst – bis du einen neuen Namen schreibst.</p>' +
+      '<p class="hint" style="margin-bottom:12px">Maße in Metern. Mehrere Maße addierst du mit <b>+</b> – zum Beispiel alle Wandlängen eines Raums: 2,45 + 1,80 + 2,45 + 1,80. Mit <b>−</b> ziehst du ab, mit <b>×</b> nimmst du mal (z. B. 1,20 × 4). Mehrere gleiche Flächen: rechts bei <b>Anzahl ×</b> eintragen. Unter jeder Zeile steht der Rechenweg. Den Raum trägt die App selbst ein, sobald du ein Maß eingibst – bis du einen neuen Namen schreibst.</p>' +
       '<datalist id="amRoomList">' + roomNames.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
       '<div class="amlist">' + cards + '</div>' +
       '<div class="addbar" style="margin-top:10px"><button type="button" class="btn small" data-act="am-add">+ Zeile im selben Raum</button><button type="button" class="btn small" data-act="am-room">+ Neuer Raum</button></div>' +
@@ -3560,6 +3561,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var v = String(r[k] || '').replace(/\s+$/, '');
     if (k === 'abz') { if (v && !/;$/.test(v)) v += '; '; }
     else if (op === '−') { if (/[-+−x×*:\/(]$/.test(v)) v = v.replace(/\s*[-+−x×*:\/]$/, ''); v += (v ? ' − ' : '−'); }
+    else if (op === '×') { v = v.replace(/\s*[-+−x×*:\/]$/, ''); if (v) v += ' × '; }
     else if (v && !/[-+−x×*:\/(]$/.test(v)) v += ' + ';
     r[k] = v; if (v) amAutoRoom(i);
     var inp = document.querySelector('#amBody .pos[data-i="' + i + '"] [data-f="' + k + '"]');

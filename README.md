@@ -126,7 +126,7 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Android-Browser PDFs im Rahmen nicht zeigen; pdf.js liegt im Offline-Speicher der installierten App.
 - **Rechner:** Knopf oben rechts (auch über offenen Formularen): + − × ÷, Klammern, Komma; Ergebnis kopieren oder ins zuletzt
   angetippte Zahlenfeld übernehmen (Betrag, Menge, Preis, Aufmaß-Maße).
-- **Aufmaß Minus:** Knopf „−“ neben „+“ an jedem Maß (Handy-Zifferntastatur hat kein Minus); Abzüge als Fläche oder B x H, mit „+“ für weitere.
+- **Aufmaß Minus/Mal:** Knöpfe „−“ und „×“ neben „+“ an jedem Maß (Handy-Zifferntastatur hat kein Minus); Abzüge als Fläche oder B x H, mit „+“ für weitere.
 - **Pauschalpreis:** Knopf „+ Pauschalpreis“ im Angebot (und Eintrag in der Auswahl der Rechnung): 1 psch, Betrag frei eingeben.
 - **Aufmaß-Kachel:** eigene Kachel im Startmenü (nach „Baustellen & Material“), öffnet die Aufmaß-Übersicht mit „+ Aufmaß“.
 - **Belege-Erinnerung:** Kachel in „Termine & Erledigen“ öffnet beim Antippen „+ Beleg“; grün wird sie, wenn heute

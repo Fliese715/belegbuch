@@ -357,7 +357,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amcard .am-top { display: flex; gap: 8px; align-items: center; }
 .amcard .am-top input { flex: 1 1 auto; min-width: 0; font-weight: 600; transition: background-color .4s; }
 .amcard .am-top input.auto { background: var(--accent-soft, var(--surface)); }
-.amcard .am-top select { flex: 0 0 auto; width: auto; }
+.amcard .am-top select { flex: 0 1 60%; width: 60%; min-width: 0; }
 .amcard .pc-x { flex: none; border: 0; background: transparent; color: var(--bad); font-size: 22px; width: 40px; min-height: 44px; cursor: pointer; }
 .amcard .am-nums { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px; gap: 8px; margin-top: 8px; }
 .amcard .am-nums.lfm { grid-template-columns: minmax(0, 1fr) 72px; }
@@ -365,7 +365,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
 .amcard .am-in { display: flex; gap: 4px; }
 .amcard .am-in input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); }
 .amcard .am-n input { font-family: var(--font-mono); text-align: right; }
-.amcard .am-plus { flex: none; width: 44px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--fab); border-radius: 8px; font-size: 22px; font-weight: 600; cursor: pointer; }
+.amcard .am-plus { flex: none; width: 36px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--fab); border-radius: 8px; font-size: 22px; font-weight: 600; cursor: pointer; }
 .amcard .am-abz { margin-top: 8px; }
 .amcard .am-res { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13.5px; text-align: right; overflow-wrap: anywhere; }
 .amcard .am-res .way { font-family: var(--font-mono); color: var(--muted); font-size: 12.5px; }
@@ -3431,7 +3431,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   }
   function amField(r, i, k, label, ph) {
     return '<label class="am-' + k + '">' + label + '<span class="am-in"><input type="text" inputmode="decimal" data-f="' + k + '" autocomplete="off" placeholder="' + ph + '" value="' + esc(r[k]) + '">' +
-      '<button type="button" class="am-plus" data-act="am-plus" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': weiteres Maß addieren">+</button></span></label>';
+      '<button type="button" class="am-plus" data-act="am-plus" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': weiteres Maß addieren">+</button>' +
+      '<button type="button" class="am-plus" data-act="am-plus" data-op="−" data-i="' + i + '" data-k="' + k + '" aria-label="' + label + ': Maß abziehen">−</button></span></label>';
   }
   function renderAm() {
     var a = amSite();
@@ -3445,7 +3446,8 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
         '<div class="am-nums' + (lfm ? ' lfm' : '') + '">' + amField(r, i, 'l', 'Länge (m)', lfm ? 'z. B. 2,45 + 1,80' : 'z. B. 2,45') +
         (lfm ? '' : amField(r, i, 'b', /wand/i.test(amName(r.type)) ? 'Höhe (m)' : 'Breite (m)', /wand/i.test(amName(r.type)) ? 'z. B. 2,50' : 'z. B. 1,80')) +
         '<label class="am-n">Anzahl<input type="text" inputmode="decimal" data-f="n" autocomplete="off" value="' + esc(r.n) + '"></label></div>' +
-        '<label class="am-abz">Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Tür, Fenster: Breite x Höhe)') + '<input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 0,885 x 2,01; 0,6 x 0,6') + '" value="' + esc(r.abz) + '"></label>') +
+        '<label class="am-abz">− Abzüge' + (lfm ? ' (Türbreite in m)' : ' (Fläche in m² oder Breite x Höhe, z. B. Tür, Fenster, Dusche)') + '<span class="am-in"><input type="text" data-f="abz" autocomplete="off" placeholder="' + (lfm ? 'z. B. 0,885' : 'z. B. 1,2 oder 0,885 x 2,01') + '" value="' + esc(r.abz) + '">' +
+        '<button type="button" class="am-plus am-abzadd" data-act="am-plus" data-i="' + i + '" data-k="abz" aria-label="weiteren Abzug eintragen">+</button></span></label>') +
         '<div class="am-res" data-res>' + amWayHtml(r) + '</div></div>';
     }).join('');
     var roomNames = []; draft.rows.forEach(function (r) { var n = String(r.room || '').trim(); if (n && roomNames.indexOf(n) < 0) roomNames.push(n); });
@@ -3489,10 +3491,12 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     }
   }
   /** „+“ am Maßfeld: hängt „ + “ an und setzt den Cursor ans Ende – das Handy-Zahlenfeld hat oft kein Plus. */
-  function amPlus(i, k) {
+  function amPlus(i, k, op) {
     var r = draft.rows[i]; if (!r) return;
     var v = String(r[k] || '').replace(/\s+$/, '');
-    if (v && !/[-+−x×*:\/(]$/.test(v)) v += ' + ';
+    if (k === 'abz') { if (v && !/;$/.test(v)) v += '; '; }
+    else if (op === '−') { if (/[-+−x×*:\/(]$/.test(v)) v = v.replace(/\s*[-+−x×*:\/]$/, ''); v += (v ? ' − ' : '−'); }
+    else if (v && !/[-+−x×*:\/(]$/.test(v)) v += ' + ';
     r[k] = v; if (v) amAutoRoom(i);
     var inp = document.querySelector('#amBody .pos[data-i="' + i + '"] [data-f="' + k + '"]');
     if (inp) { inp.value = v; inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (e) { /* manche Felder erlauben das nicht */ } }
@@ -4687,7 +4691,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
       else if (act === 'aufmass') openAufmass(a.dataset.id);
       else if (act === 'am-add') { draft.rows.push(newAmRow(draft.rows[draft.rows.length - 1])); renderAm(); amFocusLast('l'); }
       else if (act === 'am-room') { draft.rows.push(newAmRow()); renderAm(); amFocusLast('room'); }
-      else if (act === 'am-plus') amPlus(Number(a.dataset.i), a.dataset.k);
+      else if (act === 'am-plus') amPlus(Number(a.dataset.i), a.dataset.k, a.dataset.op);
       else if (act === 'k-edit') { var kid = a.dataset.id; fromAkte(kid, function () { openKunde(kid); }); }
       else if (act === 'k-new') akteNew(a.dataset.id, a.dataset.what);
       else if (act === 'am-type-add') { if (a.dataset.name) amTypeAdd(a.dataset.name, a.dataset.unit); else amTypeAdd(val('am-tname'), val('am-tunit')); }

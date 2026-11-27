@@ -124,6 +124,7 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Betrag auch, wenn er im PDF-Text vor „Gesamtbetrag“ steht; die eigene Adresse wird auch als „Kirchstr.“ erkannt.
 - **Beleg-PDF ansehen:** PDFs von Belegen und Ordnern zeichnet die App selbst (pdf.js, Seiten als Bilder), weil
   Android-Browser PDFs im Rahmen nicht zeigen; pdf.js liegt im Offline-Speicher der installierten App.
+- **Aufmaß Minus:** Knopf „−“ neben „+“ an jedem Maß (Handy-Zifferntastatur hat kein Minus); Abzüge als Fläche oder B x H, mit „+“ für weitere.
 - **Pauschalpreis:** Knopf „+ Pauschalpreis“ im Angebot (und Eintrag in der Auswahl der Rechnung): 1 psch, Betrag frei eingeben.
 - **Aufmaß-Kachel:** eigene Kachel im Startmenü (nach „Baustellen & Material“), öffnet die Aufmaß-Übersicht mit „+ Aufmaß“.
 - **Belege-Erinnerung:** Kachel in „Termine & Erledigen“ öffnet beim Antippen „+ Beleg“; grün wird sie, wenn heute

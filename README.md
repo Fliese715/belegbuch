@@ -124,6 +124,8 @@ App öffnen: https://fliese715.github.io/belegbuch/
   Betrag auch, wenn er im PDF-Text vor „Gesamtbetrag“ steht; die eigene Adresse wird auch als „Kirchstr.“ erkannt.
 - **Beleg-PDF ansehen:** PDFs von Belegen und Ordnern zeichnet die App selbst (pdf.js, Seiten als Bilder), weil
   Android-Browser PDFs im Rahmen nicht zeigen; pdf.js liegt im Offline-Speicher der installierten App.
+- **Aufmaß → Rechnung:** Knopf „In Rechnung übernehmen“ im Aufmaß: offener Rechnungsentwurf bekommt die Mengen,
+  sonst neue Rechnung (Preise aus dem Angebot der Baustelle, sonst Preisliste).
 - **Rechner:** Knopf oben rechts (auch über offenen Formularen): + − × ÷, Klammern, Komma; Ergebnis kopieren oder ins zuletzt
   angetippte Zahlenfeld übernehmen (Betrag, Menge, Preis, Aufmaß-Maße).
 - **Aufmaß Minus/Mal:** Knöpfe „−“ und „×“ neben „+“ an jedem Maß (Handy-Zifferntastatur hat kein Minus); Abzüge als Fläche oder B x H, mit „+“ für weitere.

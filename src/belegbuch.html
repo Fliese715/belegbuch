@@ -3602,6 +3602,13 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
   function addPos(v) {
     var A = draft.a;
     if (v === '__free') A.positions.push({ katId: '', art: 'material', text: '', unit: 'Std', qty: 1, price: 0 });
+    else if (v === '__psch') {
+      var pa = A.auftragId && state.data.auftraege.find(function (x) { return x.id === A.auftragId; });
+      A.positions.push({ katId: '', art: 'lohn', text: 'Fliesenarbeiten' + (pa && pa.title ? ' ' + pa.title : '') + ' pauschal laut Vorgabe', unit: 'psch', qty: 1, price: 0 });
+      renderAng();
+      var pr = document.querySelectorAll('#angBody .pos [data-pf="price"]'); if (pr.length) { pr[pr.length - 1].focus(); try { pr[pr.length - 1].select(); } catch (e) { } }
+      return;
+    }
     else { var c = catItem(v); if (!c) return; A.positions.push({ katId: c.id, art: 'lohn', text: c.text, unit: c.unit, qty: basisQty(c, A.auftragId), price: priceFor(c, A.region, A.ckind) }); }
     renderAng();
   }
@@ -3748,6 +3755,7 @@ textarea { width: 100%; padding: 10px 12px; background: var(--surface); border: 
     var s2 = amPanelHtml(A, a) + '<h3 class="section-h" style="margin-top:4px">Was bietest du an?</h3>' + reRows(A) +
       '<div class="addbar" style="margin-top:4px"><select id="angAdd" aria-label="Leistung aus Preisliste hinzufügen">' + opts + '</select>' +
       '<button type="button" class="btn small" data-act="ang-free">+ Freie Position</button>' +
+      '<button type="button" class="btn small" data-act="ang-psch">+ Pauschalpreis</button>' +
       '</div>' +
       '<div class="grid2 stack" style="margin-top:14px"><div class="field"><label for="a-disc">Rabatt (%)</label><input id="a-disc" type="text" inputmode="decimal" data-h="discount" autocomplete="off" placeholder="0" value="' + (A.discount ? fmtQ(A.discount) : '') + '"></div>' +
       '<div class="field"><label for="a-vat">Umsatzsteuer</label><select id="a-vat" data-h="vat"><option value="19"' + (Number(A.vat) === 19 ? ' selected' : '') + '>19 %</option><option value="7"' + (Number(A.vat) === 7 ? ' selected' : '') + '>7 %</option><option value="0"' + (Number(A.vat) === 0 ? ' selected' : '') + '>0 % (ohne Ausweis)</option></select></div></div>' +
@@ -4440,7 +4448,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
     var c = calcAng(A), m = reMailParts(A, c), T = RE_LABEL[reType(A)];
     var overdue = A.status === 'Gestellt' && A.due && A.due < today();
     function inp(id, key, label, type, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + (type || 'text') + '" data-h="' + key + '" autocomplete="off" value="' + esc(A[key] || '') + '"' + (extra || '') + '></div>'; }
-    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + catOptions(false) + '<option value="__free">Freie Position</option>';
+    var opts = '<option value="">Leistung aus Preisliste hinzufügen …</option>' + catOptions(false) + '<option value="__free">Freie Position</option><option value="__psch">Pauschalpreis (Betrag frei eingeben)</option>';
     var badge = A.status === 'Bezahlt' ? 'good' : A.status === 'Storniert' ? 'bad' : A.status === 'Entwurf' ? 'warn' : '';
     var actions;
     if (!locked) actions = (draft.id ? '<button type="button" class="btn danger left" data-act="re-del">Löschen</button>' : '') +
@@ -4698,6 +4706,7 @@ var XS = [20, 29, 120, 138, 154, 172, 190], top = y - 4;
         if (!/^\d{5}$/.test(pv)) { toast('Bitte eine fünfstellige PLZ eingeben'); }
         else if (pp) { plzSet(a.dataset.f, plzAddr(pp, { plz: pv, town: pp.town })); $('#plz-' + a.dataset.f).innerHTML = '<span class="hint">PLZ eingefügt.</span>'; }
       }
+      else if (act === 'ang-psch') addPos('__psch');
       else if (act === 'ang-free') { addPos('__free'); var fl = document.querySelectorAll('#angBody .pos textarea[data-pf="text"]'); if (fl.length) fl[fl.length - 1].focus(); }
       else if (act === 'ang-step') angStep(Number(a.dataset.step));
       else if (act === 'ang-del-pos') { draft.a.positions.splice(Number(a.dataset.i), 1); renderAng(); }
